@@ -1,0 +1,90 @@
+name: Diagnose Bot
+
+# چک ۳۰ ثانیه‌ای: این توکن مال کدام ربات است و آیا کسی پیام‌ها را می‌خواند؟
+# Actions → Diagnose Bot → Run workflow  (فقط خواندنی — هیچ تغییری نمی‌دهد و
+# عمداً getUpdates صدا زده نمی‌شود تا با رباتِ در حال اجرا تداخل نکند)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: هویت ربات و وضعیت صف آپدیت‌ها
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          TG_DB_KEY: ${{ secrets.TG_DB_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+
+          token = (os.environ.get("BOT_TOKEN") or "").strip()
+
+          def note(level, title, msg):
+              print(f"::{level} title={title}::{msg}", flush=True)
+
+          if not token:
+              note("error", "BOT_TOKEN تنظیم نشده", "Settings → Secrets and variables → Actions → BOT_TOKEN")
+              raise SystemExit(0)
+
+          note("notice", "طول توکن", f"{len(token)} کاراکتر")
+          note("notice", "ADMIN_USER_ID", (os.environ.get("ADMIN_USER_ID") or "⚠️ تنظیم نشده"))
+          note("notice", "TG_DB_KEY", ("✅ تنظیم شده" if (os.environ.get("TG_DB_KEY") or "").strip() else "⚠️ تنظیم نشده"))
+
+          def call(method, payload=None):
+              url = f"https://api.telegram.org/bot{token}/{method}"
+              data = json.dumps(payload).encode() if payload is not None else None
+              req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return json.loads(r.read().decode())
+              except urllib.error.HTTPError as e:
+                  try:
+                      return json.loads(e.read().decode() or "{}")
+                  except Exception:
+                      return {"ok": False, "description": f"HTTP {e.code}"}
+              except Exception as e:
+                  return {"ok": False, "description": str(e)}
+
+          me = call("getMe")
+          if me.get("ok"):
+              r = me.get("result") or {}
+              uname = r.get("username") or "?"
+              note("notice", "✅ این توکن مال این ربات است",
+                   f"@{uname} (id={r.get('id')}, name={r.get('first_name') or '-'})")
+              note("warning", "فقط همین آدرس را در تلگرام باز کن",
+                   f"https://t.me/{uname}")
+          else:
+              note("error", "getMe ناموفق — توکن معتبر نیست", str(me)[:300])
+              raise SystemExit(0)
+
+          hook = call("getWebhookInfo")
+          if hook.get("ok"):
+              h = hook.get("result") or {}
+              note(
+                  "warning",
+                  "وضعیت صف پیام‌ها (pending_update_count)",
+                  f"pending={h.get('pending_update_count', 0)} | webhook={(h.get('url') or 'خالی (خوب است، حالت polling)')} "
+                  f"| last_error={h.get('last_error_message') or '-'}",
+              )
+
+          cmd = call("getMyCommands")
+          if cmd.get("ok"):
+              n = len((cmd.get("result") or []))
+              note("notice", "دکمه منوی دستورات", f"{n} دستور ثبت شده" + ("" if n else " — ربات هنوز یک‌بار کامل بالا نیامده"))
+
+          desc = call("getMyDescription")
+          if desc.get("ok"):
+              has = bool(((desc.get("result") or {}).get("description") or "").strip())
+              note("notice", "توضیحات ربات در BotFather", "✅ تنظیم شده" if has else "— خالی (اختیاری)")
+          PY

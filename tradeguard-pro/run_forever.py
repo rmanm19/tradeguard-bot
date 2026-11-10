@@ -218,6 +218,8 @@ def main() -> int:
                     if ("unauthorized" in low or '"error_code":401' in low.replace(" ", "")) and not fatal_reason:
                         fatal_reason = "توکن ربات با تلگرام نمی‌خواند (401 Unauthorized)"
                     if any(m in low for m in READY_MARKERS):
+                        if not ran_ok:
+                            print("::notice title=ربات متصل شد::آماده دریافت پیام — در تلگرام /start بزنید", flush=True)
                         ran_ok = True
                         if fast_crashes:
                             fast_crashes = 0
@@ -289,6 +291,12 @@ def main() -> int:
 
         wait = backoff if fast_crashes else 3
         log(f"↻  ری‌استارت در {wait} ثانیه (کد خروج {rc})")
+        if fast_crashes:
+            print(
+                f"::warning title=ری‌استارت #{restarts}::ربات {int(lived)} ثانیه زنده ماند و با کد {rc} مرد — "
+                f"تلاش بعدی تا {wait} ثانیه دیگر",
+                flush=True,
+            )
         for _ in range(int(wait * 2)):
             if stopping["flag"]:
                 break
