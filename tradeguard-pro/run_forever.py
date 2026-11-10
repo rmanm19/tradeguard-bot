@@ -210,7 +210,9 @@ def main() -> int:
             for line in child.stdout:
                 line = line.rstrip("\n")
                 if line:
-                    log("   " + line)
+                    # خطوط دستورِ GitHub Actions (::error:: …) نباید تودرتو شوند،
+                    # وگرنه Annotation در صفحه اجرا نمایش داده نمی‌شود
+                    log(line if line.lstrip().startswith("::") else "   " + line)
                     low = line.lower()
                     if any(m in low for m in READY_MARKERS):
                         ran_ok = True
