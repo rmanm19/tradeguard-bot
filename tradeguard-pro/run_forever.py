@@ -172,6 +172,7 @@ def main() -> int:
 
     t_start = time.time()
     restarts = 0
+    fatal_reason = ""        # خطای «خودش درست نمی‌شود» → تلاش مجدد بی‌فایده است
     fast_crashes = 0
     backoff = 5
     last_alert = 0.0
@@ -214,6 +215,8 @@ def main() -> int:
                     # وگرنه Annotation در صفحه اجرا نمایش داده نمی‌شود
                     log(line if line.lstrip().startswith("::") else "   " + line)
                     low = line.lower()
+                    if ("unauthorized" in low or '"error_code":401' in low.replace(" ", "")) and not fatal_reason:
+                        fatal_reason = "توکن ربات با تلگرام نمی‌خواند (401 Unauthorized)"
                     if any(m in low for m in READY_MARKERS):
                         ran_ok = True
                         if fast_crashes:
@@ -246,6 +249,17 @@ def main() -> int:
             log(f"■  اجرای تک‌باره تمام شد (کد {rc})")
             write_state(status="stopped", last_exit=f"rc={rc}")
             return 0
+
+        if fatal_reason or rc in (2, 3):
+            reason = fatal_reason or ("BOT_TOKEN تنظیم نشده" if rc == 2 else "اتصال به تلگرام برقرار نشد")
+            log(f"⛔ توقف بدون تلاش مجدد: {reason}")
+            log("   → توکن BotFather را دوباره بردارید و Secret با نام BOT_TOKEN را به‌روز کنید")
+            log("   → GitHub ─ Settings ─ Secrets and variables ─ Actions ─ BOT_TOKEN")
+            if not args.no_alert:
+                tg_notify(env, f"⛔ <b>TradeGuard</b>\n{reason}\n"
+                               "توکن را در Secret با نام <code>BOT_TOKEN</code> به‌روز کنید.")
+            write_state(status="stopped", pid=None, last_exit=f"rc={rc} ({reason})")
+            return 1
 
         restarts += 1
         write_state(restarts=restarts, last_exit=f"rc={rc} after {int(lived)}s", pid=None, status="restarting")
