@@ -1,0 +1,143 @@
+name: TradeGuard Bot
+
+# ─────────────────────────────────────────────────────────────
+#  زنجیره بی‌پایان: هر جاب ~۵ ساعت و ۵۵ دقیقه کار می‌کند و جاب
+#  بعدی (که از قبل در صف است) بلافاصله جایش را می‌گیرد.
+# ─────────────────────────────────────────────────────────────
+on:
+  workflow_dispatch:
+  schedule:
+    # هر ساعت در دقیقه ۵ — فقط برای پر کردن «صف» استفاده می‌شود؛
+    # چون concurrency اجازه نمی‌دهد دو نمونه همزمان اجرا شوند،
+    # در عمل هر بار دقیقاً یک نمونه در حال اجرا و یکی در انتظار است.
+    - cron: "5 * * * *"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# این بخش قلب تپنده ربات است:
+#   cancel-in-progress: false  ⇒  جاب در حال اجرا هرگز قطع نمی‌شود
+concurrency:
+  group: tradeguard-bot
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  bot:
+    name: 🛡 ربات تلگرام (۲۴/۷)
+    runs-on: ubuntu-latest
+    # سقف سخت گیت‌هاب ۶ ساعت است. ربات خودش در دقیقه ۳۵۵ تمیز خارج می‌شود
+    # تا مرحله پشتیبان‌گیری دیتابیس هرگز با تایم‌اوت قطع نشود.
+    timeout-minutes: 358
+
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+      TG_DB_KEY: ${{ secrets.TG_DB_KEY }}
+      MINI_APP_URL: ${{ secrets.MINI_APP_URL }}
+      PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+      SUBSCRIPTION_STARS: ${{ secrets.SUBSCRIPTION_STARS }}
+      FREE_PRO_INVITE_TARGET: ${{ secrets.FREE_PRO_INVITE_TARGET }}
+      AI_API_BASE: ${{ secrets.AI_API_BASE }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      AI_MODEL: ${{ secrets.AI_MODEL }}
+
+    steps:
+      - name: دریافت کد
+        uses: actions/checkout@v4
+
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ── ۱) بررسی اجباری‌ها ───────────────────────────────────
+      - name: بررسی Secret اجباری
+        run: |
+          if [ -z "${BOT_TOKEN}" ]; then
+            echo "::error title=BOT_TOKEN تنظیم نشده::بدون توکن ربات هیچ‌کاری نمی‌کند. Settings → Secrets and variables → Actions → New repository secret → Name: BOT_TOKEN"
+            exit 1
+          fi
+          if ! printf '%s' "$BOT_TOKEN" | grep -qE '^[0-9]{5,}:[A-Za-z0-9_-]{30,}$'; then
+            echo "::warning title=فرمت BOT_TOKEN مشکوک است::قالب درست: 123456789:AAH... (عدد، دو نقطه، رشته بلند). ادامه می‌دهیم تا خطای واقعی تلگرام دیده شود."
+          fi
+          echo "✅ BOT_TOKEN موجود است (${#BOT_TOKEN} کاراکتر)"
+
+      # ── ۲) تست سلامت کد (بدون شبکه، چند ثانیه) ─────────────
+      - name: سلف‌تست آفلاین
+        working-directory: tradeguard-pro
+        run: |
+          python db_crypt.py selftest
+          python selftest_offline.py
+
+      # ── ۳) برگرداندن دیتابیس از کش ──────────────────────────
+      - name: بازیابی دیتابیس رمزنگاری‌شده
+        uses: actions/cache/restore@v4
+        with:
+          path: tradeguard-pro/.dbcache
+          key: tgdb-${{ github.run_id }}
+          restore-keys: |
+            tgdb-
+
+      - name: رمزگشایی دیتابیس
+        working-directory: tradeguard-pro
+        run: |
+          mkdir -p .dbcache
+          if [ -f .dbcache/tradeguard.db.enc ]; then
+            if python db_crypt.py decrypt .dbcache/tradeguard.db.enc tradeguard.db; then
+              echo "✅ دیتابیس قبلی بازیابی شد"
+            else
+              rm -f tradeguard.db
+              echo "::warning title=رمزگشایی ناموفق::کلید (TG_DB_KEY یا BOT_TOKEN) عوض شده است؛ با دیتابیس تازه شروع می‌کنیم. برای حفظ کاربران، TG_DB_KEY را ثابت نگه دارید."
+            fi
+          else
+            echo "ℹ️ کش خالی است — اولین اجرا، دیتابیس تازه ساخته می‌شود"
+          fi
+
+      # ── ۴) اجرای ربات (۳۵۵ دقیقه) ──────────────────────────
+      - name: اجرای ربات
+        id: run_bot
+        working-directory: tradeguard-pro
+        run: |
+          python run_forever.py --max-seconds 21300 || echo "BOT_EXIT=$?" >> "$GITHUB_OUTPUT"
+
+      # ── ۵) پشتیبان‌گیری (حتی اگر جاب شکست بخورد) ────────────
+      - name: رمزنگاری دیتابیس
+        if: always()
+        working-directory: tradeguard-pro
+        run: |
+          mkdir -p .dbcache
+          if [ -f tradeguard.db ]; then
+            python db_crypt.py encrypt tradeguard.db .dbcache/tradeguard.db.enc || \
+              echo "::warning title=پشتیبان‌گیری ناموفق::دیتابیس رمزنگاری نشد (کلید خالی است؟)"
+          else
+            echo "ℹ️ دیتابیسی برای پشتیبان‌گیری وجود ندارد"
+          fi
+          ls -lh .dbcache/ 2>/dev/null || true
+
+      - name: ذخیره دیتابیس در کش
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tradeguard-pro/.dbcache
+          key: tgdb-${{ github.run_id }}
+
+      - name: خلاصه اجرا
+        if: always()
+        run: |
+          {
+            echo "### 🛡 TradeGuard Bot"
+            echo ""
+            echo "| مورد | مقدار |"
+            echo "|---|---|"
+            echo "| وضعیت جاب | \`${{ job.status }}\` |"
+            echo "| کد خروج ربات | \`${{ steps.run_bot.outputs.BOT_EXIT || '0' }}\` |"
+            echo "| اجرا | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo ""
+            echo "جاب بعدی از قبل در صف است و بلافاصله ادامه می‌دهد."
+          } >> "$GITHUB_STEP_SUMMARY"

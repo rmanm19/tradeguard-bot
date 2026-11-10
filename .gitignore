@@ -1,0 +1,23 @@
+# ── اسرار و دیتابیس (هرگز کامیت نشوند) ──
+tradeguard-pro/.env
+.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+tradeguard-pro/.dbcache/
+*.enc
+
+# ── فایل‌های اجرا/لاگ ──
+tradeguard-pro/bot_run.log*
+tradeguard-pro/supervisor_state.json
+
+# ── پایتون ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ── سیستم ──
+.DS_Store
+Thumbs.db
