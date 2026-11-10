@@ -58,10 +58,26 @@ jobs:
 
       # ── ۱) بررسی اجباری‌ها ───────────────────────────────────
       - name: بررسی Secret اجباری
+        id: preflight
         run: |
           if [ -z "${BOT_TOKEN}" ]; then
-            echo "::error title=BOT_TOKEN تنظیم نشده::بدون توکن ربات هیچ‌کاری نمی‌کند. Settings → Secrets and variables → Actions → New repository secret → Name: BOT_TOKEN"
-            exit 1
+            echo "SKIP_BOT=1" >> "$GITHUB_ENV"
+            echo "::warning title=ربات روشن نشد: BOT_TOKEN تنظیم نشده::Settings → Secrets and variables → Actions → New repository secret → Name: BOT_TOKEN — مقدارش توکن BotFather است"
+            {
+              echo "## ⚠️ ربات روشن نشد — یک Secret کم است"
+              echo ""
+              echo "**BOT_TOKEN** هنوز تنظیم نشده. بدون آن هیچ رباتی نمی‌تواند به تلگرام وصل شود."
+              echo ""
+              echo "1. برو به [Settings → Secrets → Actions](https://github.com/${{ github.repository }}/settings/secrets/actions/new)"
+              echo "2. Name: \`BOT_TOKEN\` — Secret: توکنی که [@BotFather](https://t.me/BotFather) داده"
+              echo "3. دستور \`/newbot\` → یوزرنیم که به \`bot\` ختم شود → توکن"
+              echo "4. اختیاری ولی توصیه‌شده: \`ADMIN_USER_ID\` = آیدی عددی خودت از [@userinfobot](https://t.me/userinfobot)"
+              echo ""
+              echo "بعد از گذاشتن Secret، این workflow خودش در ساعت بعدی (یا با Run workflow) روشن می‌شود."
+              echo ""
+              echo "راهنمای کامل: [ACTIVATION_FA.md](https://github.com/${{ github.repository }}/blob/main/ACTIVATION_FA.md)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           if ! printf '%s' "$BOT_TOKEN" | grep -qE '^[0-9]{5,}:[A-Za-z0-9_-]{30,}$'; then
             echo "::warning title=فرمت BOT_TOKEN مشکوک است::قالب درست: 123456789:AAH... (عدد، دو نقطه، رشته بلند). ادامه می‌دهیم تا خطای واقعی تلگرام دیده شود."
@@ -70,6 +86,7 @@ jobs:
 
       # ── ۲) تست سلامت کد (بدون شبکه، چند ثانیه) ─────────────
       - name: سلف‌تست آفلاین
+        if: env.SKIP_BOT != '1'
         working-directory: tradeguard-pro
         run: |
           python db_crypt.py selftest
@@ -77,6 +94,7 @@ jobs:
 
       # ── ۳) برگرداندن دیتابیس از کش ──────────────────────────
       - name: بازیابی دیتابیس رمزنگاری‌شده
+        if: env.SKIP_BOT != '1'
         uses: actions/cache/restore@v4
         with:
           path: tradeguard-pro/.dbcache
@@ -85,6 +103,7 @@ jobs:
             tgdb-
 
       - name: رمزگشایی دیتابیس
+        if: env.SKIP_BOT != '1'
         working-directory: tradeguard-pro
         run: |
           mkdir -p .dbcache
@@ -102,13 +121,14 @@ jobs:
       # ── ۴) اجرای ربات (۳۵۵ دقیقه) ──────────────────────────
       - name: اجرای ربات
         id: run_bot
+        if: env.SKIP_BOT != '1'
         working-directory: tradeguard-pro
         run: |
           python run_forever.py --max-seconds 21300 || echo "BOT_EXIT=$?" >> "$GITHUB_OUTPUT"
 
       # ── ۵) پشتیبان‌گیری (حتی اگر جاب شکست بخورد) ────────────
       - name: رمزنگاری دیتابیس
-        if: always()
+        if: always() && env.SKIP_BOT != '1' 
         working-directory: tradeguard-pro
         run: |
           mkdir -p .dbcache
@@ -121,7 +141,7 @@ jobs:
           ls -lh .dbcache/ 2>/dev/null || true
 
       - name: ذخیره دیتابیس در کش
-        if: always()
+        if: always() && env.SKIP_BOT != '1' 
         uses: actions/cache/save@v4
         with:
           path: tradeguard-pro/.dbcache
