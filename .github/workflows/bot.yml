@@ -124,7 +124,19 @@ jobs:
         if: env.SKIP_BOT != '1'
         working-directory: tradeguard-pro
         run: |
-          python run_forever.py --max-seconds 21300 || echo "BOT_EXIT=$?" >> "$GITHUB_OUTPUT"
+          set +e
+          python -u run_forever.py --max-seconds 21300 2>&1 | tee /tmp/bot_ci.log
+          rc=${PIPESTATUS[0]}
+          echo "BOT_EXIT=$rc" >> "$GITHUB_OUTPUT"
+
+          # اگر ربات زودتر از موعد مرد، باید *دلیلش* را ببینید، نه فقط X قرمز
+          if [ "$rc" -ne 0 ]; then
+            echo "::error title=ربات بالا نیامد (کد خروج $rc)::علت در پیام‌های بعدی — لاگ کامل هم در Artifact هست"
+            tail -n 30 /tmp/bot_ci.log | tr -d '\r' | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$(echo "$line" | sed 's/%/%25/g')"
+            done
+          fi
+          exit "$rc"
 
       # ── ۵) پشتیبان‌گیری (حتی اگر جاب شکست بخورد) ────────────
       - name: رمزنگاری دیتابیس
@@ -146,6 +158,17 @@ jobs:
         with:
           path: tradeguard-pro/.dbcache
           key: tgdb-${{ github.run_id }}
+
+      - name: آپلود لاگ ربات
+        if: always() && env.SKIP_BOT != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-log-${{ github.run_id }}
+          path: |
+            /tmp/bot_ci.log
+            tradeguard-pro/bot_run.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: خلاصه اجرا
         if: always()
