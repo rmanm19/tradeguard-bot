@@ -76,7 +76,12 @@ def save_env_var(key: str, val: str) -> None:
                 lines.append(raw)
     if not found:
         lines.append(f"{key}={val}")
-    ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+    # .env روی GitHub Actions با هر جاب پاک می‌شود؛ نسخه پایدار در دیتابیس می‌رود
+    set_setting(key, val)
 
 
 load_env_file(ENV_PATH)
@@ -609,6 +614,41 @@ def init_db() -> None:
             """
         )
 
+        # تنظیمات زمان اجرا (/seturl، /price، /setchannel، ادمین) — چون هر
+        # جاب GitHub Actions از صفر شروع می‌شود، این‌ها باید در دیتابیس بمانند
+        # تا با ری‌استارت هر ۶ ساعت به حالت اول برنگردند.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
+
+
+def set_setting(key: str, value: str) -> None:
+    """ذخیره تنظیم در دیتابیس (پایدار بین ری‌استارت‌ها و اجراهای Actions)."""
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                (key, str(value), int(time.time())),
+            )
+    except Exception as exc:
+        logger.warning("ذخیره تنظیم %s در دیتابیس ناموفق: %s", key, exc)
+
+
+def get_setting(key: str, default: str = "") -> str:
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return str(row[0]) if row and row[0] is not None else default
+    except Exception:
+        return default
+
 
 def get_user_lang(user_id: int, fallback_tg_code: Optional[str] = None) -> str:
     with _db_lock, sqlite3.connect(DB_PATH) as conn:
@@ -694,6 +734,44 @@ def is_user_pro(user_id: int) -> Tuple[bool, int]:
             return False, 0
         pro_until = int(row[0] or 0)
         return pro_until > now, pro_until
+
+
+def is_admin(user_id: int | str) -> bool:
+    """آیا این کاربر مؤسس ربات است؟ (فقط با ADMIN_USER_ID تنظیم‌شده)"""
+    return bool(ADMIN_USER_ID) and str(user_id) == ADMIN_USER_ID
+
+
+def remember_first_user(user_id: int) -> None:
+    """
+    ثبت «اولین کاربر ربات» — یک‌بار و برای همیشه.
+    نکته: در این دیتابیس user_id همان rowid است، پس نمی‌شود ترتیب درج را
+    از rowid فهمید؛ برای همین اولین /start را صریح ذخیره می‌کنیم.
+    """
+    try:
+        if not get_setting("first_user_id"):
+            set_setting("first_user_id", str(int(user_id)))
+    except Exception:
+        pass
+
+
+def is_first_user(user_id: int) -> bool:
+    """اولین کاربری که ربات را استارت کرده — تنها کسی که اجازه «ادعای ادمینی» دارد."""
+    try:
+        saved = get_setting("first_user_id")
+        if saved:
+            return str(int(user_id)) == saved
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute("SELECT user_id FROM users ORDER BY created_at ASC LIMIT 1").fetchone()
+        return bool(row) and int(row[0]) == int(user_id)
+    except Exception:
+        return False
+
+
+ADMIN_DENIED = (
+    "⛔ دسترسی فقط برای مؤسس ربات مجاز است.\n\n"
+    "اگر صاحب ربات هستید: GitHub → Settings → Secrets and variables → Actions → "
+    "New repository secret → Name: `ADMIN_USER_ID` و آیدی عددی خودتان (از @userinfobot) را بگذارید."
+)
 
 
 def activate_pro_subscription(user_id: int, stars: int, charge_id: str, days: int = 30) -> Tuple[int, bool]:
@@ -1093,6 +1171,7 @@ def handle_message(msg: dict) -> None:
                 ref_id = None
 
         is_new, valid_ref, ref_count, unlocked_now = register_user_and_check_referral(uid, uname, tg_lang, ref_id)
+        remember_first_user(uid)
         lang = get_user_lang(uid, tg_lang)
 
         if is_new and valid_ref:
@@ -1216,9 +1295,10 @@ def handle_message(msg: dict) -> None:
 
     if text.startswith("/admin"):
         uid_str = str(uid)
-        if ADMIN_USER_ID and uid_str != ADMIN_USER_ID:
-            tg_send_message(chat_id, "⛔ دسترسی فقط برای مؤسس ربات مجاز است.")
-            return
+        if not is_admin(uid):
+            if ADMIN_USER_ID or not is_first_user(uid):
+                tg_send_message(chat_id, ADMIN_DENIED)
+                return
         now = int(time.time())
         with _db_lock, sqlite3.connect(DB_PATH) as conn:
             total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -1253,7 +1333,7 @@ def handle_message(msg: dict) -> None:
         return
 
     if text.startswith("/seturl"):
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز به تغییر لینک مینی‌اپ است.")
             return
         parts = text.split(maxsplit=1)
@@ -1274,7 +1354,7 @@ def handle_message(msg: dict) -> None:
 
     if text.startswith("/stars"):
         lang = get_user_lang(uid, tg_lang)
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         bal = tg_call("getMyStarBalance")
@@ -1322,7 +1402,7 @@ def handle_message(msg: dict) -> None:
 
     if text.startswith("/price"):
         lang = get_user_lang(uid, tg_lang)
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         parts = text.split()
@@ -1371,7 +1451,7 @@ def handle_message(msg: dict) -> None:
         return
 
     if text.startswith("/channel"):
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         validate_channel_target(silent=True)
@@ -1390,7 +1470,7 @@ def handle_message(msg: dict) -> None:
         return
 
     if text.startswith("/setchannel"):
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         parts = text.split(maxsplit=1)
@@ -1421,7 +1501,7 @@ def handle_message(msg: dict) -> None:
         return
 
     if text.startswith("/grantpro"):
-        if ADMIN_USER_ID and str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         parts = text.split()
@@ -1433,7 +1513,7 @@ def handle_message(msg: dict) -> None:
         return
 
     if text.startswith("/broadcast"):
-        if not ADMIN_USER_ID or str(uid) != ADMIN_USER_ID:
+        if not is_admin(uid):
             tg_send_message(chat_id, "⛔ ابتدا دستور `/admin` را بزنید و روی دکمه «ثبت من به عنوان ادمین اصلی» کلیک کنید.")
             return
         parts = text.split(maxsplit=1)
@@ -1494,17 +1574,28 @@ def handle_callback(cb: dict) -> None:
     lang = get_user_lang(uid, tg_lang)
 
     if data == "claim_admin":
-        if not ADMIN_USER_ID:
-            ADMIN_USER_ID = str(uid)
-            save_env_var("ADMIN_USER_ID", ADMIN_USER_ID)
-            tg_answer_callback(cb_id, "👑 شما به عنوان ادمین اصلی ثبت شدید!", show_alert=True)
-            tg_send_message(
-                chat_id,
-                f"✅ *تبریک! اکانت شما (`{ADMIN_USER_ID}`) به عنوان مؤسس اصلی قفل شد و اشتراک VIP دائمی برایتان فعال گردید!*",
-                reply_markup=main_keyboard(True, lang),
+        if ADMIN_USER_ID:
+            tg_answer_callback(cb_id, "ادمین قبلاً ثبت شده است.", show_alert=True)
+            return
+        # فقط اولین کاربر ربات (صاحب ربات) می‌تواند ادمین شود — جلوی تصاحب ربات را می‌گیرد
+        if not is_first_user(uid):
+            tg_answer_callback(
+                cb_id,
+                "⛔ فقط اولین کاربر ربات می‌تواند مؤسس شود. "
+                "صاحب ربات باید ADMIN_USER_ID را در Secret بگذارد.",
+                show_alert=True,
             )
-        else:
-            tg_answer_callback(cb_id, "ادمین قبلاً ثبت شده است.")
+            return
+        ADMIN_USER_ID = str(uid)
+        save_env_var("ADMIN_USER_ID", ADMIN_USER_ID)  # .env + دیتابیس (پایدار)
+        tg_answer_callback(cb_id, "👑 شما به عنوان ادمین اصلی ثبت شدید!", show_alert=True)
+        tg_send_message(
+            chat_id,
+            f"✅ *تبریک! اکانت شما (`{ADMIN_USER_ID}`) به عنوان مؤسس اصلی قفل شد و اشتراک VIP دائمی برایتان فعال گردید!*\n\n"
+            f"🔐 برای اینکه این دسترسی بعد از هر ری‌استارت هم بماند، "
+            f"`ADMIN_USER_ID={ADMIN_USER_ID}` را در Secretهای گیت‌هاب بگذارید.",
+            reply_markup=main_keyboard(True, lang),
+        )
         return
 
     if data == "app_not_set":
@@ -1711,9 +1802,47 @@ def process_update(upd: dict) -> None:
         logger.warning("Update error: %s", exc)
 
 
+def _gh_error(title: str, detail: str) -> None:
+    """خطای قابل‌دیدن در GitHub Actions (Annotation قرمز روی صفحه اجرا)."""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::error title={title}::{detail}", flush=True)
+
+
+def apply_persisted_settings() -> None:
+    """
+    تنظیمات ذخیره‌شده در دیتابیس را برمی‌گرداند.
+    روی GitHub Actions هر جاب از صفر شروع می‌شود، پس بدون این تابع
+    قیمت اشتراک / آیدی ادمین / لینک مینی‌اپ هر ۶ ساعت به حالت اول برمی‌گشت.
+    """
+    global ADMIN_USER_ID, MINI_APP_URL, PUBLIC_CHANNEL_ID
+
+    saved_admin = get_setting("ADMIN_USER_ID")
+    if not ADMIN_USER_ID and saved_admin:
+        ADMIN_USER_ID = saved_admin
+        logger.info("👑 ادمین از دیتابیس بازیابی شد: %s", ADMIN_USER_ID)
+
+    saved_price = get_setting("SUBSCRIPTION_STARS")
+    if saved_price.isdigit() and not os.environ.get("SUBSCRIPTION_STARS", "").strip():
+        try:
+            set_subscription_price(int(saved_price))
+            logger.info("💲 قیمت اشتراک بازیابی شد: %s ⭐", SUBSCRIPTION_STARS)
+        except Exception:
+            pass
+
+    saved_url = get_setting("MINI_APP_URL")
+    if saved_url and not is_real_app_url(MINI_APP_URL):
+        MINI_APP_URL = saved_url
+        logger.info("🔗 لینک مینی‌اپ بازیابی شد: %s", MINI_APP_URL)
+
+    saved_channel = get_setting("PUBLIC_CHANNEL_ID")
+    if saved_channel and not PUBLIC_CHANNEL_ID:
+        PUBLIC_CHANNEL_ID = saved_channel
+
+
 def main() -> None:
     global BOT_TOKEN, BOT_USERNAME
     init_db()
+    apply_persisted_settings()
     if not BOT_TOKEN or "your_telegram_bot_token" in BOT_TOKEN:
         if sys.stdin and sys.stdin.isatty():
             print("\n========================================================")
@@ -1737,13 +1866,24 @@ def main() -> None:
                 ENV_PATH.write_text(env_content, encoding="utf-8")
                 logger.info("✅ توکن با موفقیت در فایل tradeguard-pro/.env ذخیره شد!")
         if not BOT_TOKEN or "your_telegram_bot_token" in BOT_TOKEN:
-            logger.error("❌ لطفاً ابتدا BOT_TOKEN را وارد کنید یا در فایل tradeguard-pro/.env قرار دهید!")
-            return
+            logger.error(
+                "❌ BOT_TOKEN تنظیم نشده است. "
+                "GitHub → Settings → Secrets and variables → Actions → BOT_TOKEN"
+            )
+            _gh_error(
+                "BOT_TOKEN تنظیم نشده",
+                "Settings → Secrets and variables → Actions → New repository secret → Name: BOT_TOKEN",
+            )
+            sys.exit(2)
 
     me = tg_call("getMe")
     if not me.get("ok"):
-        logger.error("❌ عدم ارتباط با تلگرام: مطمئن شوید فیلترشکن (VPN) روشن است و BOT_TOKEN درست است. جزئیات: %s", me)
-        return
+        logger.error(
+            "❌ اتصال به تلگرام برقرار نشد — توکن را چک کنید (یا فیلترشکن اگر روی سیستم خودتان اجرا می‌کنید). جزئیات: %s",
+            me,
+        )
+        _gh_error("BOT_TOKEN نامعتبر است یا تلگرام در دسترس نیست", str(me.get("description"))[:200])
+        sys.exit(3)
 
     BOT_USERNAME = me["result"].get("username", "TradeGuard_bot")
     BOT_ID = int((me.get("result") or {}).get("id") or 0)

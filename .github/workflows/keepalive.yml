@@ -1,0 +1,39 @@
+name: Keepalive
+
+# گیت‌هاب اگر ریپو ۶۰ روز هیچ فعالیتی نداشته باشد،
+# workflowهای زمان‌بندی‌شده را خودکار خاموش می‌کند.
+# این فایل اول هر ماه یک کامیت خالی می‌زند و ربات را روشن نگه می‌دارد.
+
+on:
+  schedule:
+    - cron: "0 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: زدن ضربان
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive
+          git add .keepalive
+          if git diff --cached --quiet; then
+            echo "تغییری لازم نبود"
+          else
+            git commit -m "chore(keepalive): $(date -u +%F)"
+            git push
+          fi
