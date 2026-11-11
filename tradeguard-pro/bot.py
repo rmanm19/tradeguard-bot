@@ -112,6 +112,9 @@ PRO_STATUS_LOCK = threading.Lock()
 AI_API_BASE = os.environ.get("AI_API_BASE", "https://openrouter.ai/api/v1").rstrip("/")
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "google/gemini-2.5-flash").strip()
+# سقف طول پاسخ مدل: با ۷۰۰ توکن، گزارش‌ها معمولاً وسط جمله بریده می‌شدند.
+# با AI_MAX_TOKENS در Secrets قابل تنظیم است (هزینهٔ هر پاسخ کمی بالا می‌رود).
+AI_MAX_TOKENS = int(os.environ.get("AI_MAX_TOKENS", "1600") or "1600")
 
 SUPPORTED_LANGS = ("fa", "en", "ru", "ar", "tr", "es")
 LANG_NAMES = {
@@ -1109,7 +1112,12 @@ def ask_ai_market_agent(rates: List[Dict], lang: str = "fa") -> str:
         res = http_json(
             f"{AI_API_BASE}/chat/completions",
             method="POST",
-            payload={"model": AI_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
+            payload={
+                "model": AI_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": AI_MAX_TOKENS,
+            },
             headers={"Authorization": f"Bearer {AI_API_KEY}"},
             timeout=15.0,
         )
