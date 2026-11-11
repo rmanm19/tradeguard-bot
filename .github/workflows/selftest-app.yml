@@ -45,6 +45,21 @@ jobs:
         working-directory: docs
         run: node selftest_docs.mjs
 
+      # در صورت شکست، خروجی تست به‌صورت annotation منتشر می‌شود تا بدون
+      # دانلود لاگ هم قابل خواندن باشد (بخش‌های ناموفق + انتهای خروجی).
       - name: سلف‌تست سرتاسری مینی‌اپ (jsdom)
         working-directory: tests
-        run: node e2e_app.mjs
+        shell: bash
+        run: |
+          set +e
+          node e2e_app.mjs > selftest_out.txt 2>&1
+          code=$?
+          cat selftest_out.txt
+          if [ "$code" -ne 0 ]; then
+            grep -a '❌' selftest_out.txt | head -n 10 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
+            tail -n 12 selftest_out.txt | tr -d '\r' | sed 's/:%/%3A/g' | while IFS= read -r line; do echo "::error title=خروجی تست::$line"; done
+            if ! grep -qa '❌' selftest_out.txt; then
+              echo "::error title=اجرای هارنس متوقف شد::هارنس بدون هیچ سنجه‌ای متوقف شد؛ انتهای خروجی بالا است."
+            fi
+          fi
+          exit "$code"
