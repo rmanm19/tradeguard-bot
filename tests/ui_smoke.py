@@ -196,12 +196,23 @@ def main() -> int:
             check("اسکنر توکن جواب داد", page.inner_text("#rugOut").strip() != "")
             page.screenshot(path=str(OUT / "05-scanner.png"))
 
-            # صفحه معرفی
+            # صفحه معرفی: داخل تلگرام، index.html عمداً به app.html ریدایرکت می‌شود؛
+            # پس لندینگ را در یک کانتکست «مرورگر معمولی» (بدون تلگرام) می‌بینیم.
             page.goto(f"{base}/index.html", wait_until="domcontentloaded")
-            page.wait_for_timeout(1200)
-            model_count = page.locator("#model").count()
-            check("صفحه معرفی رندر شد", model_count == 1, f"count={model_count}")
-            page.screenshot(path=str(OUT / "06-landing.png"), full_page=True)
+            page.wait_for_timeout(900)
+            check("داخل تلگرام، index.html به مینی‌اپ هدایت می‌شود",
+                  page.url.endswith("/app.html") or "app.html" in page.url, page.url)
+
+            ctx2 = browser.new_context(viewport={"width": 1280, "height": 900})
+            ctx2.route("**/*", route_external)
+            page2 = ctx2.new_page()
+            page2.on("pageerror", lambda e: console_errors.append("landing pageerror: " + str(e)))
+            page2.goto(f"{base}/index.html", wait_until="domcontentloaded")
+            page2.wait_for_timeout(1200)
+            model_count = page2.locator("#model").count()
+            check("صفحه معرفی رندر شد", model_count == 1, f"count={model_count} url={page2.url}")
+            check("بخش شبیه‌ساز درآمد هم هست", page2.locator("#simSection").count() == 1)
+            page2.screenshot(path=str(OUT / "06-landing.png"), full_page=True)
 
             # درخواست‌های بیرونی عمداً خاموش‌اند؛ ERR_FAILED آن‌ها خطای اپ نیست
             noisy = ("favicon", "failed to load resource", "err_failed", "net::")
