@@ -25,3 +25,4 @@ Thumbs.db
 # ── وابستگی‌های سلف‌تست مینی‌اپ ──
 tests/node_modules/
 tests/package-lock.json
+tests/artifacts/

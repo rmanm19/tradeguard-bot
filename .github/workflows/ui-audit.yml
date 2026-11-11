@@ -1,0 +1,60 @@
+name: UI Audit (Chromium)
+
+# تست مینی‌اپ در مرورگر واقعی + اسکرین‌شات.
+# بر اساس مهارت skills/webapp-testing (روش Recon → Action).
+# چرا جدا از selftest-app؟ چون نصب Chromium کند است و فقط وقتی لازم
+# است که فایل‌های UI تغییر کرده باشند یا دستی اجرا شود.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'tests/ui_smoke.py'
+      - '.github/workflows/ui-audit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    name: «مینی‌اپ در مرورگر واقعی»
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: نصب Playwright + Chromium
+        run: |
+          python -m pip install --quiet playwright
+          python -m playwright install --with-deps chromium
+
+      - name: اجرای تست مرورگر
+        shell: bash
+        run: |
+          set +e
+          python tests/ui_smoke.py 2>&1 | tee ui_out.txt
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            grep -a '❌' ui_out.txt | head -n 8 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
+          fi
+          exit "$code"
+
+      - name: آپلود اسکرین‌شات‌ها
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: |
+            tests/artifacts/
+            ui_out.txt
+          retention-days: 14
