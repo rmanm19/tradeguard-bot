@@ -33,6 +33,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
         run: |
           python3 - <<'PY'
           import hashlib, json, os, re, urllib.request
@@ -62,6 +63,15 @@ jobs:
           else:
               print("ℹ️ ADMIN_USER_ID تنظیم نشده — پنل ادمین مینی‌اپ خاموش می‌ماند")
 
+          # یوزرنیم عمومی کانال (اگر ادمین ربات را در کانال گذاشته باشد) — برای دکمهٔ «عضویت در کانال»
+          channel = ""
+          raw_ch = (os.environ.get("PUBLIC_CHANNEL_ID") or "").strip()
+          if raw_ch.startswith("@") and not raw_ch.startswith("@" + bot_username):
+              channel = "@" + raw_ch.lstrip("@")
+          elif raw_ch.startswith("https://t.me/"):
+              channel = raw_ch
+          print(f"📣 کانال: {channel or '— تنظیم نشده —'}")
+
           repo = os.environ.get("GITHUB_REPOSITORY", "rmanm19/tradeguard-bot")
           stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -76,6 +86,7 @@ jobs:
             generatedAt: "{stamp}",
             repo: "{repo}",
             botUsername: "{bot_username}",
+            channel: "{channel}",
             adminHashes: {json.dumps(hashes)}
           }};
           """

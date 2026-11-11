@@ -391,6 +391,81 @@ data2 = __import__("json").loads(tmp_status.read_text(encoding="utf-8"))
 check("کاربر بدون پرو و بدون دعوت از فایل حذف می‌شود", key not in data2.get("users", {}), str(data2)[:60])
 bot.PRO_STATUS_FILE = old_status_file
 
+print("\n۷ه) دورهٔ رایگان (FREE_MODE) و ارتقای کانال")
+
+# --- خاموش: رفتار پرداختی مثل قبل ---
+bot.FREE_MODE = False
+SENT.clear()
+bot.handle_message(msg("/buy", uid=BUYER))
+check("خاموش: /buy فاکتور می‌فرستد", any(a == "sendInvoice" for a, _ in SENT))
+_newbie = FRIEND + 500
+check("خاموش: کاربر تازه پرو نیست", bot.is_user_pro(_newbie)[0] is False)
+
+# --- روشن: همه دسترسی دارند، پرداخت بسته است ---
+bot.set_free_mode(True)
+check("روشن: free_mode_active() درست است", bot.free_mode_active())
+check("روشن: کاربر تازه هم دسترسی پرو دارد", bot.is_user_pro(_newbie)[0] is True)
+check("روشن: وضعیت واقعی پرداخت دست‌نخورده است", bot.is_user_pro(_newbie, access=False)[0] is False)
+SENT.clear()
+bot.handle_message(msg("/buy", uid=BUYER))
+check("روشن: /buy فاکتور نمی‌فرستد", not any(a == "sendInvoice" for a, _ in SENT))
+check("روشن: /buy پیام دورهٔ رایگان می‌دهد",
+      any(w in last_text() for w in ("رایگان", "free", "Free")), last_text()[:60])
+SENT.clear()
+bot.handle_message(msg("/start pro", uid=BUYER))
+check("روشن: deep-link pro هم پرداخت نمی‌گیرد", not any(a == "sendInvoice" for a, _ in SENT))
+
+# منوی شیشه‌ای: دکمهٔ خرید نبود، دکمهٔ دورهٔ رایگان باشد
+kb = bot.main_keyboard(True, "fa")
+cbs = [b.get("callback_data") for row in kb["inline_keyboard"] for b in row]
+check("روشن: دکمهٔ خرید از منو حذف شده", "buy_pro" not in cbs)
+check("روشن: دکمهٔ «دورهٔ رایگان» در منو هست", "free_info" in cbs)
+
+# فایل وضعیت: پرچم freeMode منتشر شود
+bot.publish_pro_status()
+_status2 = __import__("json").loads(_STATUS_TMP.read_text(encoding="utf-8"))
+check("فایل وضعیت freeMode=true را منتشر می‌کند", _status2.get("freeMode") is True, str(_status2)[:60])
+
+# --- دستور ادمین فقط برای ادمین ---
+SENT.clear()
+bot.handle_message(msg("/freemode off", uid=BUYER))
+check("غیرادمین نمی‌تواند حالت رایگان را عوض کند", bot.FREE_MODE is True)
+SENT.clear()
+bot.handle_message(msg("/freemode off"))
+check("ادمین حالت رایگان را خاموش می‌کند", bot.FREE_MODE is False)
+_status3 = __import__("json").loads(_STATUS_TMP.read_text(encoding="utf-8"))
+check("فایل وضعیت freeMode=false شد", _status3.get("freeMode") is False)
+bot.set_free_mode(True)   # برای تست‌های بعدی
+
+# --- کانال: پست و پین ---
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+bot.BOT_USERNAME = "TradeGuardTestBot"
+check("اعتبارسنجی کانال تستی", bot.validate_channel_target(silent=True) is True)
+check("لینک کانال ساخته می‌شود", bot.channel_url() == "https://t.me/testchannel", bot.channel_url())
+_posts = []
+bot.tg_send_message = lambda chat_id, text, **kw: (_posts.append((chat_id, text, kw)) or {"ok": True, "result": {"message_id": len(_posts)}})
+SENT.clear()
+bot.handle_message(msg("/channelpost"))
+_chan_posts = [pp for pp in _posts if pp[0] == "@testchannel"]
+_kb_btns = [b["url"] for row in (_chan_posts[-1][2].get("reply_markup", {}) if _chan_posts else {}
+                                  ).get("inline_keyboard", []) for b in row]
+check("پست فوری کانال ارسال شد", bool(_chan_posts), str(_chan_posts[-1:]))
+check("پست کانال ۳ فرصت برتر دارد",
+      bool(_chan_posts) and (_chan_posts[-1][1].count("$") >= 3 or "🥇" in _chan_posts[-1][1]),
+      _chan_posts[-1][1][:60] if _chan_posts else "")
+check("پست کانال دو دکمهٔ مینی‌اپ و دعوت دارد", len(_kb_btns) == 2, str(_kb_btns))
+SENT.clear()
+bot.handle_message(msg("/channelpin"))
+_chan_posts = [pp for pp in _posts if pp[0] == "@testchannel"]
+check("پیام خوش‌آمد کانال ارسال شد", bool(_chan_posts) and "خوش آمدید" in _chan_posts[-1][1],
+      _chan_posts[-1][1][:60] if _chan_posts else "")
+check("درخواست پین ارسال شد", any(a == "pinChatMessage" for a, _ in SENT), str([a for a, _ in SENT]))
+SENT.clear()
+bot.handle_message(msg("/channelpost", uid=BUYER))
+check("غیرادمین نمی‌تواند در کانال پست بگذارد", not any(a == "sendMessage" for a, _ in SENT))
+bot.PUBLIC_CHANNEL_ID = ""
+bot.FREE_MODE = False
+
 print("\n۸) امنیت پیکربندی")
 check("MINI_APP_URL تقلبی رد می‌شود", not bot.is_real_app_url("https://example.com"))
 check("MINI_APP_URL واقعی قبول می‌شود", bot.is_real_app_url("https://tg.mydomain.ir/app"))

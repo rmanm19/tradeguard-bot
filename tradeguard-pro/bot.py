@@ -98,6 +98,13 @@ BOT_ID: int = 0
 CHANNEL_OK: bool = False
 CHANNEL_REASON: str = ""
 FREE_PRO_INVITE_TARGET = int(os.environ.get("FREE_PRO_INVITE_TARGET", "3") or "3")
+
+# ── دورهٔ رشد: همه‌چیز رایگان ────────────────────────────────────────
+# با روشن‌بودن این پرچم، هیچ کاربری برای استفاده از رادار/فایل‌ها/مربی AI
+# استارز نمی‌دهد. کد پرداخت دست‌نخورده می‌ماند تا هر لحظه با /freemode off
+# دوباره روشن شود. وضعیت در دیتابیس ذخیره می‌شود (بین ری‌استارت‌ها می‌ماند).
+FREE_MODE = os.environ.get("FREE_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
+FREE_MODE_UNTIL = int(os.environ.get("FREE_MODE_UNTIL", "0") or "0")
 ADMIN_USER_ID = os.environ.get("ADMIN_USER_ID", "").strip()
 
 # ── وضعیت پرو برای مینی‌اپ (بدون بک‌اند) ─────────────────────────────
@@ -441,6 +448,83 @@ def normalize_lang(code: Optional[str]) -> str:
     return short if short in SUPPORTED_LANGS else "en"
 
 
+# =====================================================================
+#  پیام‌های «دورهٔ رایگان» (۶ زبان) — جدا از دیکشنری اصلی تا کم‌ریسک باشد
+# =====================================================================
+BOT_STRINGS_EXTRA = {
+    "fa": {
+        "btn_free": "🎁 دورهٔ رایگان — همه‌چیز باز است",
+        "free_home_line": "🎁 *دورهٔ رشد:* همهٔ قابلیت‌ها فعلاً رایگان است.",
+        "free_buy_blocked": "🎁 این روزها همه‌چیز رایگان است — نیازی به پرداخت نیست.\nفقط کانال را دنبال کن و دوستت را دعوت کن تا ربات رشد کند.",
+        "free_info": "🎁 فعلاً همهٔ قابلیت‌ها (رادار کامل، هشدارها، مربی AI، فایل MT5 و TradingView) رایگان است.",
+        "free_admin_on": "🎁 حالت رایگان *روشن* شد — هیچ کاربری استارز نمی‌دهد و همه‌چیز باز است.\nبرای برگشت: `/freemode off`",
+        "free_admin_off": "💰 حالت رایگان *خاموش* شد — پرداخت ۳۰۰ ⭐ و قفل‌ها دوباره فعال شد.",
+        "free_admin_state": "وضعیت دورهٔ رایگان: *{state}*",
+    },
+    "en": {
+        "btn_free": "🎁 Free period — everything unlocked",
+        "free_home_line": "🎁 *Growth period:* all features are free right now.",
+        "free_buy_blocked": "🎁 Everything is free right now — no payment needed.\nJust follow the channel and invite a friend to help the bot grow.",
+        "free_info": "🎁 All features (full radar, alerts, AI coach, MT5 & TradingView files) are free right now.",
+        "free_admin_on": "🎁 *Free mode ON* — nobody pays, everything is unlocked.\nTo revert: `/freemode off`",
+        "free_admin_off": "💰 *Free mode OFF* — 300 ⭐ payments and locks are active again.",
+        "free_admin_state": "Free period: *{state}*",
+    },
+    "ru": {
+        "btn_free": "🎁 Бесплатный период — всё открыто",
+        "free_home_line": "🎁 *Период роста:* все функции сейчас бесплатны.",
+        "free_buy_blocked": "🎁 Сейчас всё бесплатно — платить не нужно.\nПодпишитесь на канал и пригласите друга.",
+        "free_info": "🎁 Все функции (полный радар, оповещения, AI-наставник, файлы MT5 и TradingView) сейчас бесплатны.",
+        "free_admin_on": "🎁 *Бесплатный режим ВКЛ* — никто не платит, всё открыто.\nОткат: `/freemode off`",
+        "free_admin_off": "💰 *Бесплатный режим ВЫКЛ* — оплата 300 ⭐ и блокировки снова активны.",
+        "free_admin_state": "Бесплатный период: *{state}*",
+    },
+    "ar": {
+        "btn_free": "🎁 فترة مجانية — كل شيء مفتوح",
+        "free_home_line": "🎁 *فترة النمو:* كل الميزات مجانية الآن.",
+        "free_buy_blocked": "🎁 كل شيء مجاني الآن — لا حاجة للدفع.\nتابع القناة وادعُ صديقًا.",
+        "free_info": "🎁 كل الميزات (الرادار الكامل، التنبيهات، مدرب AI، ملفات MT5 وTradingView) مجانية الآن.",
+        "free_admin_on": "🎁 *الوضع المجاني مُفعّل* — لا أحد يدفع وكل شيء مفتوح.\nللرجوع: `/freemode off`",
+        "free_admin_off": "💰 *الوضع المجاني مُعطّل* — عاد الدفع ٣٠٠ ⭐ والأقفال.",
+        "free_admin_state": "الفترة المجانية: *{state}*",
+    },
+    "tr": {
+        "btn_free": "🎁 Ücretsiz dönem — her şey açık",
+        "free_home_line": "🎁 *Büyüme dönemi:* tüm özellikler şu an ücretsiz.",
+        "free_buy_blocked": "🎁 Şu an her şey ücretsiz — ödeme gerekmez.\nKanalı takip et ve bir arkadaşını davet et.",
+        "free_info": "🎁 Tüm özellikler (tam radar, uyarılar, AI koç, MT5 ve TradingView dosyaları) şu an ücretsiz.",
+        "free_admin_on": "🎁 *Ücretsiz mod AÇIK* — kimse ödemez, her şey açık.\nGeri almak için: `/freemode off`",
+        "free_admin_off": "💰 *Ücretsiz mod KAPALI* — 300 ⭐ ödeme ve kilitler yeniden aktif.",
+        "free_admin_state": "Ücretsiz dönem: *{state}*",
+    },
+    "es": {
+        "btn_free": "🎁 Periodo gratis — todo desbloqueado",
+        "free_home_line": "🎁 *Periodo de crecimiento:* todas las funciones son gratis ahora.",
+        "free_buy_blocked": "🎁 Ahora todo es gratis — no hace falta pagar.\nSigue el canal e invita a un amigo.",
+        "free_info": "🎁 Todas las funciones (radar completo, alertas, coach AI, archivos MT5 y TradingView) son gratis ahora.",
+        "free_admin_on": "🎁 *Modo gratis ACTIVADO* — nadie paga, todo está abierto.\nPara revertir: `/freemode off`",
+        "free_admin_off": "💰 *Modo gratis DESACTIVADO* — pagos de 300 ⭐ y bloqueos activos otra vez.",
+        "free_admin_state": "Periodo gratis: *{state}*",
+    },
+}
+
+_CHANNEL_BTN = {
+    "fa": "📣 کانال TradeGuard",
+    "en": "📣 TradeGuard Channel",
+    "ru": "📣 Канал TradeGuard",
+    "ar": "📣 قناة TradeGuard",
+    "tr": "📣 TradeGuard Kanalı",
+    "es": "📣 Canal de TradeGuard",
+}
+for _lang, _label in _CHANNEL_BTN.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang]["btn_channel"] = _label
+
+for _lang, _extra in BOT_STRINGS_EXTRA.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang].update(_extra)
+
+
 def tr(lang: str, key: str, **kwargs) -> str:
     d = BOT_STRINGS.get(lang, BOT_STRINGS["en"])
     txt = d.get(key) or BOT_STRINGS["en"].get(key, "")
@@ -760,7 +844,7 @@ def load_pro_status() -> dict:
 def save_pro_status(data: dict) -> bool:
     """فایل را می‌نویسد؛ True یعنی محتوا واقعاً تغییر کرد."""
     old = load_pro_status()
-    if old.get("users") == data.get("users"):
+    if old.get("users") == data.get("users") and bool(old.get("freeMode")) == bool(data.get("freeMode")):
         return False
     PRO_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
     PRO_STATUS_FILE.write_text(
@@ -856,7 +940,7 @@ def publish_pro_status(user_ids: Optional[List[int]] = None) -> None:
             if exp and exp < now - PRO_STATUS_MAX_AGE and not ref:
                 users.pop(key, None)
 
-        data = {"updated": now, "users": users}
+        data = {"updated": now, "freeMode": free_mode_active(), "users": users}
         if save_pro_status(data):
             _git_publish_status_file()
 
@@ -872,8 +956,43 @@ def get_user_referral_stats(user_id: int) -> Tuple[int, bool]:
         return int(row[0] or 0), bool(row[1])
 
 
-def is_user_pro(user_id: int) -> Tuple[bool, int]:
+def load_free_mode() -> None:
+    """پرچم ذخیره‌شدهٔ ادمین (دیتابیس) بر env اولویت دارد."""
+    global FREE_MODE
+    try:
+        saved = get_setting("free_mode")
+    except Exception:
+        saved = None
+    if saved in ("0", "1"):
+        FREE_MODE = saved == "1"
+
+
+def set_free_mode(on: bool) -> None:
+    global FREE_MODE
+    FREE_MODE = bool(on)
+    try:
+        set_setting("free_mode", "1" if on else "0")
+    except Exception as exc:
+        logger.warning("ذخیرهٔ حالت رایگان ناموفق: %s", exc)
+    publish_pro_status()
+
+
+def free_mode_active() -> bool:
+    """آیا دورهٔ رایگان باز است؟ (پرچم runtime یا دیتابیس + تاریخ انقضای اختیاری)"""
+    if not FREE_MODE:
+        return False
+    return FREE_MODE_UNTIL <= 0 or time.time() < FREE_MODE_UNTIL
+
+
+def is_user_pro(user_id: int, access: bool = True) -> Tuple[bool, int]:
+    """آیا کاربر پرو است؟
+
+    access=True (پیش‌فرض) ⇒ «دسترسی» را می‌گوید: در دورهٔ رایگان همه True هستند.
+    access=False ⇒ فقط وضعیت واقعی اشتراک پرداختی (برای آمار/درآمد).
+    """
     now = int(time.time())
+    if access and free_mode_active():
+        return True, FREE_MODE_UNTIL if FREE_MODE_UNTIL > 0 else now + (10 * 365 * 86400)
     if ADMIN_USER_ID and str(user_id) == ADMIN_USER_ID:
         return True, now + (365 * 86400)
     with _db_lock, sqlite3.connect(DB_PATH) as conn:
@@ -1194,7 +1313,12 @@ def main_keyboard(is_pro: bool, lang: str = "fa", is_admin_user: bool = False) -
         ],
         [{"text": tr(lang, "btn_lang"), "callback_data": "lang_menu"}],
     ]
-    if not is_pro:
+    ch_url = channel_url()
+    if ch_url:
+        rows.append([{"text": tr(lang, "btn_channel"), "url": ch_url}])
+    if free_mode_active():
+        rows.append([{"text": tr(lang, "btn_free"), "callback_data": "free_info"}])
+    elif not is_pro:
         rows.append([{"text": tr(lang, "btn_buy"), "callback_data": "buy_pro"}])
     else:
         rows.append(
@@ -1402,7 +1526,9 @@ def send_admin_section(chat_id: int, uid: int, data: str) -> None:
 def send_user_home(chat_id: int, uid: int, lang: str, pro: bool) -> None:
     """صفحه خانه کاربر عادی (بدون هیچ اثری از پنل مدیریت برای غیرادمین)."""
     _, exp = is_user_pro(uid)
-    if pro:
+    if free_mode_active():
+        status_line = tr(lang, "free_home_line")
+    elif pro:
         status_line = tr(lang, "status_pro", exp=datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d"))
     else:
         status_line = tr(lang, "status_free")
@@ -1581,6 +1707,9 @@ def handle_message(msg: dict) -> None:
 
         # 🛒 دکمهٔ «خرید اشتراک» مینی‌اپ ⇒ مستقیم فاکتور Stars می‌آید
         if payload in ("pro", "buy", "pay", "stars", "pro_30", "pricing", "subscribe"):
+            if free_mode_active():
+                tg_send_message(chat_id, tr(lang, "free_buy_blocked"), reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)))
+                return
             if pro and pro_until > int(time.time()):
                 send_status_message(chat_id, uid, lang, pro, pro_until)
             else:
@@ -1602,6 +1731,10 @@ def handle_message(msg: dict) -> None:
 
     if text.startswith("/buy") or text.startswith("/pay") or text.startswith("/pro"):
         lang = get_user_lang(uid, tg_lang)
+        if free_mode_active():
+            pro, _ = is_user_pro(uid)
+            tg_send_message(chat_id, tr(lang, "free_buy_blocked"), reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)))
+            return
         send_pro_invoice(chat_id, lang)
         return
 
@@ -1852,7 +1985,8 @@ def handle_message(msg: dict) -> None:
         )
         return
 
-    if text.startswith("/channel"):
+    # /channel دقیق (یا /channel @name) — وگرنه /channelpost و /channelpin را می‌بلعد
+    if text.strip() == "/channel" or text.startswith("/channel ") or text.startswith("/setchannel"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
@@ -1899,6 +2033,73 @@ def handle_message(msg: dict) -> None:
                 chat_id,
                 f"❌ این کانال تأیید نشد:\n{CHANNEL_REASON}\n\n"
                 f"یادآوری: باید یوزرنیم **کانال** باشد و ربات در آن **ادمین** باشد — نه یوزرنیم خود ربات.",
+            )
+        return
+
+    if text.startswith("/channelpost"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        if not validate_channel_target(silent=True):
+            tg_send_message(chat_id, f"⚠️ کانال تنظیم نشده یا ربات ادمین آن نیست: {CHANNEL_REASON}")
+            return
+        post_text, kb = build_channel_post(fetch_live_funding_and_oi())
+        res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
+        ok_flag = bool(res.get("ok"))
+        tg_send_message(
+            chat_id,
+            ("✅ پست در کانال منتشر شد." if ok_flag else f"⚠️ ارسال ناموفق: {str(res.get('description'))[:120]}")
+            + f"\n📍 `{PUBLIC_CHANNEL_ID}`",
+        )
+        return
+
+    if text.startswith("/channelpin"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        if not validate_channel_target(silent=True):
+            tg_send_message(chat_id, f"⚠️ کانال تنظیم نشده یا ربات ادمین آن نیست: {CHANNEL_REASON}")
+            return
+        intro = (
+            "👋 *به کانال TradeGuard خوش آمدید*\n\n"
+            "اینجا هر روز: رادار فاندینگ و نهنگ‌ها، وضعیت ترس و طمع، و یک نکتهٔ ریسک.\n\n"
+            + ("🎁 *این روزها همه‌چیز رایگان است* — بدون پرداخت، بدون کارت بانکی.\n\n"
+               if free_mode_active() else "⭐ نسخهٔ کامل با ۳۰۰ استارز (۳۰ روز).\n\n")
+            + "👇 از دکمهٔ زیر مینی‌اپ را باز کن (۶ زبان):"
+        )
+        kb = {"inline_keyboard": [[{"text": "🚀 باز کردن مینی‌اپ", "url": f"https://t.me/{BOT_USERNAME}?start=channel"}]]}
+        res = tg_send_message(PUBLIC_CHANNEL_ID, intro, reply_markup=kb)
+        mid = ((res.get("result") or {}).get("message_id")) if res.get("ok") else None
+        pinned = False
+        if mid:
+            pr = tg_call("pinChatMessage", {"chat_id": PUBLIC_CHANNEL_ID, "message_id": mid, "disable_notification": True})
+            pinned = bool(pr.get("ok"))
+        tg_send_message(
+            chat_id,
+            ("✅ پیام خوش‌آمد ارسال و پین شد." if pinned else "✅ پیام خوش‌آمد ارسال شد (پین نشد — ربات را ادمین با دسترسی pin کنید).")
+            + f"\n📍 `{PUBLIC_CHANNEL_ID}`",
+        )
+        return
+
+    if text.startswith("/freemode"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        lang = get_user_lang(uid, tg_lang)
+        arg = (text.split(maxsplit=1)[1].strip().lower() if len(text.split(maxsplit=1)) > 1 else "")
+        if arg in ("on", "1", "true", "روشن", "باز"):
+            set_free_mode(True)
+            tg_send_message(chat_id, tr(lang, "free_admin_on"))
+        elif arg in ("off", "0", "false", "خاموش", "بسته"):
+            set_free_mode(False)
+            tg_send_message(chat_id, tr(lang, "free_admin_off"))
+        else:
+            state = tr(lang, "free_home_line") if free_mode_active() else "💰 پرداختی"
+            tg_send_message(
+                chat_id,
+                tr(lang, "free_admin_state", state=("🎁 روشن" if free_mode_active() else "💰 خاموش"))
+                + "\n\n`/freemode on` — همه‌چیز رایگان\n`/freemode off` — برگشت پرداخت",
+                reply_markup=admin_back_keyboard(),
             )
         return
 
@@ -2073,6 +2274,10 @@ def handle_callback(cb: dict) -> None:
         tg_send_message(chat_id, "\n".join(lines), reply_markup=main_keyboard(pro, lang))
         return
 
+    if data == "free_info":
+        tg_answer_callback(cb_id, tr(lang, "free_info"), show_alert=True)
+        return
+
     if data == "invite_free":
         tg_answer_callback(cb_id)
         send_invite_message(chat_id, uid, lang)
@@ -2116,6 +2321,9 @@ def handle_callback(cb: dict) -> None:
         return
 
     if data == "buy_pro":
+        if free_mode_active():
+            tg_answer_callback(cb_id, tr(lang, "free_info"), show_alert=True)
+            return
         tg_answer_callback(cb_id)
         send_pro_invoice(chat_id, lang)
 
@@ -2184,23 +2392,64 @@ def validate_channel_target(silent: bool = False) -> bool:
     return True
 
 
+CHANNEL_TIPS = [
+    "📌 *فاندینگ مثبت شدید یعنی چه؟* وقتی فاندینگ یک ارز بالا می‌رود، پوزیشن‌های شورت هزینه می‌دهند؛ بازار آمادهٔ اسکوییز است. رادار همین را نشان می‌دهد.",
+    "📌 *Open Interest را با حجم اشتباه نگیر.* OI جهشی بدون حجم = اهرم زیاد و ریسک لیکوییدیشن زنجیره‌ای.",
+    "📌 *قانون ۳.۸٪:* در حساب پراپ، حد ضرر روزانه را خودت انتخاب نکن؛ یک عدد ثابت کوچک‌تر از قانون شرکت بگذار و به آن احترام بگذار.",
+    "📌 *هر معامله را با حجم اشتباه شروع می‌کنی؟* اول لات را از ریسک حساب حساب کن، بعد ورود بزن (نه برعکس).",
+    "📌 *دلتا-خنثی:* با فاندینگ مثبت می‌توان بدون شرط‌بندی روی جهت قیمت، از اختلاف نرخ‌ها درآمد ساخت — به شرط مدیریت اهرم.",
+    "📌 *سه دعوت = ۷ روز پرو.* لینک اختصاصی‌ات را در گروه پراپ بفرست؛ ربات خودش تأیید می‌کند.",
+]
+
+
+def channel_url() -> str:
+    """لینک عمومی کانال (اگر یوزرنیم عمومی باشد)."""
+    cid = str(PUBLIC_CHANNEL_ID or "").strip()
+    if cid.startswith("@"):
+        return "https://t.me/" + cid.lstrip("@")
+    if cid.startswith("https://t.me/"):
+        return cid
+    return ""
+
+
+def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
+    """پست کانال: ۳ فرصت برتر + ترس و طمع + یک نکتهٔ آموزشی چرخشی."""
+    if not rates:
+        rates = []
+    top = rates[:3]
+    fng_val, fng_lbl = fetch_fear_greed()
+    lines = ["📡 *TradeGuard — رادار زندهٔ بازار* 🌍", ""]
+    medals = ("🥇", "🥈", "🥉")
+    for i, r in enumerate(top):
+        oi_txt = f" | OI: `${r.get('oi_m', 0):.0f}M`" if r.get("oi_m", 0) else ""
+        lines.append(
+            f"{medals[i]} *${r['sym']}* ➜ `{r['rate_pct']:+.3f}%/8h` ({r['magnet']})"
+            f"{oi_txt} | $500: `${r['daily_500']:.2f}/day`"
+        )
+    lines.append("")
+    lines.append(f"🧭 شاخص ترس و طمع: `{fng_val}/100` ({fng_lbl})")
+    lines.append("")
+    tip = CHANNEL_TIPS[int(time.time() // 3600) % len(CHANNEL_TIPS)]
+    lines.append(tip)
+    lines.append("")
+    if free_mode_active():
+        lines.append("🎁 *این روزها همه‌چیز رایگان است* — رادار کامل، هشدارها، مربی AI و فایل MT5/TradingView.")
+    else:
+        lines.append("⭐ نسخهٔ کامل: رادار بی‌سقف + فایل MT5 و TradingView")
+    lines.append("")
+    lines.append("👇 مینی‌اپ ۶ زبانه، بدون نصب:")
+    kb_rows = [[{"text": "🚀 باز کردن TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=channel"}]]
+    kb_rows.append([{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}])
+    return "\n".join(lines), {"inline_keyboard": kb_rows}
+
+
 def auto_channel_loop() -> None:
     if not validate_channel_target(silent=True):
         return
     while True:
         try:
             rates = fetch_live_funding_and_oi()
-            top = rates[0]
-            second = rates[1] if len(rates) > 1 else top
-            deep_link = f"https://t.me/{BOT_USERNAME}?start=channel"
-            post_text = (
-                "📡 *TradeGuard Global Radar (Live 8h Pulse)* 🌍\n\n"
-                f"🔥 *${top['sym']}* ➜ `{top['rate_pct']:+.3f}%/8h` ({top['magnet']}) | $500 Yield: `${top['daily_500']:.2f}/day`\n"
-                f"⚡ *${second['sym']}* ➜ `{second['rate_pct']:+.3f}%/8h` | OI: `${second['oi_m']:.1f}M`\n\n"
-                "🇮🇷 قفل خودکار دراودان ۳.۸٪ متاتریدر + رادار زنده نهنگ‌ها (۶ زبانه)\n"
-                "🇬🇧 Auto -3.8% MT5 Prop Guard + Live Whale & Funding Mini-App:"
-            )
-            kb = {"inline_keyboard": [[{"text": "🚀 Open TradeGuard (6 Languages)", "url": deep_link}]]}
+            post_text, kb = build_channel_post(rates)
             res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
             if not res.get("ok") and res.get("error_code") in (400, 403):
                 logger.warning("پست کانال رد شد؛ اعتبارسنجی دوباره در چرخه بعد: %s", res.get("description"))
@@ -2334,6 +2583,8 @@ def main() -> None:
     sync_telegram_menus()
 
     logger.info("✅ متصل شد به ربات: @%s (id: %s)", BOT_USERNAME, BOT_ID)
+    load_free_mode()
+    logger.info("🎁 حالت رایگان: %s", "روشن" if free_mode_active() else "خاموش")
     logger.info("📢 وضعیت کانال ویترین: %s", CHANNEL_REASON)
     logger.info("🌍 ربات جهانی ۶ زبانه TradeGuard v7.5 (نسخه نهایی کامل!) روشن و آماده است! به تلگرام بروید و /start بزنید.")
 

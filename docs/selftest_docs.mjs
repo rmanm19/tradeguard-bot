@@ -95,9 +95,12 @@ const entStart = appJsClean.indexOf("async function loadEntitlements");
 const entEnd = entStart >= 0 ? appJsClean.indexOf("\n  }", entStart) : -1;
 const entBody = entStart >= 0 && entEnd > entStart ? appJsClean.slice(entStart, entEnd) : "";
 const setProTrue = appJsClean.match(/setPro\(\s*true\s*\)/g) || [];
+const inEnt = (entBody.match(/setPro\(\s*true\s*\)/g) || []).length;
 check("PRO فقط از فایل وضعیت ربات فعال می‌شود (نه با کلیک/پارامتر)",
-  setProTrue.length === 1 && entBody.includes("setPro(true)") && /pro_users\.json/.test(entBody),
-  `setPro(true)×${setProTrue.length} در ${entBody ? "loadEntitlements" : "جای دیگر"}`);
+  setProTrue.length === inEnt && inEnt >= 1 && inEnt <= 2 && /pro_users\.json/.test(entBody),
+  `setPro(true)×${setProTrue.length} (داخل loadEntitlements: ${inEnt})`);
+check("دورهٔ رایگان هم از همان فایل می‌آید (نه از URL)",
+  /freeMode/.test(entBody) && /isFreeMode\s*=\s*!!\(data\s*&&\s*data\.freeMode\)/.test(appJsClean));
 check("پارامتر URL هیچ‌وقت PRO را باز نمی‌کند",
   !/[?&](pro|pro_until|vip)=/i.test(appJsClean) && !/URLSearchParams[^;]*pro/i.test(appJsClean));
 check("دکمه پرداخت به چت ربات وصل است", /openBotChat\("pro"\)/.test(appJsClean));
