@@ -1,0 +1,13 @@
+{
+  "name": "tradeguard-app-selftest",
+  "private": true,
+  "version": "1.0.0",
+  "description": "سلف‌تست سرتاسری مینی‌اپ TradeGuard در jsdom (بدون مرورگر واقعی)",
+  "type": "module",
+  "scripts": {
+    "test": "node e2e_app.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "31.0.0"
+  }
+}

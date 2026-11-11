@@ -1,0 +1,66 @@
+name: Self-test Mini-App
+
+# سلف‌تست سرتاسری مینی‌اپ تلگرام در jsdom.
+# هیچ سری/توکنی لازم ندارد و روی ربات زنده (bot.yml) اثری نمی‌گذارد.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'tests/**'
+      - '.github/workflows/selftest-app.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selftest-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: «مینی‌اپ بدون خطا اجرا می‌شود»
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: دریافت کد
+        uses: actions/checkout@v4
+
+      - name: نصب Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: نصب jsdom
+        working-directory: tests
+        run: npm install --no-audit --no-fund
+
+      - name: سلف‌تست استاتیک (بدون مرورگر)
+        working-directory: docs
+        run: node selftest_docs.mjs
+
+      # در صورت شکست، خروجی تست به‌صورت annotation منتشر می‌شود تا بدون
+      # دانلود لاگ هم قابل خواندن باشد (بخش‌های ناموفق + انتهای خروجی).
+      - name: سلف‌تست سرتاسری مینی‌اپ (jsdom)
+        working-directory: tests
+        shell: bash
+        run: |
+          set +e
+          node e2e_app.mjs > selftest_out.txt 2>&1
+          code=$?
+          cat selftest_out.txt
+          if [ "$code" -ne 0 ]; then
+            grep -a '❌' selftest_out.txt | head -n 10 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
+            grep -a -m 3 -E 'Error|error:|TypeError|ReferenceError' selftest_out.txt | while IFS= read -r line; do echo "::error title=خطای اصلی::$line"; done
+            tail -n 20 selftest_out.txt | tr -d '\r' | sed 's/:%/%3A/g' | while IFS= read -r line; do echo "::error title=خروجی تست::$line"; done
+            if ! grep -qa '❌' selftest_out.txt; then
+              echo "::error title=اجرای هارنس متوقف شد::هارنس بدون هیچ سنجه‌ای متوقف شد؛ انتهای خروجی بالا است."
+            fi
+          fi
+          exit "$code"

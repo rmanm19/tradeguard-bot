@@ -21,3 +21,7 @@ venv/
 # ── سیستم ──
 .DS_Store
 Thumbs.db
+
+# ── وابستگی‌های سلف‌تست مینی‌اپ ──
+tests/node_modules/
+tests/package-lock.json
