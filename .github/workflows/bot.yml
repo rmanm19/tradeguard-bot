@@ -25,7 +25,7 @@ permissions:
 # در حالت pending ماندند. سنجه‌بگیر Watchdog هم اگر رباتی در حال اجرا نبود،
 # خودش دوباره روشنش می‌کند.
 concurrency:
-  group: tradeguard-bot-v2
+  group: tradeguard-bot-v3
   cancel-in-progress: false
 
 env:
