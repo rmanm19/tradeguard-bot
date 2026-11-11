@@ -201,18 +201,29 @@ def main() -> int:
                   f"value={link_val!r} | initDataUnsafe={tg_state}")
             page.screenshot(path=str(OUT / "02-subscription.png"), full_page=True)
 
-            page.click("#buyBtn")
-            page.wait_for_timeout(250)
-            check("شیت پرداخت باز شد", page.locator("#invoice").is_visible())
-            check("نام ربات درست است", "@TradeGuard1_bot" in page.inner_text("#invBotName"),
-                  page.inner_text("#invBotName"))
-            check("ادعای موفقیت جعلی وجود ندارد", page.locator("#payBtn").count() == 0)
-            page.screenshot(path=str(OUT / "03-invoice.png"))
+            # دورهٔ رایگان (freeMode=true در pro_users.json) کارت خرید را عمداً پنهان می‌کند؛
+            # در آن حالت باید نشان «رایگان» دیده شود و هیچ مسیر پرداختی باز نباشد.
+            if page.locator("#buyBtn").is_visible():
+                page.click("#buyBtn")
+                page.wait_for_timeout(250)
+                check("شیت پرداخت باز شد", page.locator("#invoice").is_visible())
+                check("نام ربات درست است", "@TradeGuard1_bot" in page.inner_text("#invBotName"),
+                      page.inner_text("#invBotName"))
+                check("ادعای موفقیت جعلی وجود ندارد", page.locator("#payBtn").count() == 0)
+                page.screenshot(path=str(OUT / "03-invoice.png"))
 
-            page.click("#startBtn")
-            page.wait_for_timeout(250)
-            opened = page.evaluate("window.__opened || ''")
-            check("دکمه پرداخت چت ربات را باز می‌کند", "?start=pro" in str(opened), str(opened))
+                page.click("#startBtn")
+                page.wait_for_timeout(250)
+                opened = page.evaluate("window.__opened || ''")
+                check("دکمه پرداخت چت ربات را باز می‌کند", "?start=pro" in str(opened), str(opened))
+            else:
+                check("دورهٔ رایگان: یادداشت «رایگان» دیده می‌شود",
+                      page.locator("#freeNote").is_visible())
+                check("دورهٔ رایگان: کارت خرید بسته است (همه‌چیز باز است)",
+                      not page.locator("#subIdle").is_visible())
+                check("دورهٔ رایگان: نشان پلن «رایگان» است",
+                      "رایگان" in page.inner_text("#planChip"), page.inner_text("#planChip"))
+                page.screenshot(path=str(OUT / "03-free-mode.png"), full_page=True)
 
             # گارد + اسکنر
             page.click('.tab-btn[data-tab="guard"]')
