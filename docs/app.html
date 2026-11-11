@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07090c" />
+  <meta name="color-scheme" content="dark light" />
+  <title>TradeGuard</title>
+  <meta name="description" content="TradeGuard — Funding Radar, Prop Drawdown Guard, Whale Alerts. 6 languages." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="app.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="tg-app">
+
+<div id="tgApp">
+
+  <div id="tgConnBar"></div>
+
+  <div id="tgSplash">
+    <div class="tgspin"></div>
+    <div class="splash-t">TradeGuard</div>
+  </div>
+
+    <!-- app top bar (with built-in Mini-App Language Selector!) -->
+  <div class="app-topbar">
+    <div class="app-title">
+      <div class="app-avatar">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="9" opacity=".45"/><circle cx="12" cy="12" r="5" opacity=".7"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 12 L19 7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name" data-i18n="appName">تریدگارد</div>
+        <div class="app-sub" data-i18n="appSub">ربات رسمی · ابزار تریدر جهانی</div>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="appLangBtn" class="app-lang-btn" type="button" title="Change Language">
+        <span id="appLangLabel">🇮🇷 FA</span> ▾
+      </button>
+      <div id="appLangMenu" class="app-lang-menu hidden">
+        <button class="app-lang-item is-on" data-lang="fa">🇮🇷 فارسی</button>
+        <button class="app-lang-item" data-lang="en">🇬🇧 English</button>
+        <button class="app-lang-item" data-lang="ru">🇷🇺 Русский</button>
+        <button class="app-lang-item" data-lang="ar">🇸🇦 العربية</button>
+        <button class="app-lang-item" data-lang="tr">🇹🇷 Türkçe</button>
+        <button class="app-lang-item" data-lang="es">🇪🇸 Español</button>
+      </div>
+      <div id="planChip" class="plan-chip off">پایه</div>
+    </div>
+  </div>
+
+  <!-- scrolling screen body -->
+  <div class="screen-body">
+
+    <!-- ===== TAB: RADAR ===== -->
+    <section class="tab-pane is-active" data-pane="radar">
+      <div class="card opp-card">
+        <div class="opp-head">
+          <span><span class="dot-pulse"></span> <span data-i18n="oppHead">برترین فرصت زنده فاندینگ آن‌چین</span></span>
+          <div class="opp-badges">
+            <span id="fngLiveBadge" class="fng-mini">F&amp;G: 34</span>
+            <span id="btcLiveBadge" class="btc-mini">BTC: ...</span>
+          </div>
+        </div>
+        <div class="opp-main">
+          <div>
+            <div class="opp-sym"><span id="oppSym">$SUI</span> <span id="oppTag" class="tag tag-short">اسپات + شورت ۱x</span></div>
+            <div class="opp-desc" id="oppDescLine" data-i18n-html="oppDescHtml">فاندینگ <b id="oppRate">+0.25%</b> / ۸ ساعت · معادل <b id="oppApr">268%</b> سالانه</div>
+          </div>
+          <div class="opp-num"><span id="oppEarn">4.2</span><small id="oppUnitEl" data-i18n="oppUnit">دلار/روز با ۵۰۰$</small></div>
+        </div>
+        <div class="cap-pills" id="arbCapSeg">
+          <span data-i18n="capLabel">سرمایه آربیتراژ:</span>
+          <div class="cap-btns">
+            <button class="cap-btn is-on" data-cap="500">$500</button>
+            <button class="cap-btn" data-cap="1000">$1,000</button>
+            <button class="cap-btn" data-cap="5000">$5,000</button>
+          </div>
+        </div>
+        <div class="opp-foot" id="oppFoot">...</div>
+      </div>
+
+      <div class="radar-switch" id="radarModeSeg">
+        <button class="rm-btn is-on" data-mode="extremes" data-i18n="rmHot">🔥 داغ‌ترین فاندینگ‌ها</button>
+        <button class="rm-btn" data-mode="majors" data-i18n="rmMajors">💎 لیدرهای بازار</button>
+        <button class="rm-btn" data-mode="whales" data-i18n="rmWhales">🐋 نهنگ‌ها ($1M+)</button>
+      </div>
+
+      <!-- Live Whale Wallet 0x X-Ray Inspector (shown in Whales mode) -->
+      <div id="whaleXrayBox" class="whale-xray-box hidden">
+        <div class="whale-dom">
+          <div class="wd-labels">
+            <span class="wd-l">🟢 LONG <b id="wdLongPct">38%</b></span>
+            <span class="wd-s">🔴 SHORT <b id="wdShortPct">62%</b></span>
+          </div>
+          <div class="wd-track"><i id="wdFill" class="wd-fill" style="width:38%"></i></div>
+        </div>
+        <div class="wx-title"><span data-i18n="wxTitle">🔎 اشعه ایکس کیف پول نهنگ (Hyperliquid 0x…)</span></div>
+        <div class="wx-form">
+          <input id="wxInput" class="wx-input" type="text" placeholder="0xecb63caa47c7c4e77f60f1ce858cf28dc2b82b00" />
+          <button id="wxScanBtn" class="wx-btn" type="button" data-i18n="wxBtn">بررسی آن‌چین</button>
+        </div>
+        <div id="wxResult" class="wx-result hidden"></div>
+      </div>
+
+      <!-- Live In-App AI Market Copilot -->
+      <div class="ai-copilot">
+        <div class="aic-top">
+          <span class="aic-title" data-i18n="aicTitle">🤖 دستیار هوش مصنوعی بازار (AI Copilot)</span>
+          <button id="aicRunBtn" class="aic-btn" type="button" data-i18n="aicBtn">تحلیل زنده ✨</button>
+        </div>
+        <div id="aicOut" class="aic-out hidden"></div>
+      </div>
+
+      <!-- GMGN-Style Token Anti-Rug & Honeypot Scanner -->
+      <div class="rug-box">
+        <div class="rug-title"><span data-i18n="rugTitle">🛡️ اسکنر ضد راگ‌پول و هانی‌پات توکن (سبک GMGN)</span></div>
+        <div class="rug-form">
+          <input id="rugInput" class="rug-input" type="text" placeholder="PEPE / UNI / 0x..." />
+          <button id="rugScanBtn" class="rug-btn" type="button" data-i18n="rugBtn">اسکن امنیت</button>
+        </div>
+        <div id="rugOut" class="rug-out hidden"></div>
+      </div>
+
+      <div class="list-head">
+        <span data-i18n="radarListHead">رادار زنده صرافی</span>
+        <span class="live-tag"><span class="live-dot"></span> <span id="liveStatusTxt" data-i18n="liveConnecting">متصل به آن‌چین</span></span>
+      </div>
+
+      <div id="radarList" class="rows"></div>
+
+      <div class="mini-note" data-i18n="radarMiniNote">
+        🔒 ردیف‌های ویژه مخصوص «پلن پرو» است — با ۳۰۰ ⭐ یا دعوت ۳ دوست باز کنید.
+      </div>
+    </section>
+
+    <!-- ===== TAB: GUARD ===== -->
+    <section class="tab-pane" data-pane="guard">
+      <div class="card guard-card">
+        <div class="guard-head">
+          <span class="guard-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.8 4.8 5.6v5.9c0 4.5 3 7.9 7.2 9.7 4.2-1.8 7.2-5.2 7.2-9.7V5.6L12 2.8z"/><path d="M9 12.2l2.2 2.2 4-4.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span data-i18n="guardTitle">گارد دراودان پراپ</span>
+          </span>
+          <span id="guardState" class="state-pill off">غیرفعال</span>
+        </div>
+
+        <div class="field">
+          <label><span data-i18n="lblPreset">پریست قوانین پراپ‌فرم‌های معروف (۲۰۲۶)</span></label>
+          <div class="firm-presets" id="firmPresets">
+            <button class="fp-btn is-on" data-dd="5" data-risk="0.5" data-cap="40">FundedNext</button>
+            <button class="fp-btn" data-dd="5" data-risk="0.5" data-cap="50">FTMO</button>
+            <button class="fp-btn" data-dd="4" data-risk="0.4" data-cap="50">The5ers</button>
+            <button class="fp-btn" data-dd="3" data-risk="0.3" data-cap="40">TopStep</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label><span data-i18n="lblInst">نماد معاملاتی (محاسبه دقیق لات طلا، فارکس و شاخص)</span></label>
+          <div class="inst-seg" id="instSeg">
+            <button class="inst-btn is-on" data-inst="XAUUSD">🥇 XAUUSD</button>
+            <button class="inst-btn" data-inst="EURUSD">💱 EURUSD</button>
+            <button class="inst-btn" data-inst="NAS100">📈 NAS100</button>
+            <button class="inst-btn" data-inst="BTCUSD">₿ BTCUSD</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label><span data-i18n="lblAccSize">سایز حساب</span></label>
+          <div class="seg" id="balSeg">
+            <button class="seg-btn" data-bal="5000">$5,000</button>
+            <button class="seg-btn is-on" data-bal="10000">$10,000</button>
+            <button class="seg-btn" data-bal="50000">$50,000</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label><span data-i18n="lblDailyDd">دراودان روزانه مجاز</span> <b id="ddVal">5%</b></label>
+          <input type="range" id="ddRange" min="1" max="8" step="0.5" value="5" />
+        </div>
+        <div class="field">
+          <label><span data-i18n="lblRiskTrade">ریسک هر معامله</span> <b id="riskVal">0.5%</b></label>
+          <input type="range" id="riskRange" min="0.1" max="1" step="0.1" value="0.5" />
+        </div>
+        <div class="field">
+          <label><span id="slLabelTxt" data-i18n="slPtsLbl">فاصله استاپ‌لاس (دلار / پوینت)</span> <b id="slVal">$5</b></label>
+          <input type="range" id="slRange" min="2" max="25" step="1" value="5" />
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-cell"><span class="stat-k" data-i18n="statCap">سقف ضرر امروز</span><span class="stat-v" id="outCap">$500</span></div>
+          <div class="stat-cell"><span class="stat-k" data-i18n="statRisk">ریسک هر معامله</span><span class="stat-v" id="outRisk">$50</span></div>
+          <div class="stat-cell"><span class="stat-k" data-i18n="statLot">حجم پیشنهادی</span><span class="stat-v" id="outLot">0.10</span></div>
+          <div class="stat-cell"><span class="stat-k" data-i18n="statTrades">معاملات مجاز امروز</span><span class="stat-v" id="outTrades">10</span></div>
+        </div>
+
+        <div id="recovNote" class="recov-note">...</div>
+
+        <div class="usage">
+          <div class="usage-top"><span data-i18n-html="usageTodayHtml">مصرف امروز: <b class="neg">۱٫۶۵٪−</b></span><span id="usagePct">33%</span></div>
+          <div class="usage-bar"><i id="usageFill" style="width:33%"></i></div>
+          <div class="usage-hint" data-i18n-html="usageHintHtml">با این روند، گارد در <b>۳٫۸٪−</b> قفل خودکار می‌زند — <i>قبل از پراپ، شما می‌بندید.</i></div>
+        </div>
+
+        <button id="guardToggle" class="btn-block btn-guard-off">فعال‌سازی قفل خودکار روزانه</button>
+
+        <div class="news-shield">
+          <div class="ns-head">
+            <span data-i18n="nsTitle">⏱️ سپر خبر قرمز پراپ (CPI/FOMC)</span>
+            <b id="newsCountdown" class="ns-timer">14:38</b>
+          </div>
+          <div class="ns-sub" data-i18n-html="nsSubHtml">قفل خودکار باز کردن پوزیشن جدید <b>۲ دقیقه قبل و بعد از خبر</b> برای محافظت از چالش پراپ</div>
+        </div>
+
+        <!-- 2026 Prop Consistency Rule Shield -->
+        <div class="consist-box" id="consistBox">
+          <div class="cs-head"><span data-i18n="csTitle">⚖️ سپر قانون Consistency پراپ (ضد رد شدن برداشت!)</span></div>
+          <div class="cs-inputs">
+            <div class="cs-field">
+              <span data-i18n="csTotLbl">کل سود تا امروز ($)</span>
+              <input id="csTotal" type="number" min="50" step="50" value="1200" />
+            </div>
+            <div class="cs-field">
+              <span data-i18n="csBestLbl">سود بهترین روز ($)</span>
+              <input id="csBest" type="number" min="10" step="25" value="600" />
+            </div>
+            <div class="cs-field">
+              <span data-i18n="csCapLbl">سقف قانون پراپ</span>
+              <select id="csCap">
+                <option value="30">30%</option>
+                <option value="40" selected>40%</option>
+                <option value="50">50%</option>
+              </select>
+            </div>
+          </div>
+          <div id="csOut" class="cs-out">...</div>
+        </div>
+
+        <div id="eaRow" class="ea-row locked">
+          <div>
+            <div class="ea-name" data-i18n="eaName">اکسپرت «گارد MT4/MT5»</div>
+            <div class="ea-sub" data-i18n="eaSub">بستن خودکار پوزیشن‌ها سر سقف روز · نسخه پلن پرو</div>
+          </div>
+          <span class="ea-lock">🔒 قفل</span>
+        </div>
+
+        <div id="pineRow" class="ea-row locked" style="margin-top:8px">
+          <div>
+            <div class="ea-name" data-i18n="pineName">اندیکاتور «SmartRadar تریدینگ‌ویو»</div>
+            <div class="ea-sub" data-i18n="pineSub">آهنربای استاپ دیروز (PDH/PDL) + جدول لات امن · Pine v5</div>
+          </div>
+          <span class="ea-lock">🔒 قفل</span>
+        </div>
+
+        <button id="shareCardBtn" class="btn-block btn-story" style="margin-top:10px" data-i18n="shareBtn">
+          📸 ساخت کارت استوری دیسیپلین پراپ (وایرال)
+        </button>
+      </div>
+    </section>
+
+    <!-- ===== TAB: DEALS (PROP CASHBACK — ENGINE #2) ===== -->
+    <section class="tab-pane" data-pane="deals">
+      <div class="list-head">
+        <span data-i18n="dealsHead">کش‌بک تتری چالش پراپ</span>
+        <span class="live-tag"><span class="live-dot"></span> <span data-i18n="dealsVerified">واریز آن‌چین تأییدشده</span></span>
+      </div>
+      <div class="deals-intro" data-i18n-html="dealsIntroHtml">
+        💡 <b>موتور دوم سود کاربر و شما:</b> خرید چالش با کد تریدگارد = تخفیف لحظه‌ای + <b>۴ تا ۶ تتر کش‌بک نقدی</b> پس از خرید!
+      </div>
+      <div id="propDealsList" class="deals-list"></div>
+    </section>
+
+    <!-- ===== TAB: ALERTS ===== -->
+    <section class="tab-pane" data-pane="alerts">
+      <div class="list-head"><span data-i18n="alertsHead">هشدارهای لحظه‌ای</span><span class="live-tag"><span class="live-dot"></span> <span data-i18n="alertsNew">زنده آن‌چین</span></span></div>
+
+      <div class="custom-alert-box">
+        <div class="ca-title" data-i18n="caTitle">🔔 ساخت آلارم شخصی قیمت و فاندینگ (ویژه شما)</div>
+        <div class="ca-row">
+          <select id="caSym">
+            <option value="BTC">$BTC</option>
+            <option value="ETH">$ETH</option>
+            <option value="SOL">$SOL</option>
+            <option value="SUI">$SUI</option>
+            <option value="XAUUSD">XAUUSD</option>
+          </select>
+          <input id="caVal" type="text" placeholder="82000 / 0.15%" />
+          <button id="caAddBtn" class="ca-btn" type="button" data-i18n="caBtn">+ ثبت آلارم</button>
+        </div>
+        <div id="caList" class="ca-list"></div>
+      </div>
+
+      <div class="feed" id="alertsFeed"></div>
+    </section>
+
+    <!-- ===== TAB: SUBSCRIPTION ===== -->
+    <section class="tab-pane" data-pane="sub">
+      <div id="subIdle">
+        <div class="plan-card">
+          <div class="plan-badge" data-i18n="subBadge">پلن پرو</div>
+          <div class="plan-price"><b id="planStarsNum">300</b> <span class="star">⭐</span><small data-i18n="subPerMo">/ ماهانه</small></div>
+          <div class="plan-fiat" data-i18n="subFiat">≈ ۳٫۹ دلار — پرداخت جهانی با Telegram Stars</div>
+          <ul class="plan-feats">
+            <li data-i18n="subFeat1">رادار فاندینگ‌ریت نامحدود + فرصت‌های لحظه‌ای</li>
+            <li data-i18n="subFeat2">گارد دراودان + دانلود اکسپرت MT5 و اسکریپت TradingView</li>
+            <li data-i18n="subFeat3">هشدارهای نهنگ آن‌چین، اخبار قرمز و ردیاب واریزی پراپ</li>
+            <li data-i18n="subFeat4">بدون نیاز به کارت بانکی — فعال در تمام کشورهای دنیا</li>
+          </ul>
+          <button id="buyBtn" class="btn-block btn-stars" data-i18n="buyBtn">خرید اشتراک با Telegram Stars</button>
+          <div class="plan-note" data-i18n="planNote">پرداخت کاملاً داخل تلگرام انجام می‌شود و از طریق Fragment به TON/USDT تسویه می‌گردد.</div>
+        </div>
+
+        <div class="viral-card">
+          <div class="vc-head">
+            <span class="vc-badge" data-i18n="vcBadge">🎁 موتور رشد ویروسی</span>
+            <span id="refCounter" class="vc-count">0 / 3</span>
+          </div>
+          <div class="vc-title" data-i18n="vcTitle">دعوت ۳ دوست تریدر = ۷ روز پرو رایگان!</div>
+          <div class="vc-sub" data-i18n="vcSub">استارز نداری؟ لینک اختصاصی‌ت رو بفرست گروه پراپ؛ با استارت ۳ نفر، کل قفل‌ها + فایل MT5 و TradingView باز می‌شه.</div>
+          <div class="vc-bar"><i id="refFill" style="width:0%"></i></div>
+          <button id="simInviteBtn" class="btn-block btn-viral" data-i18n="simInviteBtn">شبیه‌سازی دعوت ۱ دوست تریدر +</button>
+        </div>
+      </div>
+
+      <div id="subActive" class="hidden">
+        <div class="plan-card active">
+          <div class="active-check">✓</div>
+          <div class="plan-badge green" data-i18n="proActiveBadge">پلن پرو فعال است</div>
+          <div class="plan-price small" data-i18n="proActiveDate">۳۰ روز فعال ✓</div>
+          <div class="plan-fiat" data-i18n="proActiveSub">تمدید خودکار یا لغو در هر لحظه با Stars</div>
+          <ul class="plan-feats">
+            <li data-i18n="proActFeat1">همه قفل‌های رادار و هشدارها باز شد ✓</li>
+            <li data-i18n="proActFeat2">اکسپرت MT5 و اندیکاتور TradingView آماده دانلود ✓</li>
+            <li data-i18n="proActFeat3">فاکتور رسمی در تلگرام ذخیره شد ✓</li>
+          </ul>
+          <button class="btn-block btn-ghost-dark" data-i18n="proHistBtn">تاریخچه فاکتورها</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- bottom tab bar -->
+  <nav class="tabbar">
+    <button class="tab-btn is-on" data-tab="radar">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.6" opacity=".5"/><circle cx="12" cy="12" r="4.8" opacity=".75"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 12l6.4-3.6" stroke-linecap="round"/></svg>
+      <span data-i18n="tabRadar">رادار</span>
+    </button>
+    <button class="tab-btn" data-tab="guard">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 5.4 5.6v5.5c0 4.2 2.8 7.4 6.6 9 3.8-1.6 6.6-4.8 6.6-9V5.6L12 3z"/><path d="M9.2 12.1l2.1 2.1 3.7-4.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span data-i18n="tabGuard">گارد</span>
+    </button>
+    <button class="tab-btn" data-tab="deals">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M8 15h4" stroke-linecap="round"/></svg>
+      <span data-i18n="tabDeals">کش‌بک</span>
+    </button>
+    <button class="tab-btn" data-tab="alerts">
+      <span class="tab-badge" id="alertTabBadge">3</span>
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6.4 16.5V11a5.6 5.6 0 0 1 11.2 0v5.5l1.5 2H4.9l1.5-2z" stroke-linejoin="round"/><path d="M10.2 20.8a2 2 0 0 0 3.6 0" stroke-linecap="round"/></svg>
+      <span data-i18n="tabAlerts">هشدارها</span>
+    </button>
+    <button class="tab-btn" data-tab="sub">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3.4l2.5 5.1 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8L12 3.4z" stroke-linejoin="round"/></svg>
+      <span data-i18n="tabSub">اشتراک</span>
+    </button>
+  </nav>
+
+  <!-- Stars invoice sheet -->
+  <div id="invoice" class="sheet hidden" aria-hidden="true">
+    <div class="sheet-top">
+      <button id="invBack" class="sheet-back" data-i18n="invBack">→ بازگشت</button>
+      <span class="sheet-title" data-i18n="invTitle">پرداخت</span>
+      <span class="sheet-spacer"></span>
+    </div>
+
+    <div class="sheet-step" data-step="1">
+      <div class="inv-bot">
+        <div class="inv-avatar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" opacity=".45"/><circle cx="12" cy="12" r="5" opacity=".7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <div class="inv-name">@TradeGuard_bot</div>
+      </div>
+      <div class="inv-item">
+        <div class="inv-label" data-i18n="invItemLabel">اشتراک پلن پرو — ۳۰ روز</div>
+        <div class="inv-price"><span id="invPriceNum">300</span> <span class="star">⭐</span></div>
+      </div>
+      <div class="inv-rows">
+        <div class="inv-row"><span data-i18n="invMethod">روش پرداخت</span><b>Telegram Stars</b></div>
+        <div class="inv-row"><span data-i18n="invBal">موجودی شما</span><b>320 ⭐</b></div>
+        <div class="inv-row"><span data-i18n="invAfter">پس از پرداخت</span><b data-i18n="invRemains">۲۰ ⭐ باقی می‌ماند</b></div>
+      </div>
+      <button id="payBtn" class="btn-block btn-stars" data-i18n="payBtn">پرداخت ۳۰۰ ⭐</button>
+      <div class="inv-note" data-i18n="invNote">بدون کارت بانکی · بدون مرز · تسویه رسمی Fragment</div>
+    </div>
+
+    <div class="sheet-step hidden" data-step="2">
+      <div class="inv-loading"><span class="spinner"></span></div>
+      <div class="inv-loading-text" data-i18n="invLoading">در حال تأیید پرداخت…</div>
+    </div>
+
+    <div class="sheet-step hidden" data-step="3">
+      <div class="inv-success">
+        <div class="success-ring">✓</div>
+        <div class="success-title" data-i18n="invSuccessTitle">خرید موفق</div>
+        <div class="success-sub" data-i18n-html="invSuccessSubHtml">پلن پرو برای <b>۳۰ روز کامل</b> فعال شد.<br />همه قفل‌ها و دانلودها باز شدند.</div>
+        <button id="startBtn" class="btn-block btn-primary" data-i18n="startBtn">شروع کن</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Viral Story Card Generator Sheet -->
+  <div id="storySheet" class="sheet hidden" aria-hidden="true">
+    <div class="sheet-top">
+      <button id="storyBack" class="sheet-back" data-i18n="storyClose">→ بستن</button>
+      <span class="sheet-title" data-i18n="storyTitle">کارت استوری وایرال</span>
+      <span class="sheet-spacer"></span>
+    </div>
+    <div class="story-wrap">
+      <canvas id="storyCanvas" width="720" height="1120"></canvas>
+      <button id="dlStoryBtn" class="btn-block btn-primary" style="margin-top:10px" data-i18n="dlStoryBtn">📥 ذخیره تصویر استوری (PNG)</button>
+      <div class="inv-note" data-i18n="storyNote">اشتراک‌گذاری این کارت در استوری و گروه‌های ترید، ترافیک جهانی رایگان برای ربات شما می‌آورد!</div>
+    </div>
+  </div>
+
+  <div id="appToast" class="app-toast hidden"></div>
+</div>
+
+</div>
+
+<script src="i18n.js"></script>
+<script src="static_api.js"></script>
+<script src="app.js"></script>
+<script src="app_tg.js"></script>
+</body>
+</html>

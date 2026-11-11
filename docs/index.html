@@ -6,6 +6,51 @@
   <title>تریدگارد — مینی‌اپ جهانی تریدرهای فارکس و کریپتو</title>
   <meta name="description" content="TradeGuard Global: Multilingual Telegram Mini-App for Forex & Crypto Traders (FA, EN, RU, AR, TR, ES) — Funding Rate Radar, Prop Drawdown Guard, Whale Alerts & Telegram Stars." />
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+/* ============================================================
+   TradeGuard — تفکیک نقش
+   داخل تلگرام  → app.html (اپ واقعی کاربر)
+   مرورگر عادی  → همین صفحه معرفی
+   بخش «مؤسس» فقط با ?admin=1
+   ============================================================ */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var tg = window.Telegram && window.Telegram.WebApp;
+
+  function inTelegram() {
+    if (!tg) return false;
+    if (tg.initData && tg.initData.length > 0) return true;
+    var p = tg.platform || "";
+    return p !== "" && p !== "unknown" && p !== "web";
+  }
+
+  // ۱) ریدایرکت فوری اگر داخل تلگرام است
+  var wantApp = inTelegram() || q.get("app") === "1" || location.hash === "#app";
+  if (wantApp && !/app\.html$/.test(location.pathname)) {
+    location.replace("app.html" + location.search);
+    return;
+  }
+
+  // ۲) گیت بخش مؤسس — بعد از آماده شدن DOM
+  function gate() {
+    if (q.get("admin") === "1") {
+      document.body.setAttribute("data-role", "admin");
+      return;
+    }
+    document.body.setAttribute("data-role", "user");
+    ["simSection", "model"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.remove();          // کامل حذف، نه فقط مخفی
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", gate);
+  } else {
+    gate();
+  }
+})();
+</script>
 </head>
 <body>
 

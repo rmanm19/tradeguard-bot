@@ -1,0 +1,210 @@
+/* ============================================================================
+   TradeGuard — app.css  (v1.0)
+   لایه‌ی «اپ تمام‌قد» برای مینی‌اپ تلگرام.
+   روی styles.css سوار می‌شود و قالب ماکت گوشی را به اپ واقعی تبدیل می‌کند.
+   ============================================================================ */
+
+/* ---------- ریست چیدمان ---------- */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;                /* اسکرول فقط داخل بدنه */
+  overscroll-behavior: none;
+  background: var(--bg, #07090c);
+}
+
+body.tg-app {
+  display: flex;
+  justify-content: center;
+}
+
+/* قالب اصلی اپ: تمام ارتفاع دستگاه */
+#tgApp {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  height: 100vh;
+  height: 100dvh;                  /* موبایل: ارتفاع واقعی بدون نوار آدرس */
+  background: var(--bg, #07090c);
+  overflow: hidden;
+}
+
+/* ---------- نوار بالا ---------- */
+#tgApp .app-topbar {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+  background: linear-gradient(180deg, rgba(7,9,12,.98), rgba(7,9,12,.86) 70%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#tgApp .app-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(37,214,154,.22), rgba(37,214,154,.06));
+  border: 1px solid rgba(37,214,154,.35);
+  color: var(--green, #25d69a);
+}
+
+#tgApp .app-name {
+  font-size: 14.5px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+#tgApp .app-sub {
+  font-size: 10.5px;
+  color: var(--mut, #8b97a8);
+  line-height: 1.3;
+}
+
+/* ---------- بدنه اسکرول‌شونده ---------- */
+#tgApp .screen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px calc(84px + env(safe-area-inset-bottom, 0px));
+  scrollbar-width: none;
+}
+#tgApp .screen-body::-webkit-scrollbar { display: none; }
+
+/* ---------- نوار تب پایین ---------- */
+#tgApp .tabbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 560px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: rgba(10,13,18,.96);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+#tgApp .tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 2px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--mut, #8b97a8);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color .18s, background .18s, transform .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+#tgApp .tab-btn svg { width: 20px; height: 20px; }
+#tgApp .tab-btn:active { transform: scale(.94); }
+
+#tgApp .tab-btn.is-on {
+  color: var(--green, #25d69a);
+  background: rgba(37,214,154,.10);
+}
+
+/* ---------- اندیکاتور اتصال ---------- */
+#tgConnBar {
+  font-size: 10px;
+  padding: 5px 14px;
+  text-align: center;
+  color: var(--mut, #8b97a8);
+  background: rgba(255,255,255,.03);
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  display: none;
+}
+#tgConnBar.show { display: block; }
+#tgConnBar.err { color: #ffb4a8; background: rgba(255,80,60,.09); }
+
+/* ---------- حالت لود اولیه ---------- */
+#tgSplash {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg, #07090c);
+  transition: opacity .35s ease, visibility .35s;
+}
+#tgSplash.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.tgspin {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid rgba(37,214,154,.18);
+  border-top-color: var(--green, #25d69a);
+  animation: tgspin 0.85s linear infinite;
+}
+@keyframes tgspin { to { transform: rotate(360deg); } }
+
+#tgSplash .splash-t {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mut, #8b97a8);
+}
+
+/* ---------- ریزه‌کاری ---------- */
+#tgApp .card,
+#tgApp .row {
+  border-radius: 14px;
+}
+
+/* روی دسکتاپ/مرورگر: قاب ملایم */
+@media (min-width: 620px) {
+  body.tg-app {
+    background: radial-gradient(900px 500px at 50% -10%, #0f1a20, #05070a 70%);
+    padding: 0;
+  }
+  #tgApp {
+    max-width: 480px;
+    height: 100vh;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 30px 90px rgba(0,0,0,.65);
+  }
+}
+
+/* ---------- دسترس‌پذیری ---------- */
+@media (prefers-reduced-motion: reduce) {
+  #tgApp .tab-btn,
+  #tgSplash { transition: none; }
+  .tgspin { animation-duration: 2s; }
+}
+
+/* ---------- دارک/لایت تلگرام ---------- */
+body.tg-light {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --txt: #0d1117;
+  --mut: #5b6675;
+}
