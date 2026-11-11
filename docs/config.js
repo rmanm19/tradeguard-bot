@@ -1,16 +1,13 @@
 /* ============================================================================
-   TradeGuard — docs/config.js
-   ⚠️ این فایل به‌طور خودکار توسط .github/workflows/sync-app-config.yml
-      از روی Secretهای گیت‌هاب ساخته می‌شود؛ دستی ویرایش نکنید.
+TradeGuard — docs/config.js
+⚠️ این فایل خودکار توسط .github/workflows/sync-app-config.yml ساخته می‌شود.
+دستی ویرایش نکنید؛ با هر push یا اجرای زمان‌بندی بازنویسی می‌شود.
 
-   adminHashes: sha256("tg-admin:" + <telegram_user_id>) ولی فقط ۱۶ کاراکتر اول
-   چرا هش؟ چون فایل عمومی است و آیدی عددی مؤسس نباید متن‌باز پخش شود.
-   برای اینکه پنل مدیر ظاهر شود: Secret با نام ADMIN_USER_ID را بگذارید و
-   workflow «Sync App Config» را اجرا کنید (یا منتظر اجرای خودکارش بمانید).
-   ============================================================================ */
+adminHashes: sha256("tg-admin:" + <telegram_user_id>) با ۱۶ کاراکتر اول
+============================================================================ */
 window.TG_CONFIG = {
-  generatedAt: null,
-  repo: "rmanm19/tradeguard-bot",
-  botUsername: "TradeGuard1_bot",
-  adminHashes: []
+generatedAt: "2026-11-11T07:42:52Z",
+repo: "rmanm19/tradeguard-bot",
+botUsername: "TradeGuard1_bot",
+adminHashes: ["66473717ebc27f13"]
 };
