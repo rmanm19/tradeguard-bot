@@ -103,22 +103,12 @@
     setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 420);
   }
 
-  /* ---------- ۴) تقسیم به ادمین/کاربر ---------- */
+  /* ---------- ۴) نقش ----------
+     نقش ادمین دیگر از ?admin=1 خوانده نمی‌شود (هر کسی می‌توانست آن را در آدرس
+     بگذارد). تشخیص واقعی در admin.js بر اساس initDataUnsafe.user.id انجام
+     می‌شود. اینجا فقط نقش پیش‌فرض «کاربر» ست می‌شود. */
   function applyRole() {
-    var isAdmin = false;
-    try {
-      var u = window.TG_USER;
-      // ادمین از طریق پارامتر ?admin=1 یا کوکی محلی؛ نه قابل جعل برای کاربر عادی
-      var q = new URLSearchParams(window.location.search);
-      isAdmin = q.get("admin") === "1" && !!(u && u.id);
-    } catch (e) {}
-
-    if (!isAdmin) {
-      // هیچ بخش مدیریتی به کاربر عادی نشان داده نمی‌شود
-      document.body.setAttribute("data-role", "user");
-    } else {
-      document.body.setAttribute("data-role", "admin");
-    }
+    document.body.setAttribute("data-role", "user");
   }
 
   /* ---------- ۵) دکمه بازگشت تلگرام → تب اول ---------- */

@@ -1018,7 +1018,7 @@ def sync_telegram_menus() -> None:
         tg_call("setChatMenuButton", {"menu_button": {"type": "commands"}})
 
 
-def main_keyboard(is_pro: bool, lang: str = "fa") -> dict:
+def main_keyboard(is_pro: bool, lang: str = "fa", is_admin_user: bool = False) -> dict:
     app_url = build_app_url(lang)
     first_btn = (
         {"text": tr(lang, "btn_app"), "web_app": {"url": app_url}}
@@ -1046,7 +1046,214 @@ def main_keyboard(is_pro: bool, lang: str = "fa") -> dict:
                 {"text": tr(lang, "btn_pine"), "callback_data": "download_pine"},
             ]
         )
+    # 👑 ردیف اختصاصی مؤسس: کاربر عادی هرگز این دکمه را نمی‌بیند
+    if is_admin_user:
+        rows.append([{"text": "🛠 پنل مدیریت مؤسس", "callback_data": "admin_panel"}])
     return {"inline_keyboard": rows}
+
+
+def admin_back_keyboard() -> dict:
+    return {
+        "inline_keyboard": [
+            [{"text": "🔙 بازگشت به پنل مدیر", "callback_data": "admin_panel"}],
+            [{"text": "👤 نمای کاربر عادی", "callback_data": "user_view"}],
+        ]
+    }
+
+
+def admin_keyboard() -> dict:
+    """منوی اختصاصی مؤسس — کاملاً متفاوت از منوی کاربر عادی."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "📊 آمار کاربران", "callback_data": "adm_stats"},
+                {"text": "💰 درآمد و فروش", "callback_data": "adm_revenue"},
+            ],
+            [
+                {"text": "👥 ۱۰ کاربر آخر", "callback_data": "adm_users"},
+                {"text": "🩺 سلامت سیستم", "callback_data": "adm_health"},
+            ],
+            [
+                {"text": "📢 کانال ویترین", "callback_data": "adm_channel"},
+                {"text": "🔗 لینک مینی‌اپ", "callback_data": "adm_url"},
+            ],
+            [
+                {"text": "🎁 گرنت پرو", "callback_data": "adm_help_grant"},
+                {"text": "📣 پیام همگانی", "callback_data": "adm_help_broadcast"},
+            ],
+            [{"text": "👤 دیدن نمای کاربر عادی", "callback_data": "user_view"}],
+        ]
+    }
+
+
+def admin_snapshot() -> Dict:
+    """یک عکس لحظه‌ای از دیتابیس برای پنل مؤسس."""
+    now = int(time.time())
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        active_pro = conn.execute("SELECT COUNT(*) FROM users WHERE pro_until > ?", (now,)).fetchone()[0]
+        total_stars = conn.execute("SELECT COALESCE(SUM(stars_amount), 0) FROM payments").fetchone()[0]
+        pay_count = conn.execute("SELECT COUNT(*) FROM payments").fetchone()[0]
+        langs = conn.execute("SELECT lang, COUNT(*) FROM users GROUP BY lang").fetchall()
+        refs = conn.execute("SELECT COALESCE(SUM(referrals_count), 0) FROM users").fetchone()[0]
+        new7 = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE created_at > ?", (now - 7 * 86400,)
+        ).fetchone()[0]
+    return {
+        "total_users": int(total_users),
+        "active_pro": int(active_pro),
+        "total_stars": int(total_stars),
+        "pay_count": int(pay_count),
+        "langs": [(str(a), int(b)) for a, b in langs],
+        "refs": int(refs),
+        "new7": int(new7),
+    }
+
+
+def send_admin_panel(chat_id: int, uid: int) -> None:
+    """صفحه اصلی پنل مؤسس."""
+    s = admin_snapshot()
+    usd_est = s["total_stars"] * 0.013
+    url_status = (
+        f"`{MINI_APP_URL}`" if is_real_app_url(MINI_APP_URL)
+        else "⚠️ تنظیم نشده (با `/seturl https://...`)"
+    )
+    # اگر هنوز ادمینی ثبت نشده، دکمه ادعای ادمینی نمایش داده می‌شود
+    kb = (
+        {"inline_keyboard": [[{"text": "👑 ثبت من به عنوان ادمین اصلی", "callback_data": "claim_admin"}]]}
+        if not ADMIN_USER_ID
+        else admin_keyboard()
+    )
+    tg_send_message(
+        chat_id,
+        f"🛠 *پنل مدیریت مؤسس — TradeGuard*\n"
+        f"_(این منو فقط برای شماست؛ کاربر عادی آن را نمی‌بیند)_\n\n"
+        f"👥 کاربران: *{s['total_users']}* · ۷ روز اخیر: *+{s['new7']}*\n"
+        f"⭐ پرو فعال: *{s['active_pro']}*\n"
+        f"💰 فروش: *{s['pay_count']}* پرداخت · *{s['total_stars']} ⭐* (≈ *${usd_est:,.2f}*)\n"
+        f"🤝 مجموع دعوت‌های کاربران: *{s['refs']}*\n"
+        f"🌍 زبان‌ها: `{' | '.join(f'{k.upper()}:{v}' for k, v in s['langs']) or '—'}`\n"
+        f"🔗 مینی‌اپ: {url_status}\n"
+        f"📢 کانال: {'✅ فعال' if CHANNEL_OK else '⚠️ خاموش'}\n\n"
+        f"از دکمه‌های زیر استفاده کنید 👇",
+        reply_markup=kb,
+    )
+
+
+def send_admin_section(chat_id: int, uid: int, data: str) -> None:
+    """زیرصفحه‌های پنل مؤسس."""
+    s = admin_snapshot()
+    if data == "adm_stats":
+        body = (
+            f"📊 *آمار کاربران*\n\n"
+            f"👥 کل کاربران: *{s['total_users']}*\n"
+            f"🆕 ۷ روز اخیر: *+{s['new7']}*\n"
+            f"⭐ پرو فعال: *{s['active_pro']}*\n"
+            f"🆓 رایگان: *{max(0, s['total_users'] - s['active_pro'])}*\n"
+            f"🤝 دعوت‌های انجام‌شده: *{s['refs']}*\n"
+            f"🌍 تفکیک زبان:\n" + "\n".join(
+                f"• `{k.upper()}` — {v}" for k, v in s["langs"]
+            )
+        )
+    elif data == "adm_revenue":
+        now = int(time.time())
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            recent = conn.execute(
+                "SELECT user_id, stars_amount, paid_at FROM payments ORDER BY id DESC LIMIT 5"
+            ).fetchall()
+        usd_est = s["total_stars"] * 0.013 * 0.95
+        rows = "\n".join(
+            f"• `{datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime('%m-%d %H:%M')}` — "
+            f"*{amt} ⭐* — کاربر `{u}`"
+            for u, amt, ts in recent
+        ) or "_هنوز فروشی ثبت نشده_"
+        body = (
+            f"💰 *درآمد و فروش*\n\n"
+            f"⭐ کل استارز: *{s['total_stars']}*\n"
+            f"🧾 تعداد پرداخت: *{s['pay_count']}*\n"
+            f"💵 خالص تخمینی: *${usd_est:,.2f}*\n"
+            f"💲 قیمت فعلی اشتراک: *{SUBSCRIPTION_STARS} ⭐* (تغییر: `/price 300`)\n\n"
+            f"*آخرین پرداخت‌ها:*\n{rows}"
+        )
+    elif data == "adm_users":
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT user_id, username, lang, pro_until, created_at FROM users "
+                "ORDER BY created_at DESC LIMIT 10"
+            ).fetchall()
+        now = int(time.time())
+        lines = []
+        for u_id, uname, lang, pro_until, created in rows:
+            tag = "⭐" if int(pro_until or 0) > now else "🆓"
+            when = datetime.fromtimestamp(int(created), tz=timezone.utc).strftime("%m-%d")
+            lines.append(f"{tag} `{u_id}` {('@' + uname) if uname else ''} · {lang.upper()} · {when}")
+        body = "👥 *۱۰ کاربر آخر*\n\n" + ("\n".join(lines) or "_دیتابیس خالی است_")
+    elif data == "adm_health":
+        db_size = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+        restarts = "—"
+        try:
+            st = json.loads((BASE_DIR / "supervisor_state.json").read_text(encoding="utf-8"))
+            restarts = str(st.get("restarts", 0))
+        except Exception:
+            pass
+        body = (
+            f"🩺 *سلامت سیستم*\n\n"
+            f"🤖 ربات: `@{BOT_USERNAME}` · id `{BOT_ID}`\n"
+            f"🐍 پایتون: `{sys.version.split()[0]}`\n"
+            f"🗄 دیتابیس: `{DB_PATH.name}` — *{db_size / 1024:.0f} KB*\n"
+            f"🔁 ری‌استارت‌های این اجرا: *{restarts}*\n"
+            f"🧠 کلید AI: {'✅ تنظیم شده' if AI_API_KEY and 'your_key_here' not in AI_API_KEY else '⚠️ تنظیم نشده'}\n"
+            f"🔗 مینی‌اپ: {'✅' if is_real_app_url(MINI_APP_URL) else '⚠️'}\n"
+            f"📢 کانال: {'✅' if CHANNEL_OK else '⚠️'} — `{CHANNEL_REASON or '—'}`\n"
+            f"👑 ادمین: `{ADMIN_USER_ID or 'ثبت نشده'}`\n"
+            f"🗝 کلید دیتابیس: {'✅ TG_DB_KEY' if os.environ.get('TG_DB_KEY') else '⚠️ مشتق از توکن'}"
+        )
+    elif data == "adm_channel":
+        body = (
+            f"📢 *کانال ویترین*\n\n"
+            f"• آیدی فعلی: `{PUBLIC_CHANNEL_ID or '— خالی —'}`\n"
+            f"• وضعیت: `{CHANNEL_REASON or '—'}`\n\n"
+            f"تنظیم: `/setchannel @my_channel` یا `/setchannel off`"
+        )
+    elif data == "adm_url":
+        body = (
+            f"🔗 *لینک مینی‌اپ*\n\n"
+            f"• فعلی: `{MINI_APP_URL}`\n"
+            f"• وضعیت: {'✅ فعال' if is_real_app_url(MINI_APP_URL) else '⚠️ نامعتبر/تنظیم نشده'}\n\n"
+            f"تغییر: `/seturl https://...`"
+        )
+    elif data == "adm_help_grant":
+        body = (
+            f"🎁 *گرنت پرو*\n\n"
+            f"`/grantpro 123456789` — ۳۰ روز پرو رایگان به آن کاربر\n"
+            f"`/grantpro` (بدون آیدی) — پرو به خودتان"
+        )
+    elif data == "adm_help_broadcast":
+        body = (
+            f"📣 *پیام همگانی*\n\n"
+            f"`/broadcast متن پیام شما`\n\n"
+            f"• به همه کاربران دیتابیس ارسال می‌شود\n"
+            f"• با تأخیر ۵۰ms بین هر کاربر (ضد اسپم)"
+        )
+    else:
+        send_admin_panel(chat_id, uid)
+        return
+
+    tg_send_message(chat_id, body, reply_markup=admin_back_keyboard())
+
+
+def send_user_home(chat_id: int, uid: int, lang: str, pro: bool) -> None:
+    """صفحه خانه کاربر عادی (بدون هیچ اثری از پنل مدیریت برای غیرادمین)."""
+    _, exp = is_user_pro(uid)
+    if pro:
+        status_line = tr(lang, "status_pro", exp=datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d"))
+    else:
+        status_line = tr(lang, "status_free")
+    tg_send_message(
+        chat_id,
+        tr(lang, "welcome", status=status_line),
+        reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)),
+    )
 
 
 def language_keyboard() -> dict:
@@ -1154,7 +1361,7 @@ def handle_message(msg: dict) -> None:
         else:
             logger.info("پرداخت تکراری نادیده گرفته شد: %s", charge_id[:22])
 
-        tg_send_message(chat_id, tr(lang, "paid_ok", exp=exp_str), reply_markup=main_keyboard(True, lang))
+        tg_send_message(chat_id, tr(lang, "paid_ok", exp=exp_str), reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)))
         return
 
     text = (msg.get("text") or "").strip()
@@ -1177,17 +1384,12 @@ def handle_message(msg: dict) -> None:
         if is_new and valid_ref:
             ref_lang = get_user_lang(valid_ref, "fa")
             if unlocked_now:
-                tg_send_message(valid_ref, tr(ref_lang, "ref_unlocked"), reply_markup=main_keyboard(True, ref_lang))
+                tg_send_message(valid_ref, tr(ref_lang, "ref_unlocked"), reply_markup=main_keyboard(True, ref_lang, is_admin_user=is_admin(valid_ref)))
             else:
                 tg_send_message(valid_ref, tr(ref_lang, "ref_new", count=ref_count, target=FREE_PRO_INVITE_TARGET))
 
-        pro, exp = is_user_pro(uid)
-        status_line = (
-            tr(lang, "status_pro", exp=datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d"))
-            if pro
-            else tr(lang, "status_free")
-        )
-        tg_send_message(chat_id, tr(lang, "welcome", status=status_line), reply_markup=main_keyboard(pro, lang))
+        pro, _ = is_user_pro(uid)
+        send_user_home(chat_id, uid, lang, pro)
         return
 
     if text.startswith("/lang"):
@@ -1293,42 +1495,23 @@ def handle_message(msg: dict) -> None:
             )
         return
 
-    if text.startswith("/admin"):
-        uid_str = str(uid)
+    if text.startswith("/admin") or text.startswith("/panel"):
         if not is_admin(uid):
             if ADMIN_USER_ID or not is_first_user(uid):
                 tg_send_message(chat_id, ADMIN_DENIED)
                 return
-        now = int(time.time())
-        with _db_lock, sqlite3.connect(DB_PATH) as conn:
-            total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            active_pro = conn.execute("SELECT COUNT(*) FROM users WHERE pro_until > ?", (now,)).fetchone()[0]
-            total_stars = conn.execute("SELECT COALESCE(SUM(stars_amount), 0) FROM payments").fetchone()[0]
-            langs = conn.execute("SELECT lang, COUNT(*) FROM users GROUP BY lang").fetchall()
-        usd_est = total_stars * 0.013
-        lang_str = " | ".join([f"{k.upper()}: {v}" for k, v in langs]) or "—"
-        url_status = f"`{MINI_APP_URL}`" if is_real_app_url(MINI_APP_URL) else "⚠️ تنظیم نشده (با `/seturl https://...` تنظیم کنید)"
-        admin_kb = (
-            {"inline_keyboard": [[{"text": "👑 ثبت من به عنوان ادمین اصلی + باز کردن VIP", "callback_data": "claim_admin"}]]}
-            if not ADMIN_USER_ID
-            else None
-        )
+        send_admin_panel(chat_id, uid)
+        return
+
+    if text.startswith("/id"):
+        me = is_user_pro(uid)[0]
         tg_send_message(
             chat_id,
-            f"👑 *پنل مدیریت مؤسس TradeGuard v7.5*\n\n"
-            f"👥 کل کاربران ربات: *{total_users}*\n"
-            f"⭐ مشترکین فعال پلن پرو: *{active_pro}*\n"
-            f"💰 کل استارز دریافتی: *{total_stars} ⭐* (≈ *${usd_est:,.2f} USD*)\n"
-            f"🌍 تفکیک زبان کاربران: `{lang_str}`\n"
-            f"🔗 لینک مینی‌اپ: {url_status}\n"
-            f"📢 کانال ویترین: {('✅ فعال' if CHANNEL_OK else '⚠️ خاموش')} — `{CHANNEL_REASON}`\n\n"
-            f"🛠️ *دستورات سریع مدیر (بدون نیاز به ویرایش فایل!):*\n"
-            f"• تغییر آنی لینک مینی‌اپ:\n`/seturl https:// لینک-جدید`\n"
-            f"• تنظیم کانال پست خودکار:\n`/setchannel @username` یا `/setchannel off`\n"
-            f"• وضعیت کانال:\n`/channel`\n"
-            f"• هدیه ۳۰ روز اشتراک Pro به کاربر:\n`/grantpro {uid_str}`\n"
-            f"• ارسال پیام همگانی:\n`/broadcast متن پیام شما`",
-            reply_markup=admin_kb,
+            f"🆔 *شناسه عددی شما:* `{uid}`\n"
+            f"👑 مؤسس ربات: {'✅ بله' if is_admin(uid) else '❌ خیر'}\n"
+            f"⭐ پرو: {'✅' if me else '🆓'}\n\n"
+            f"اگر می‌خواهید فقط شما پنل مدیریت مینی‌اپ را ببینید، "
+            f"همین عدد را در `ADMIN_USER_ID` (Secret) بگذارید.",
         )
         return
 
@@ -1348,7 +1531,7 @@ def handle_message(msg: dict) -> None:
         tg_send_message(
             chat_id,
             f"✅ *لینک مینی‌اپ بدون نیاز به ری‌استارت ذخیره و فعال شد!*\n🔗 `{MINI_APP_URL}`\n\nهمین الان روی دکمه شیشه‌ای زیر بزنید:",
-            reply_markup=main_keyboard(pro, lang),
+            reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)),
         )
         return
 
@@ -1428,7 +1611,7 @@ def handle_message(msg: dict) -> None:
             f"≈ *${new * 0.013 * 0.95:,.2f}* خالص برای شما\n\n"
             f"در `.env` ذخیره شد — بعد از ری‌استارت هم می‌ماند.\n"
             f"دکمه خرید به‌روز شد: 👇",
-            reply_markup=main_keyboard(pro, lang),
+            reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)),
         )
         return
 
@@ -1554,13 +1737,23 @@ def handle_message(msg: dict) -> None:
 
     # هر پیام متنی دیگر (مثل سلام / منو) -> نمایش منوی شیشه‌ای زبان کاربر
     lang = get_user_lang(uid, tg_lang)
-    pro, exp = is_user_pro(uid)
-    status_line = (
-        tr(lang, "status_pro", exp=datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d"))
-        if pro
-        else tr(lang, "status_free")
-    )
-    tg_send_message(chat_id, tr(lang, "welcome", status=status_line), reply_markup=main_keyboard(pro, lang))
+    pro, _ = is_user_pro(uid)
+    send_user_home(chat_id, uid, lang, pro)
+
+
+ADMIN_CALLBACKS = frozenset(
+    {
+        "admin_panel",
+        "adm_stats",
+        "adm_revenue",
+        "adm_users",
+        "adm_health",
+        "adm_channel",
+        "adm_url",
+        "adm_help_grant",
+        "adm_help_broadcast",
+    }
+)
 
 
 def handle_callback(cb: dict) -> None:
@@ -1598,6 +1791,19 @@ def handle_callback(cb: dict) -> None:
         )
         return
 
+    # ── 👑 پنل مؤسس: همه‌ی این کال‌بک‌ها فقط برای ادمین واقعی ──
+    if data in ADMIN_CALLBACKS or data == "user_view":
+        if data != "user_view" and not is_admin(uid):
+            tg_answer_callback(cb_id, "⛔ دسترسی فقط برای مؤسس ربات مجاز است.", show_alert=True)
+            return
+        tg_answer_callback(cb_id)
+        if data == "user_view":
+            pro, _ = is_user_pro(uid)
+            send_user_home(chat_id, uid, lang, pro)
+        else:
+            send_admin_section(chat_id, uid, data)
+        return
+
     if data == "app_not_set":
         tg_answer_callback(cb_id)
         tg_send_message(
@@ -1628,7 +1834,7 @@ def handle_callback(cb: dict) -> None:
         tg_send_message(
             chat_id,
             f"{tr(new_lang, 'lang_saved')}\n\n{tr(new_lang, 'welcome', status=status_line)}",
-            reply_markup=main_keyboard(pro, new_lang),
+            reply_markup=main_keyboard(pro, new_lang, is_admin_user=is_admin(uid)),
         )
         return
 
