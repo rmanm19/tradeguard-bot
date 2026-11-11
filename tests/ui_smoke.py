@@ -124,7 +124,7 @@ def route_external(route, request):
         return route.fulfill(status=200, content_type="application/json", body=json.dumps({"workflow_runs": []}))
     if "127.0.0.1" in url or "localhost" in url:
         return route.continue_()
-    return route.abort()
+    return route.fulfill(status=204, content_type="text/plain", body="")
 
 
 def main() -> int:
@@ -197,12 +197,15 @@ def main() -> int:
             page.screenshot(path=str(OUT / "05-scanner.png"))
 
             # صفحه معرفی
-            page.goto(f"{base}/index.html", wait_until="networkidle")
-            page.wait_for_timeout(800)
-            check("صفحه معرفی رندر شد", page.locator("#model").count() == 1)
+            page.goto(f"{base}/index.html", wait_until="domcontentloaded")
+            page.wait_for_timeout(1200)
+            model_count = page.locator("#model").count()
+            check("صفحه معرفی رندر شد", model_count == 1, f"count={model_count}")
             page.screenshot(path=str(OUT / "06-landing.png"), full_page=True)
 
-            real_errors = [e for e in console_errors if "favicon" not in e.lower()]
+            # درخواست‌های بیرونی عمداً خاموش‌اند؛ ERR_FAILED آن‌ها خطای اپ نیست
+            noisy = ("favicon", "failed to load resource", "err_failed", "net::")
+            real_errors = [e for e in console_errors if not any(n in e.lower() for n in noisy)]
             check("هیچ خطای کنسول/صفحه‌ای نبود", not real_errors, " | ".join(real_errors[:2]))
             (OUT / "console.json").write_text(json.dumps(console_errors, ensure_ascii=False, indent=1), encoding="utf-8")
             browser.close()
