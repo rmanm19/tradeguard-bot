@@ -157,6 +157,37 @@ def main() -> int:
             check("صفحه بالا آمد", page.title() != "")
             check("رادار رندر شد", page.locator("#radarList .row").count() > 0,
                   str(page.locator("#radarList .row").count()))
+
+            # آنبوردینگ اولین اجرا: باید روی صفحه باشد و با «رد کردن» بسته شود
+            onboard = page.locator("#onboard")
+            ob_shown = onboard.is_visible()
+            check("آنبوردینگ اولین اجرا نمایش داده می‌شود", ob_shown)
+            if ob_shown:
+                page.screenshot(path=str(OUT / "00-onboarding.png"))
+                page.click("#obSkip")
+                page.wait_for_timeout(250)
+                check("آنبوردینگ با «رد کردن» بسته می‌شود", not onboard.is_visible())
+                page.reload(wait_until="networkidle")
+                page.wait_for_timeout(700)
+                check("اجرای بعدی، آنبوردینگ دوباره نشان داده نمی‌شود",
+                      not page.locator("#onboard").is_visible())
+
+            # دیده‌بان: ستاره‌کردن اولین ارز رادار
+            first_star = page.locator("#radarList .fav-btn").first
+            if first_star.count():
+                first_star.click()
+                page.wait_for_timeout(200)
+                check("ستاره‌کردن ارز، ردیف را در دیده‌بان نگه می‌دارد",
+                      page.locator("#radarList .fav-btn >> nth=0").inner_text().strip() == "★")
+                page.click("#favFilter")
+                page.wait_for_timeout(250)
+                check("فیلتر دیده‌بان فقط ارزهای ستاره‌شده را نشان می‌دهد",
+                      page.locator("#radarList .row").count() == 1,
+                      str(page.locator("#radarList .row").count()))
+                page.screenshot(path=str(OUT / "00-watchlist.png"))
+                page.click("#favFilter")
+                page.wait_for_timeout(200)
+
             page.screenshot(path=str(OUT / "01-radar.png"), full_page=True)
 
             # تب اشتراک + شیت پرداخت
