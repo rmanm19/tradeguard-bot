@@ -49,7 +49,8 @@ jobs:
             grep -a '❌' ui_out.txt | head -n 8 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
             # اگر اسکریپت کرش کرده باشد (بدون هیچ ❌)، انتهای خروجی را نشان بده
             if ! grep -aq '❌' ui_out.txt; then
-              tail -n 12 ui_out.txt | while IFS= read -r line; do echo "::error title=خروجی پایانی::$line"; done
+              grep -a -E 'ui_smoke\.py", line|waiting for locator|Timeout [0-9]+ms exceeded|Traceback' ui_out.txt \
+                | head -n 8 | while IFS= read -r line; do echo "::error title=خطای مرورگر::$line"; done
             fi
           fi
           exit "$code"
