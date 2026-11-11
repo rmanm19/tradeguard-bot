@@ -845,7 +845,8 @@
   const storyCanvas = $("#storyCanvas");
 
   function drawStoryCard() {
-    if (!storyCanvas) return;
+    if (!storyCanvas || typeof storyCanvas.getContext !== "function") return;
+    if (!storyCanvas.getContext("2d")) return;
     const d = t();
     const isRtl = d.dir === "rtl";
     const ctx = storyCanvas.getContext("2d");
@@ -939,7 +940,13 @@
 
   $("#shareCardBtn")?.addEventListener("click", () => {
     haptic("medium");
-    drawStoryCard();
+    // مرورگرهای بدون پشتیبانی canvas نباید کل اپ را با خطای بدون کنترل بترکانند
+    try {
+      drawStoryCard();
+    } catch (err) {
+      console.warn("[TradeGuard] story card failed:", err);
+      appToast(t().toastStorySaved || "—");
+    }
     storySheet.classList.remove("hidden");
   });
 
@@ -947,11 +954,16 @@
 
   $("#dlStoryBtn")?.addEventListener("click", () => {
     if (!storyCanvas) return;
-    const link = document.createElement("a");
-    link.download = `TradeGuard_${currentLang.toUpperCase()}_${balance}.png`;
-    link.href = storyCanvas.toDataURL("image/png");
-    link.click();
-    appToast(t().toastStorySaved);
+    try {
+      const link = document.createElement("a");
+      link.download = `TradeGuard_${currentLang.toUpperCase()}_${balance}.png`;
+      link.href = storyCanvas.toDataURL("image/png");
+      link.click();
+      appToast(t().toastStorySaved);
+    } catch (err) {
+      console.warn("[TradeGuard] story download failed:", err);
+      appToast(t().toastStorySaved || "—");
+    }
   });
 
   /* =======================================================
