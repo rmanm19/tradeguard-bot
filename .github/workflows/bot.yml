@@ -100,9 +100,18 @@ jobs:
       - name: سلف‌تست آفلاین
         if: env.SKIP_BOT != '1'
         working-directory: tradeguard-pro
+        shell: bash
         run: |
+          set +e
           python db_crypt.py selftest
-          python selftest_offline.py
+          python selftest_offline.py > /tmp/selftest_out.txt 2>&1
+          code=$?
+          cat /tmp/selftest_out.txt
+          if [ "$code" -ne 0 ]; then
+            grep -a '❌' /tmp/selftest_out.txt | head -n 8 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
+            tail -n 15 /tmp/selftest_out.txt | while IFS= read -r line; do echo "::error title=خروجی سلف‌تست::$line"; done
+          fi
+          exit "$code"
 
       - name: سلف‌تست مینی‌اپ و اپ ادمین (بدون مرورگر)
         run: node docs/selftest_docs.mjs
