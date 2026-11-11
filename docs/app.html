@@ -55,6 +55,30 @@
   </div>
 
   <!-- scrolling screen body -->
+  <!-- خوش‌آمدگویی اولین اجرا -->
+  <div id="onboard" class="onboard hidden" aria-hidden="true">
+    <div class="ob-card">
+      <div class="ob-slide" data-ob="1">
+        <div class="ob-emoji">📡</div>
+        <div class="ob-title" data-i18n="obTitle1">رادار زندهٔ بازار، در جیبت</div>
+        <div class="ob-text" data-i18n="obText1">فاندینگ، Open Interest و جای نهنگ‌ها را همان لحظه ببین؛ بدون نصب اپ و بدون کارت بانکی.</div>
+      </div>
+      <div class="ob-slide hidden" data-ob="2">
+        <div class="ob-emoji">🛡️</div>
+        <div class="ob-title" data-i18n="obTitle2">قبل از ورود، ریسک را بسنج</div>
+        <div class="ob-text" data-i18n="obText2">ماشین‌حساب گارد، اسکنر امنیت توکن و مربی ریسک — سه چیزی که جلوی ضررهای بی‌دلیل را می‌گیرد.</div>
+      </div>
+      <div class="ob-slide hidden" data-ob="3">
+        <div class="ob-emoji">🎁</div>
+        <div class="ob-title" data-i18n="obTitle3">الان همه‌چیز رایگان است</div>
+        <div class="ob-text" data-i18n="obText3">دورهٔ رشد: رادار کامل، هشدارها، مربی AI و فایل MT5/TradingView — بدون پرداخت. فقط کانال را دنبال کن.</div>
+      </div>
+      <div class="ob-dots"><i class="is-on"></i><i></i><i></i></div>
+      <button id="obNext" class="btn-block btn-primary" data-i18n="obNext">بعدی</button>
+      <button id="obSkip" class="ob-skip" data-i18n="obSkip">رد کردن</button>
+    </div>
+  </div>
+
   <div class="screen-body">
 
     <!-- ===== TAB: RADAR ===== -->
@@ -89,6 +113,7 @@
         <button class="rm-btn is-on" data-mode="extremes" data-i18n="rmHot">🔥 داغ‌ترین فاندینگ‌ها</button>
         <button class="rm-btn" data-mode="majors" data-i18n="rmMajors">💎 لیدرهای بازار</button>
         <button class="rm-btn" data-mode="whales" data-i18n="rmWhales">🐋 نهنگ‌ها ($1M+)</button>
+        <button class="rm-btn rm-fav" id="favFilter" data-i18n="rmFav">⭐ دیده‌بان من</button>
       </div>
 
       <!-- Live Whale Wallet 0x X-Ray Inspector (shown in Whales mode) -->

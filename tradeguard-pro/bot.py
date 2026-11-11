@@ -91,7 +91,10 @@ load_env_file(ENV_PATH)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MINI_APP_URL = os.environ.get("MINI_APP_URL", "https://example.com").strip()
 SUBSCRIPTION_STARS = int(os.environ.get("SUBSCRIPTION_STARS", "300") or "300")
-PUBLIC_CHANNEL_ID = os.environ.get("PUBLIC_CHANNEL_ID", "").strip()
+# کانال عمومی ربات؛ اگر Secret تنظیم نشده باشد از پیش‌فرض زیر استفاده می‌شود.
+# اعتبارسنجی (ادمین‌بودن ربات) همچنان در validate_channel_target انجام می‌شود.
+DEFAULT_CHANNEL_ID = "@tradeguard1"
+PUBLIC_CHANNEL_ID = (os.environ.get("PUBLIC_CHANNEL_ID", "") or DEFAULT_CHANNEL_ID).strip()
 
 # شناسه عددی خود ربات و وضعیت اعتبار کانال ویترین (در main مقدار می‌گیرند)
 BOT_ID: int = 0
@@ -2341,6 +2344,7 @@ def validate_channel_target(silent: bool = False) -> bool:
     if not PUBLIC_CHANNEL_ID:
         CHANNEL_OK, CHANNEL_REASON = False, "خالی است (پست خودکار غیرفعال — سالم)"
         return False
+
 
     if PUBLIC_CHANNEL_ID == "@TradeGuard_Live":
         CHANNEL_OK, CHANNEL_REASON = False, "مقدار نمونه پیش‌فرض است"

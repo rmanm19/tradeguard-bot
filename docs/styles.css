@@ -850,3 +850,38 @@ section{scroll-margin-top:84px}
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
   html{scroll-behavior:auto}
 }
+
+/* ---------- v9: آنبوردینگ، دیده‌بان، کش آنی ---------- */
+.onboard{
+  position:absolute;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+  padding:22px;background:rgba(6,10,18,.92);backdrop-filter:blur(6px);
+}
+.onboard.hidden{display:none}
+.onboard{overflow-y:auto}
+@media (max-height:640px){.onboard{align-items:flex-start;padding-top:14px}}
+.ob-card{
+  width:100%;max-width:340px;background:linear-gradient(180deg,rgba(22,30,45,.98),rgba(14,20,32,.98));
+  border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:22px 18px 16px;text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.55);
+}
+.ob-emoji{font-size:42px;line-height:1;margin-bottom:12px}
+.ob-title{font-size:17px;font-weight:900;color:#fff;margin-bottom:8px}
+.ob-text{font-size:12.5px;line-height:1.85;color:#B9C6DE;margin-bottom:18px}
+.ob-dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.ob-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);transition:all .25s}
+.ob-dots i.is-on{width:20px;border-radius:99px;background:var(--green)}
+.ob-skip{
+  display:block;width:100%;margin-top:9px;background:transparent;border:0;color:#8C9BB5;
+  font-size:12px;font-weight:700;padding:8px;cursor:pointer;
+}
+.fav-btn{
+  background:transparent;border:0;color:#5B6A82;font-size:16px;line-height:1;
+  padding:2px 4px;cursor:pointer;transition:transform .15s ease,color .15s ease;
+}
+.fav-btn:hover{transform:scale(1.15)}
+.fav-btn.is-on{color:#FFC94D}
+.rm-fav.is-on{border-color:rgba(255,201,77,.65);color:#FFC94D}
+.fav-empty{
+  padding:26px 16px;text-align:center;font-size:12.5px;line-height:1.9;color:#8C9BB5;
+  border:1px dashed rgba(255,255,255,.14);border-radius:14px;
+}

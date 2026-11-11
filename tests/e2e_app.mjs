@@ -61,7 +61,7 @@ function stubFetch(url) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "" } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false } = {}) {
   PRO_USERS = proUsers;
   PRO_FREE_MODE = freeMode;
   const errors = [];
@@ -73,8 +73,16 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proU
   const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc, url: "https://example.com/" + htmlFile });
   const w = dom.window;
 
+  // دادهٔ اولیهٔ localStorage (برای تست آنبوردینگ و کش)
+  try {
+    Object.entries(seedStorage || {}).forEach(([k, v]) => w.localStorage.setItem(k, String(v)));
+  } catch (e) {}
+
   Object.defineProperty(w, "crypto", { value: crypto.webcrypto, configurable: true });
-  w.fetch = (u, i) => stubFetch(u, i);
+  const offlineFetch = () => Promise.resolve({
+    ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("")
+  });
+  w.fetch = (u, i) => (offline ? offlineFetch() : stubFetch(u, i));
   w.TextEncoder = TextEncoder;
   w.__copied = "";
   Object.defineProperty(w.navigator, "clipboard", {
@@ -114,6 +122,8 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proU
   w.eval(`window.TG_CONFIG = { generatedAt: "t", repo: "rmanm19/tradeguard-bot", botUsername: "TradeGuard1_bot", channel: ${JSON.stringify(channel)}, adminHashes: ${JSON.stringify(adminHashes)} };`);
   for (const f of ["i18n.js", "static_api.js", "app.js", "app_tg.js", "admin.js"]) {
     try { w.eval(read(f)); } catch (e) { errors.push(`eval ${f}: ${e.stack}`); }
+    // static_api.js خودش window.fetch را جایگزین می‌کند؛ در حالت آفلاین بعد از آن دوباره قطع می‌کنیم
+    if (f === "static_api.js" && offline) w.fetch = () => offlineFetch();
   }
   try { w.document.dispatchEvent(new w.Event("DOMContentLoaded", { bubbles: true })); } catch (e) { errors.push("DCL: " + e); }
   try { w.dispatchEvent(new w.Event("load")); } catch (e) {}
@@ -283,6 +293,62 @@ check("بررسی وضعیت برای کاربر عادی، توست راهنم�
   (fd.querySelector("#appToast") || {}).textContent);
 check("بررسی وضعیت، پرو را برای کاربر عادی باز نمی‌کند",
   !((fd.querySelector("#planChip") || {}).className || "").includes("pro"));
+
+/* ---------- ۳٫۵) آنبوردینگ، دیده‌بان و کش آنی ---------- */
+const I = boot({ userId: 444000111 });
+await wait(500);
+const id_ = I.w.document;
+check("آنبوردینگ در اولین اجرا نمایش داده می‌شود", !id_.querySelector("#onboard").classList.contains("hidden"));
+check("اسلاید اول آنبوردینگ فعال است", !id_.querySelector('.ob-slide[data-ob="1"]').classList.contains("hidden"));
+check("سه نقطهٔ صفحه‌بندی دارد", id_.querySelectorAll(".ob-dots i").length === 3);
+id_.querySelector("#obNext").dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("بعدی → اسلاید دوم", !id_.querySelector('.ob-slide[data-ob="2"]').classList.contains("hidden"));
+id_.querySelector("#obNext").dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("دکمهٔ آخر «شروع کن» می‌شود",
+  /شروع|Get started|Начать|ابدأ|Başla|Empezar/i.test((id_.querySelector("#obNext") || {}).textContent || ""),
+  (id_.querySelector("#obNext") || {}).textContent);
+id_.querySelector("#obNext").dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+await wait(80);
+check("آنبوردینگ بسته و ثبت می‌شود",
+  id_.querySelector("#onboard").classList.contains("hidden") &&
+  !!I.w.localStorage.getItem("tg_onboard_v1"));
+check("اجرای بعدی همان کاربر، آنبوردینگ نمی‌بیند", (() => {
+  const J = boot({ userId: 444000111, htmlFile: "app.html", seedStorage: { tg_onboard_v1: "1" } });
+  return J.w.document.querySelector("#onboard").classList.contains("hidden");
+})());
+
+// دیده‌بان
+await wait(300);
+const favs = id_.querySelectorAll("#radarList .fav-btn");
+check("هر ردیف رادار دکمهٔ ستاره دارد", favs.length > 0, String(favs.length));
+if (favs.length) {
+  const sym = favs[0].getAttribute("data-sym");
+  favs[0].dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+  await wait(80);
+  check("ستاره‌کردن در localStorage ذخیره می‌شود",
+    (I.w.localStorage.getItem("tg_favs") || "").includes(sym), I.w.localStorage.getItem("tg_favs"));
+  check("ستاره ظاهرش عوض می‌شود", (id_.querySelector("#radarList .fav-btn") || {}).textContent === "★");
+  id_.querySelector("#favFilter").dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+  await wait(120);
+  check("فیلتر دیده‌بان فقط ارزهای ستاره‌شده را نشان می‌دهد",
+    id_.querySelectorAll("#radarList .row").length === 1,
+    String(id_.querySelectorAll("#radarList .row").length));
+  id_.querySelector("#favFilter").dispatchEvent(new I.w.MouseEvent("click", { bubbles: true }));
+  await wait(80);
+}
+
+// کش آنی: با داده ذخیره‌شده، رادار قبل از شبکه رندر می‌شود
+const CACHED = { ts: Date.now(), data: {
+  btc_price: 80000, fng_val: 61, fng_label: "Greed",
+  top_extremes: [{ sym: "CACHEDCOIN", rate_8h: 0.42, apr: 320.5, daily_500: 4.2, oi_m: 12.3, chg_24h: 3.1, direction: "short" }],
+  majors: [], best_opp: { sym: "CACHEDCOIN", rate_8h: 0.42, daily_500: 4.2 } } };
+const K = boot({ userId: 444000222, seedStorage: { tg_onboard_v1: "1", tg_market_cache: JSON.stringify(CACHED) }, offline: true });
+await wait(300);
+check("رندر آنی از کش (قبل از شبکه) انجام می‌شود",
+  /CACHEDCOIN/.test(K.w.document.querySelector("#radarList").textContent || ""),
+  (K.w.document.querySelector("#radarList").textContent || "").slice(0, 40));
 
 /* ---------- ۴) دورهٔ رایگان و دکمهٔ کانال ---------- */
 const G = boot({ userId: 666000111, freeMode: true, channel: "@tradeguard_live" });
