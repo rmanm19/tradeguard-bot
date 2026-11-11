@@ -21,8 +21,11 @@ permissions:
 
 # این بخش قلب تپنده ربات است:
 #   cancel-in-progress: false  ⇒  جاب در حال اجرا هرگز قطع نمی‌شود
+# نام گروه عوض شد (v2) چون گروه قدیمی یک‌بار قفل شد و اجراها ساعت‌ها
+# در حالت pending ماندند. سنجه‌بگیر Watchdog هم اگر رباتی در حال اجرا نبود،
+# خودش دوباره روشنش می‌کند.
 concurrency:
-  group: tradeguard-bot
+  group: tradeguard-bot-v2
   cancel-in-progress: false
 
 env:
@@ -33,9 +36,9 @@ jobs:
   bot:
     name: 🛡 ربات تلگرام (۲۴/۷)
     runs-on: ubuntu-latest
-    # سقف سخت گیت‌هاب ۶ ساعت است. ربات خودش در دقیقه ۳۵۵ تمیز خارج می‌شود
-    # تا مرحله پشتیبان‌گیری دیتابیس هرگز با تایم‌اوت قطع نشود.
-    timeout-minutes: 358
+    # سقف سخت گیت‌هاب ۶ ساعت است. ربات خودش در دقیقه ۳۴۰ (BOT_MAX_RUNTIME_SEC)
+    # تمیز خارج می‌شود تا مرحله پشتیبان‌گیری دیتابیس هرگز با تایم‌اوت قطع نشود.
+    timeout-minutes: 350
 
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -50,6 +53,8 @@ jobs:
       AI_MODEL: ${{ secrets.AI_MODEL }}
       # اجازهٔ کامیت/پوش فایل وضعیت اشتراک برای مینی‌اپ
       PRO_STATUS_PUSH: "1"
+      # خروج تمیز در دقیقه ۳۴۰ (زیر سقف ۳۵۰ دقیقه‌ای جاب)
+      BOT_MAX_RUNTIME_SEC: "20400"
 
     steps:
       - name: دریافت کد
