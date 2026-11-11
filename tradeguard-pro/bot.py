@@ -2340,7 +2340,18 @@ def main() -> None:
     pool = ThreadPoolExecutor(max_workers=8)
     offset = 0
 
+    # خروج تمیز پیش از سقف ۶ ساعتهٔ گیت‌هاب: مرحلهٔ پشتیبان‌گیری دیتابیس باید
+    # فرصت اجرا داشته باشد، وگرنه جاب با «exceeded maximum execution time»
+    # می‌میرد و زنجیرهٔ ۲۴/۷ ممکن است یک ساعت معطل بماند.
+    started_at = time.time()
+    max_runtime = int(os.environ.get("BOT_MAX_RUNTIME_SEC", "20400") or "20400")  # ~۵ ساعت و ۴۰ دقیقه
+    graceful_exit = False
+
     while True:
+        if time.time() - started_at > max_runtime:
+            logger.info("⏳ سقف زمان اجرا (%s ثانیه) پر شد — خروج تمیز برای پشتیبان‌گیری دیتابیس.", max_runtime)
+            graceful_exit = True
+            break
         try:
             res = tg_call(
                 "getUpdates",
@@ -2363,6 +2374,11 @@ def main() -> None:
         except Exception as exc:
             logger.warning("Polling retry in 3s: %s", exc)
             time.sleep(3)
+
+    # خروج تمیز: جاب بعدی (که از قبل در صف است) بلافاصله جای این را می‌گیرد
+    pool.shutdown(wait=False, cancel_futures=True)
+    if graceful_exit:
+        logger.info("✅ خروج برنامه‌ریزی‌شده انجام شد؛ دیتابیس اکنون رمزنگاری و کش می‌شود.")
 
 
 if __name__ == "__main__":
