@@ -157,6 +157,37 @@ def main() -> int:
             check("صفحه بالا آمد", page.title() != "")
             check("رادار رندر شد", page.locator("#radarList .row").count() > 0,
                   str(page.locator("#radarList .row").count()))
+
+            # آنبوردینگ اولین اجرا: باید روی صفحه باشد و با «رد کردن» بسته شود
+            onboard = page.locator("#onboard")
+            ob_shown = onboard.is_visible()
+            check("آنبوردینگ اولین اجرا نمایش داده می‌شود", ob_shown)
+            if ob_shown:
+                page.screenshot(path=str(OUT / "00-onboarding.png"))
+                page.click("#obSkip")
+                page.wait_for_timeout(250)
+                check("آنبوردینگ با «رد کردن» بسته می‌شود", not onboard.is_visible())
+                page.reload(wait_until="networkidle")
+                page.wait_for_timeout(700)
+                check("اجرای بعدی، آنبوردینگ دوباره نشان داده نمی‌شود",
+                      not page.locator("#onboard").is_visible())
+
+            # دیده‌بان: ستاره‌کردن اولین ارز رادار
+            first_star = page.locator("#radarList .fav-btn").first
+            if first_star.count():
+                first_star.click()
+                page.wait_for_timeout(200)
+                check("ستاره‌کردن ارز، ردیف را در دیده‌بان نگه می‌دارد",
+                      page.locator("#radarList .fav-btn >> nth=0").inner_text().strip() == "★")
+                page.click("#favFilter")
+                page.wait_for_timeout(250)
+                check("فیلتر دیده‌بان فقط ارزهای ستاره‌شده را نشان می‌دهد",
+                      page.locator("#radarList .row").count() == 1,
+                      str(page.locator("#radarList .row").count()))
+                page.screenshot(path=str(OUT / "00-watchlist.png"))
+                page.click("#favFilter")
+                page.wait_for_timeout(200)
+
             page.screenshot(path=str(OUT / "01-radar.png"), full_page=True)
 
             # تب اشتراک + شیت پرداخت
@@ -170,18 +201,29 @@ def main() -> int:
                   f"value={link_val!r} | initDataUnsafe={tg_state}")
             page.screenshot(path=str(OUT / "02-subscription.png"), full_page=True)
 
-            page.click("#buyBtn")
-            page.wait_for_timeout(250)
-            check("شیت پرداخت باز شد", page.locator("#invoice").is_visible())
-            check("نام ربات درست است", "@TradeGuard1_bot" in page.inner_text("#invBotName"),
-                  page.inner_text("#invBotName"))
-            check("ادعای موفقیت جعلی وجود ندارد", page.locator("#payBtn").count() == 0)
-            page.screenshot(path=str(OUT / "03-invoice.png"))
+            # دورهٔ رایگان (freeMode=true در pro_users.json) کارت خرید را عمداً پنهان می‌کند؛
+            # در آن حالت باید نشان «رایگان» دیده شود و هیچ مسیر پرداختی باز نباشد.
+            if page.locator("#buyBtn").is_visible():
+                page.click("#buyBtn")
+                page.wait_for_timeout(250)
+                check("شیت پرداخت باز شد", page.locator("#invoice").is_visible())
+                check("نام ربات درست است", "@TradeGuard1_bot" in page.inner_text("#invBotName"),
+                      page.inner_text("#invBotName"))
+                check("ادعای موفقیت جعلی وجود ندارد", page.locator("#payBtn").count() == 0)
+                page.screenshot(path=str(OUT / "03-invoice.png"))
 
-            page.click("#startBtn")
-            page.wait_for_timeout(250)
-            opened = page.evaluate("window.__opened || ''")
-            check("دکمه پرداخت چت ربات را باز می‌کند", "?start=pro" in str(opened), str(opened))
+                page.click("#startBtn")
+                page.wait_for_timeout(250)
+                opened = page.evaluate("window.__opened || ''")
+                check("دکمه پرداخت چت ربات را باز می‌کند", "?start=pro" in str(opened), str(opened))
+            else:
+                check("دورهٔ رایگان: یادداشت «رایگان» دیده می‌شود",
+                      page.locator("#freeNote").is_visible())
+                check("دورهٔ رایگان: کارت خرید بسته است (همه‌چیز باز است)",
+                      not page.locator("#subIdle").is_visible())
+                check("دورهٔ رایگان: نشان پلن «رایگان» است",
+                      "رایگان" in page.inner_text("#planChip"), page.inner_text("#planChip"))
+                page.screenshot(path=str(OUT / "03-free-mode.png"), full_page=True)
 
             # گارد + اسکنر
             page.click('.tab-btn[data-tab="guard"]')
