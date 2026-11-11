@@ -34,6 +34,10 @@ os.environ["PRO_STATUS_PATH"] = str(_STATUS_TMP)
 
 import bot  # noqa: E402  (بعد از تنظیم متغیرها import می‌شود)
 
+# در CI، FREE_MODE=1 از محیط می‌آید؛ تست باید از حالت پیش‌فرضِ خاموش شروع کند
+# تا مسیر پرداخت هم بررسی شود (بخش «۷ه» خودش روشن/خاموش می‌کند).
+bot.FREE_MODE = False
+
 FAILS = []
 
 
