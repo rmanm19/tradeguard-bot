@@ -233,6 +233,70 @@ check("ادمین از دیتابیس بازیابی شد", bot.ADMIN_USER_ID ==
 check("قیمت از دیتابیس بازیابی شد", bot.SUBSCRIPTION_STARS == 500, f"price={bot.SUBSCRIPTION_STARS}")
 check("لینک مینی‌اپ از دیتابیس بازیابی شد", bot.MINI_APP_URL == "https://tg.mydomain.ir/app")
 
+print("\n۷ج) تفکیک واقعی منوی ادمین از منوی کاربر")
+
+def kb_buttons(payload):
+    kb = (payload or {}).get("reply_markup") or {}
+    return [b for row in (kb.get("inline_keyboard") or []) for b in row]
+
+def cb(data, uid):
+    bot.handle_callback({"id": f"cb-{data}", "from": {"id": uid}, "data": data,
+                         "message": {"message_id": 11, "chat": {"id": uid}}})
+
+# --- منوی کاربر عادی ---
+SENT.clear()
+bot.handle_message(msg("/start", uid=424242))
+user_btns = kb_buttons(SENT[-1][1] if SENT else {})
+check("منوی کاربر عادی هیچ دکمه‌ی مدیریتی ندارد",
+      not any(b.get("callback_data") == "admin_panel" for b in user_btns),
+      str([b.get("callback_data") for b in user_btns]))
+check("منوی کاربر عادی دکمه خرید دارد",
+      any(b.get("callback_data") == "buy_pro" for b in user_btns))
+
+# --- منوی ادمین ---
+SENT.clear()
+bot.handle_message(msg("/start"))
+admin_btns = kb_buttons(SENT[-1][1] if SENT else {})
+check("منوی ادمین دکمه «پنل مدیریت مؤسس» دارد",
+      any(b.get("callback_data") == "admin_panel" for b in admin_btns))
+
+# --- /admin برای غیرادمین ---
+SENT.clear()
+bot.handle_message(msg("/admin", uid=424242))
+check("/admin برای غیرادمین باز نمی‌شود", "پنل مدیریت مؤسس" not in last_text())
+check("به غیرادمین پیام رد دسترسی داده شد", "دسترسی" in last_text() or "مؤسس" in last_text())
+
+# --- کال‌بک‌های ادمین برای غیرادمین ---
+SENT.clear()
+cb("adm_stats", 424242)
+check("کال‌بک adm_stats برای غیرادمین اجرا نمی‌شود", "آمار کاربران" not in last_text())
+check("به غیرادمین هشدار کال‌بک داده شد", any(a == "answerCallbackQuery" for a, _ in SENT))
+
+# --- پنل ادمین و همه زیرصفحه‌ها ---
+SENT.clear()
+bot.handle_message(msg("/admin"))
+check("پنل مؤسس باز شد", "پنل مدیریت مؤسس" in last_text())
+sections = [("adm_stats", "آمار کاربران"), ("adm_revenue", "درآمد و فروش"),
+            ("adm_users", "۱۰ کاربر آخر"), ("adm_health", "سلامت سیستم"),
+            ("adm_channel", "کانال ویترین"), ("adm_url", "لینک مینی‌اپ"),
+            ("adm_help_grant", "گرنت پرو"), ("adm_help_broadcast", "پیام همگانی")]
+for data_key, marker in sections:
+    SENT.clear()
+    cb(data_key, USER)
+    check(f"بخش {data_key} → «{marker}»", marker in last_text(), last_text()[:60])
+
+# --- بازگشت به نمای کاربر ---
+SENT.clear()
+cb("user_view", USER)
+back_btns = kb_buttons(SENT[-1][1] if SENT else {})
+check("نمای کاربر از پنل، منوی کاربر را برمی‌گرداند",
+      any(b.get("callback_data") == "radar" for b in back_btns))
+
+# --- /id ---
+SENT.clear()
+bot.handle_message(msg("/id"))
+check("/id شناسه عددی را نشان می‌دهد", str(USER) in last_text())
+
 print("\n۸) امنیت پیکربندی")
 check("MINI_APP_URL تقلبی رد می‌شود", not bot.is_real_app_url("https://example.com"))
 check("MINI_APP_URL واقعی قبول می‌شود", bot.is_real_app_url("https://tg.mydomain.ir/app"))

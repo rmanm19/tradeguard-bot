@@ -92,6 +92,9 @@ jobs:
           python db_crypt.py selftest
           python selftest_offline.py
 
+      - name: سلف‌تست مینی‌اپ و اپ ادمین (بدون مرورگر)
+        run: node docs/selftest_docs.mjs
+
       # ── ۳) برگرداندن دیتابیس از کش ──────────────────────────
       - name: بازیابی دیتابیس رمزنگاری‌شده
         if: env.SKIP_BOT != '1'

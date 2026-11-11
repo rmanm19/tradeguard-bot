@@ -1,0 +1,97 @@
+name: Sync App Config
+
+# docs/config.js را از روی Secretها می‌سازد تا «اپ ادمین» بدون هیچ کار دستی
+# فقط برای حساب مؤسس ساخته شود.
+#   • BOT_TOKEN     → یوزرنیم واقعی ربات (با getMe)
+#   • ADMIN_USER_ID → هش SHA-256 آیدی مؤسس (خود عدد عمومی نمی‌شود)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 4 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-app-config.yml"
+      - "docs/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-app-config
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ساخت docs/config.js
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, urllib.request
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          token = (os.environ.get("BOT_TOKEN") or "").strip()
+          admin_id = (os.environ.get("ADMIN_USER_ID") or "").strip()
+
+          bot_username = "TradeGuard1_bot"
+          if token:
+              try:
+                  with urllib.request.urlopen(
+                      f"https://api.telegram.org/bot{token}/getMe", timeout=20
+                  ) as r:
+                      data = json.loads(r.read().decode())
+                  if data.get("ok"):
+                      bot_username = data["result"].get("username") or bot_username
+              except Exception as exc:
+                  print(f"⚠ getMe ناموفق ({exc}) — یوزرنیم فعلی حفظ می‌شود")
+
+          hashes = []
+          if admin_id.isdigit():
+              # همان الگوریتم admin.js: sha256("tg-admin:"+id) ولی فقط ۱۶ کاراکتر
+              hashes.append(hashlib.sha256(("tg-admin:" + admin_id).encode()).hexdigest()[:16])
+              print(f"✅ هش ادمین ساخته شد (id={admin_id[:3]}…)")
+          else:
+              print("ℹ️ ADMIN_USER_ID تنظیم نشده — پنل ادمین مینی‌اپ خاموش می‌ماند")
+
+          repo = os.environ.get("GITHUB_REPOSITORY", "rmanm19/tradeguard-bot")
+          stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          content = f"""/* ============================================================================
+             TradeGuard — docs/config.js
+             ⚠️ این فایل خودکار توسط .github/workflows/sync-app-config.yml ساخته می‌شود.
+                دستی ویرایش نکنید؛ با هر push یا اجرای زمان‌بندی بازنویسی می‌شود.
+
+             adminHashes: sha256("tg-admin:" + <telegram_user_id>) با ۱۶ کاراکتر اول
+             ============================================================================ */
+          window.TG_CONFIG = {{
+            generatedAt: "{stamp}",
+            repo: "{repo}",
+            botUsername: "{bot_username}",
+            adminHashes: {json.dumps(hashes)}
+          }};
+          """
+          content = "\n".join(line.lstrip() if not line.startswith("             ") else line for line in content.splitlines()) + "\n"
+          Path("docs/config.js").write_text(content, encoding="utf-8")
+          print("📝 docs/config.js نوشته شد")
+          PY
+
+      - name: کامیت در صورت تغییر
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/config.js
+          if git diff --cached --quiet; then
+            echo "✅ از قبل به‌روز بود"
+          else
+            git commit -m "chore(config): sync mini-app admin config [skip ci]"
+            git push
+          fi

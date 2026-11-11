@@ -1612,3 +1612,36 @@ window.TG_I18N = {
   });
 })();
 
+
+/* ===== افزوده‌ی v7.5: پیام‌های مسیر پرداخت/دعوت در ربات (۶ زبان) ===== */
+(function () {
+  var EXTRA = {
+    fa: {
+      toastPayInBot: "پرداخت با ۳۰۰ ⭐ در چت ربات انجام می‌شود — همین حالا باز شد.",
+      toastInviteViaBot: "دعوت‌ها فقط در ربات تأیید می‌شوند — چت ربات باز شد."
+    },
+    en: {
+      toastPayInBot: "Payment is completed in the bot chat (300 ⭐) — opening it now.",
+      toastInviteViaBot: "Invites are verified in the bot — opening it now."
+    },
+    ru: {
+      toastPayInBot: "Оплата проходит в чате бота (300 ⭐) — открываю.",
+      toastInviteViaBot: "Приглашения подтверждаются в боте — открываю."
+    },
+    ar: {
+      toastPayInBot: "الدفع يتم داخل محادثة البوت (300 ⭐) — يتم فتحه الآن.",
+      toastInviteViaBot: "الدعوات تُعتمد داخل البوت — يتم فتحه الآن."
+    },
+    tr: {
+      toastPayInBot: "Ödeme bot sohbetinde (300 ⭐) yapılır — şimdi açılıyor.",
+      toastInviteViaBot: "Davetler botta onaylanır — şimdi açılıyor."
+    },
+    es: {
+      toastPayInBot: "El pago se hace en el chat del bot (300 ⭐) — abriéndolo.",
+      toastInviteViaBot: "Las invitaciones se verifican en el bot — abriéndolo."
+    }
+  };
+  Object.keys(EXTRA).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
+  });
+})();

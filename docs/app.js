@@ -59,6 +59,17 @@
 
   const appToastEl = $("#appToast");
   let appToastT;
+  /* باز کردن چت ربات — تنها مسیر واقعی پرداخت/فعال‌سازی اشتراک */
+  function openBotChat(startParam) {
+    var bot = String((window.TG_CONFIG || {}).botUsername || "TradeGuard1_bot").replace(/^@/, "");
+    var url = "https://t.me/" + bot + (startParam ? "?start=" + encodeURIComponent(startParam) : "");
+    try {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); return; }
+    } catch (e) {}
+    window.open(url, "_blank", "noopener");
+  }
+
   function appToast(msg) {
     if (!appToastEl) return;
     appToastEl.textContent = msg;
@@ -984,11 +995,13 @@
     setTimeout(() => showStep(3), 1300);
   });
 
+  /* ربات صاحب پرداخت است (Telegram Stars).
+     قبلاً این دکمه فقط `setPro(true)` می‌کرد؛ یعنی هر کسی با یک کلیک
+     اشتراک پولی را باز می‌کرد — بدون این‌که یک استارز پرداخت شود. */
   $("#startBtn")?.addEventListener("click", () => {
     invoice.classList.add("hidden");
-    setPro(true);
-    goToTab("radar");
-    appToast(t().toastProOn);
+    openBotChat("pro");
+    appToast(t().toastPayInBot || t().toastProOn);
   });
 
   function syncProUi() {
@@ -1051,9 +1064,9 @@
       appToast(tpl(t().toastInviteStep, { c: fmt(inviteCount), r: fmt(3 - inviteCount) }));
     } else {
       setTimeout(() => {
-        setPro(true);
-        goToTab("guard");
-        appToast(t().toastInviteDone);
+        // ۳ دعوت شبیه‌سازی‌شده ≠ اشتراک واقعی؛ فعال‌سازی فقط در ربات و با تأیید سرور
+        openBotChat("invite");
+        appToast(t().toastInviteViaBot || t().toastInviteDone);
       }, 400);
     }
   });

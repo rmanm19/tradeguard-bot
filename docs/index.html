@@ -32,23 +32,9 @@
     return;
   }
 
-  // ۲) گیت بخش مؤسس — بعد از آماده شدن DOM
-  function gate() {
-    if (q.get("admin") === "1") {
-      document.body.setAttribute("data-role", "admin");
-      return;
-    }
-    document.body.setAttribute("data-role", "user");
-    ["simSection", "model"].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.remove();          // کامل حذف، نه فقط مخفی
-    });
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", gate);
-  } else {
-    gate();
-  }
+  // ۲) صفحه معرفی، عمومی است: هیچ بخشی حذف یا قفل نمی‌شود.
+  //    (قبلاً با ?admin=1 بخش‌های «مدل درآمد» و سیمولاتور از همه پنهان می‌شد
+  //     و لینک منو به بخش حذف‌شده می‌رفت — یعنی ناوبری صفحه هم می‌شکست.)
 })();
 </script>
 </head>
