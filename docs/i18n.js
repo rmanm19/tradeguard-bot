@@ -1762,3 +1762,114 @@ window.TG_I18N = {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
   });
 })();
+
+/* ===== افزوده‌ی v9: آنبوردینگ، دیده‌بان و کش آنی (۶ زبان) ===== */
+(function () {
+  var EXTRA = {
+    fa: {
+      obTitle1: "رادار زندهٔ بازار، در جیبت",
+      obText1: "فاندینگ، Open Interest و جای نهنگ‌ها را همان لحظه ببین؛ بدون نصب اپ و بدون کارت بانکی.",
+      obTitle2: "قبل از ورود، ریسک را بسنج",
+      obText2: "ماشین‌حساب گارد، اسکنر امنیت توکن و مربی ریسک — سه چیزی که جلوی ضررهای بی‌دلیل را می‌گیرد.",
+      obTitle3: "الان همه‌چیز رایگان است",
+      obText3: "دورهٔ رشد: رادار کامل، هشدارها، مربی AI و فایل MT5/TradingView — بدون پرداخت. فقط کانال را دنبال کن.",
+      obNext: "بعدی",
+      obStart: "شروع کن",
+      obSkip: "رد کردن",
+      rmFav: "⭐ دیده‌بان من",
+      favEmpty: "هنوز چیزی به دیده‌بان اضافه نکرده‌ای — روی ستارهٔ هر ردیف بزن.",
+      toastFavAdded: "⭐ {s} به دیده‌بان اضافه شد",
+      toastFavRemoved: "{s} از دیده‌بان حذف شد",
+      toastFavEmpty: "اول یک ارز را ستاره کن",
+      cachedData: "آخرین دادهٔ ذخیره‌شده"
+    },
+    en: {
+      obTitle1: "A live market radar in your pocket",
+      obText1: "Funding, open interest and where whales sit — instantly, no install, no card.",
+      obTitle2: "Check risk before you enter",
+      obText2: "Risk guard calculator, token safety scanner and a risk coach — the three things that stop avoidable losses.",
+      obTitle3: "Everything is free right now",
+      obText3: "Growth period: full radar, alerts, AI coach and the MT5/TradingView files — no payment. Just follow the channel.",
+      obNext: "Next",
+      obStart: "Get started",
+      obSkip: "Skip",
+      rmFav: "⭐ My watchlist",
+      favEmpty: "Nothing starred yet — tap the star on any row.",
+      toastFavAdded: "⭐ {s} added to your watchlist",
+      toastFavRemoved: "{s} removed from your watchlist",
+      toastFavEmpty: "Star a coin first",
+      cachedData: "Last cached data"
+    },
+    ru: {
+      obTitle1: "Живой радар рынка в кармане",
+      obText1: "Фандинг, открытый интерес и позиции китов — сразу, без установки и без карты.",
+      obTitle2: "Сначала риск, потом вход",
+      obText2: "Калькулятор риска, сканер безопасности токенов и риск-коуч — три вещи, которые берегут депозит.",
+      obTitle3: "Сейчас всё бесплатно",
+      obText3: "Период роста: полный радар, оповещения, AI-коуч и файлы MT5/TradingView — без оплаты.",
+      obNext: "Далее",
+      obStart: "Начать",
+      obSkip: "Пропустить",
+      rmFav: "⭐ Мои монеты",
+      favEmpty: "Пока ничего не выбрано — нажмите звёздочку в строке.",
+      toastFavAdded: "⭐ {s} добавлено в список",
+      toastFavRemoved: "{s} удалено из списка",
+      toastFavEmpty: "Сначала отметьте монету",
+      cachedData: "Последние сохранённые данные"
+    },
+    ar: {
+      obTitle1: "رادار سوق حيّ في جيبك",
+      obText1: "التمويل والاهتمام المفتوح ومواقع الحيتان — فورًا، بلا تثبيت وبلا بطاقة.",
+      obTitle2: "قبل الدخول، قِس المخاطرة",
+      obText2: "حاسبة الحماية، فاحص أمان العملات، ومدرب المخاطرة — ثلاثة أشياء تمنع خسائر بلا داعٍ.",
+      obTitle3: "كل شيء مجاني الآن",
+      obText3: "فترة النمو: الرادار الكامل والتنبيهات ومدرب AI وملفات MT5/TradingView — بلا دفع.",
+      obNext: "التالي",
+      obStart: "ابدأ",
+      obSkip: "تخطّي",
+      rmFav: "⭐ قائمتي",
+      favEmpty: "لم تُضف شيئًا بعد — اضغط النجمة في أي صف.",
+      toastFavAdded: "⭐ أُضيف {s} إلى قائمتك",
+      toastFavRemoved: "أُزيل {s} من قائمتك",
+      toastFavEmpty: "أضف عملة أولًا",
+      cachedData: "آخر بيانات محفوظة"
+    },
+    tr: {
+      obTitle1: "Cebinde canlı piyasa radarı",
+      obText1: "Funding, açık pozisyon ve balinaların konumu — anında, kurulum ve kart yok.",
+      obTitle2: "Girmeden önce riski ölç",
+      obText2: "Risk koruma hesaplayıcısı, token güvenlik tarayıcısı ve risk koçu — gereksiz kayıpları önleyen üç şey.",
+      obTitle3: "Şu an her şey ücretsiz",
+      obText3: "Büyüme dönemi: tam radar, uyarılar, AI koç ve MT5/TradingView dosyaları — ödeme yok.",
+      obNext: "İleri",
+      obStart: "Başla",
+      obSkip: "Geç",
+      rmFav: "⭐ İzleme listem",
+      favEmpty: "Henüz bir şey eklemedin — satırdaki yıldıza dokun.",
+      toastFavAdded: "⭐ {s} listene eklendi",
+      toastFavRemoved: "{s} listenden çıkarıldı",
+      toastFavEmpty: "Önce bir coin yıldızla",
+      cachedData: "Son kaydedilen veri"
+    },
+    es: {
+      obTitle1: "Un radar de mercado vivo en tu bolsillo",
+      obText1: "Funding, interés abierto y dónde están las ballenas — al instante, sin instalar y sin tarjeta.",
+      obTitle2: "Mide el riesgo antes de entrar",
+      obText2: "Calculadora de protección, escáner de seguridad de tokens y coach de riesgo — lo que evita pérdidas evitables.",
+      obTitle3: "Ahora todo es gratis",
+      obText3: "Periodo de crecimiento: radar completo, alertas, coach AI y archivos MT5/TradingView — sin pago.",
+      obNext: "Siguiente",
+      obStart: "Empezar",
+      obSkip: "Omitir",
+      rmFav: "⭐ Mi lista",
+      favEmpty: "Aún no has marcado nada — toca la estrella de una fila.",
+      toastFavAdded: "⭐ {s} añadido a tu lista",
+      toastFavRemoved: "{s} eliminado de tu lista",
+      toastFavEmpty: "Primero marca una moneda",
+      cachedData: "Últimos datos guardados"
+    }
+  };
+  Object.keys(EXTRA).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
+  });
+})();

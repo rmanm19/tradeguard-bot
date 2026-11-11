@@ -217,7 +217,17 @@
       return;
     }
 
-    const list = radarMode === "extremes" ? marketState.top_extremes : marketState.majors;
+    const fullList = radarMode === "extremes" ? marketState.top_extremes : marketState.majors;
+    const favs = loadFavs();
+    let list = fullList;
+    if (favOnly) {
+      list = fullList.filter((c) => favs.includes(c.sym));
+      if (!list.length) {
+        radarList.innerHTML = `<div class="fav-empty">${d.favEmpty}</div>`;
+        renderOppCard();
+        return;
+      }
+    }
     radarList.innerHTML = "";
 
     list.forEach((c, i) => {
@@ -228,13 +238,27 @@
       const rateClass = Math.abs(c.rate_8h) >= 0.02 ? "up" : "";
       const subInfo = c.oi_m ? `OI $${fmt(c.oi_m, 1, 1)}M` : `$${c.price}`;
 
+      const faved = favs.includes(c.sym);
       row.innerHTML = `
         <div class="row-sym"><b>$${c.sym}</b><small>${subInfo}</small></div>
         <div class="row-rate ${rateClass}">
           <b>${sign}${fmt(c.rate_8h, 2, 3)}%</b><small>${fmt(c.apr, 0, 0)}% ${d.aprLabel}</small>
         </div>
         <div>${sparkFromSeed(c.sym, c.rate_8h, c.chg_24h || 0)}</div>
-        <div class="row-tag">${tagFor(c)}</div>`;
+        <div class="row-tag">${tagFor(c)}</div>
+        <button class="fav-btn${faved ? " is-on" : ""}" data-sym="${c.sym}" aria-label="watchlist">${faved ? "★" : "☆"}</button>`;
+      const favBtn = row.querySelector(".fav-btn");
+      if (favBtn) {
+        favBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          haptic("light");
+          const added = toggleFav(c.sym);
+          favBtn.textContent = added ? "★" : "☆";
+          favBtn.classList.toggle("is-on", added);
+          appToast(added ? tpl(d.toastFavAdded, { s: c.sym }) : tpl(d.toastFavRemoved, { s: c.sym }));
+          if (favOnly) renderRadar();
+        });
+      }
       radarList.appendChild(row);
     });
 
@@ -408,8 +432,28 @@
         marketState = data;
         renderRadar();
         renderLocalizedAlerts();
+        // کش برای رندر آنی در اجرای بعدی (اپ باید فوری باز شود، حتی قبل از شبکه)
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+        } catch (e) {}
       }
     } catch (_) {}
+  }
+
+  /* رندر فوری از آخرین دادهٔ ذخیره‌شده (حداکثر ۶ ساعت عمر) */
+  function hydrateMarketCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.data || Date.now() - Number(parsed.ts || 0) > 6 * 3600 * 1000) return;
+      if (!Array.isArray(parsed.data.top_extremes) || !parsed.data.top_extremes.length) return;
+      marketState = parsed.data;
+      const live = $("#liveStatusTxt");
+      if (live) live.textContent = t().cachedData;
+      renderRadar();
+      renderLocalizedAlerts();
+    } catch (e) {}
   }
 
   let whaleLongPct = 38;
@@ -553,7 +597,16 @@
     });
   });
 
-  $$("#radarModeSeg .rm-btn").forEach((btn) => {
+  $("#favFilter")?.addEventListener("click", () => {
+    haptic("light");
+    favOnly = !favOnly;
+    const chip = $("#favFilter");
+    if (chip) chip.classList.toggle("is-on", favOnly);
+    if (favOnly && !loadFavs().length) appToast(t().toastFavEmpty);
+    renderRadar();
+  });
+
+  $$("#radarModeSeg .rm-btn[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
       haptic("light");
       $$("#radarModeSeg .rm-btn").forEach((b) => b.classList.remove("is-on"));
@@ -1185,10 +1238,94 @@
     window.open(share, "_blank", "noopener");
   });
 
+  /* ---------- خوش‌آمدگویی اولین اجرا ----------
+     فقط یک‌بار نشان داده می‌شود؛ بعد از آن در localStorage ثبت می‌شود. */
+  const OB_KEY = "tg_onboard_v1";
+  let obStep = 1;
+
+  function renderOnboard() {
+    $$(".ob-slide").forEach((el) => el.classList.toggle("hidden", el.dataset.ob !== String(obStep)));
+    const dots = $$(".ob-dots i");
+    dots.forEach((dot, i) => dot.classList.toggle("is-on", i === obStep - 1));
+    const next = $("#obNext");
+    if (next) next.textContent = obStep >= 3 ? t().obStart : t().obNext;
+  }
+
+  function closeOnboard() {
+    const el = $("#onboard");
+    if (el) {
+      el.classList.add("hidden");
+      el.setAttribute("aria-hidden", "true");
+    }
+    try {
+      localStorage.setItem(OB_KEY, "1");
+    } catch (e) {}
+  }
+
+  function maybeShowOnboard() {
+    let done = "1";
+    try {
+      done = localStorage.getItem(OB_KEY) || "";
+    } catch (e) {
+      return;   // اگر localStorage نیست، مزاحم نشو
+    }
+    if (done) return;
+    const el = $("#onboard");
+    if (!el) return;
+    obStep = 1;
+    renderOnboard();
+    el.classList.remove("hidden");
+    el.setAttribute("aria-hidden", "false");
+  }
+
+  $("#obNext")?.addEventListener("click", () => {
+    haptic("medium");
+    if (obStep >= 3) {
+      closeOnboard();
+      return;
+    }
+    obStep += 1;
+    renderOnboard();
+  });
+  $("#obSkip")?.addEventListener("click", () => {
+    haptic("light");
+    closeOnboard();
+  });
+
   /* ---------- وضعیت واقعی اشتراک (منبع: pro_users.json که ربات می‌نویسد) ---------- */
   let proExpiryDate = "";
   let isFreeMode = false;
   let channelUrl = "";
+
+  /* ---------- دیده‌بان (Watchlist) + کش برای رندر آنی ---------- */
+  const FAV_KEY = "tg_favs";
+  const CACHE_KEY = "tg_market_cache";
+  let favOnly = false;
+
+  function loadFavs() {
+    try {
+      const raw = localStorage.getItem(FAV_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveFavs(list) {
+    try {
+      localStorage.setItem(FAV_KEY, JSON.stringify(list));
+    } catch (e) {}
+  }
+
+  function toggleFav(sym) {
+    const list = loadFavs();
+    const i = list.indexOf(sym);
+    if (i >= 0) list.splice(i, 1);
+    else list.push(sym);
+    saveFavs(list);
+    return i < 0;   // true = اضافه شد
+  }
 
   async function proStatusKey(uid) {
     const enc = new TextEncoder().encode("tg-pro:" + uid);
@@ -1361,7 +1498,9 @@
 
   // راه‌اندازی اولیه
   setLanguage(currentLang);
+  hydrateMarketCache();
   fetchLiveMarket();
+  maybeShowOnboard();
   fetchLiveWhales();
   setInterval(fetchLiveMarket, 22000);
 

@@ -9,6 +9,6 @@ window.TG_CONFIG = {
 generatedAt: "2026-11-11T22:52:50Z",
 repo: "rmanm19/tradeguard-bot",
 botUsername: "TradeGuard1_bot",
-channel: "",
+channel: "@tradeguard1",
 adminHashes: ["66473717ebc27f13"]
 };
