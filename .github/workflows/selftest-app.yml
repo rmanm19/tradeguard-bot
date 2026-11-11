@@ -35,7 +35,7 @@ jobs:
       - name: نصب Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: نصب jsdom
         working-directory: tests
@@ -57,7 +57,8 @@ jobs:
           cat selftest_out.txt
           if [ "$code" -ne 0 ]; then
             grep -a '❌' selftest_out.txt | head -n 10 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
-            tail -n 12 selftest_out.txt | tr -d '\r' | sed 's/:%/%3A/g' | while IFS= read -r line; do echo "::error title=خروجی تست::$line"; done
+            grep -a -m 3 -E 'Error|error:|TypeError|ReferenceError' selftest_out.txt | while IFS= read -r line; do echo "::error title=خطای اصلی::$line"; done
+            tail -n 20 selftest_out.txt | tr -d '\r' | sed 's/:%/%3A/g' | while IFS= read -r line; do echo "::error title=خروجی تست::$line"; done
             if ! grep -qa '❌' selftest_out.txt; then
               echo "::error title=اجرای هارنس متوقف شد::هارنس بدون هیچ سنجه‌ای متوقف شد؛ انتهای خروجی بالا است."
             fi
