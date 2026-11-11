@@ -1025,8 +1025,29 @@
       chip.classList.toggle("off", !isPro);
     }
 
-    $("#subIdle")?.classList.toggle("hidden", isPro);
-    $("#subActive")?.classList.toggle("hidden", !isPro);
+    $("#subIdle")?.classList.toggle("hidden", isPro || isFreeMode);
+    $("#subActive")?.classList.toggle("hidden", !(isPro || isFreeMode));
+
+    // 🎁 نشان دورهٔ رایگان
+    if (chip && isFreeMode) {
+      chip.textContent = d.planFree;
+      chip.classList.add("pro");
+      chip.classList.remove("off");
+    }
+    const freeNote = $("#freeNote");
+    if (freeNote) freeNote.classList.toggle("hidden", !isFreeMode);
+    if (isFreeMode) {
+      const dateEl = $("#proActiveDate");
+      if (dateEl) dateEl.textContent = d.freeBadge;
+    }
+
+    // 📣 دکمهٔ کانال (فقط اگر کانال عمومی در config باشد)
+    const chBtn = $("#joinChannelBtn");
+    if (chBtn) {
+      const cfgChannel = String(TG_CONFIG.channel || "").replace(/^@/, "");
+      channelUrl = cfgChannel ? "https://t.me/" + cfgChannel : "";
+      chBtn.classList.toggle("hidden", !channelUrl);
+    }
 
     const ea = $("#eaRow");
     if (ea) {
@@ -1126,6 +1147,18 @@
     }
   });
 
+  $("#joinChannelBtn")?.addEventListener("click", () => {
+    haptic("medium");
+    if (!channelUrl) return;
+    try {
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
+        Telegram.WebApp.openTelegramLink(channelUrl);
+        return;
+      }
+    } catch (e) {}
+    window.open(channelUrl, "_blank", "noopener");
+  });
+
   $("#refreshProBtn")?.addEventListener("click", async () => {
     haptic("medium");
     appToast(t().toastChecking);
@@ -1154,6 +1187,8 @@
 
   /* ---------- وضعیت واقعی اشتراک (منبع: pro_users.json که ربات می‌نویسد) ---------- */
   let proExpiryDate = "";
+  let isFreeMode = false;
+  let channelUrl = "";
 
   async function proStatusKey(uid) {
     const enc = new TextEncoder().encode("tg-pro:" + uid);
@@ -1172,15 +1207,19 @@
       const res = await fetch("pro_users.json?v=" + Date.now(), { cache: "no-store" });
       if (!res || !res.ok) return;
       const data = await res.json();
+      // 🎁 دورهٔ رشد: پرچم سراسری از ربات — همه‌چیز رایگان
+      isFreeMode = !!(data && data.freeMode);
       const entry = (data && data.users && data.users[key]) || null;
-      if (!entry) return;
       const now = Math.floor(Date.now() / 1000);
-      inviteCount = Math.max(0, Number(entry.ref) || 0);
-      const exp = Number(entry.exp) || 0;
-      if (exp > now) {
-        proExpiryDate = new Date(exp * 1000).toLocaleDateString();
-        setPro(true);
+      if (entry) {
+        inviteCount = Math.max(0, Number(entry.ref) || 0);
+        const exp = Number(entry.exp) || 0;
+        if (exp > now) {
+          proExpiryDate = new Date(exp * 1000).toLocaleDateString();
+          setPro(true);
+        }
       }
+      if (isFreeMode) setPro(true);
       syncProUi();
     } catch (e) {
       /* آفلاین یا فایل موجود نیست ⇒ حالت پایه */

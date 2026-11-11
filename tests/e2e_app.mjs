@@ -30,6 +30,7 @@ const HL = {
 };
 
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
+let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
 
 function stubFetch(url) {
   const u = String(url);
@@ -52,7 +53,7 @@ function stubFetch(url) {
   if (u.includes("okx.com")) return json({ data: [{ fundingRate: "0.00013" }] });
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
-  if (u.includes("pro_users.json")) return json({ updated: 0, users: PRO_USERS });
+  if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, users: PRO_USERS });
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
   return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("") });
 }
@@ -60,8 +61,9 @@ function stubFetch(url) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {} } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "" } = {}) {
   PRO_USERS = proUsers;
+  PRO_FREE_MODE = freeMode;
   const errors = [];
   const vc = new VirtualConsole();
   vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
@@ -109,7 +111,7 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proU
   w.addEventListener("error", (e) => errors.push("window.error: " + ((e.error && e.error.stack) || e.message)));
   w.addEventListener("unhandledrejection", (e) => errors.push("rejection: " + ((e.reason && e.reason.stack) || e.reason)));
 
-  w.eval(`window.TG_CONFIG = { generatedAt: "t", repo: "rmanm19/tradeguard-bot", botUsername: "TradeGuard1_bot", adminHashes: ${JSON.stringify(adminHashes)} };`);
+  w.eval(`window.TG_CONFIG = { generatedAt: "t", repo: "rmanm19/tradeguard-bot", botUsername: "TradeGuard1_bot", channel: ${JSON.stringify(channel)}, adminHashes: ${JSON.stringify(adminHashes)} };`);
   for (const f of ["i18n.js", "static_api.js", "app.js", "app_tg.js", "admin.js"]) {
     try { w.eval(read(f)); } catch (e) { errors.push(`eval ${f}: ${e.stack}`); }
   }
@@ -281,6 +283,32 @@ check("بررسی وضعیت برای کاربر عادی، توست راهنم�
   (fd.querySelector("#appToast") || {}).textContent);
 check("بررسی وضعیت، پرو را برای کاربر عادی باز نمی‌کند",
   !((fd.querySelector("#planChip") || {}).className || "").includes("pro"));
+
+/* ---------- ۴) دورهٔ رایگان و دکمهٔ کانال ---------- */
+const G = boot({ userId: 666000111, freeMode: true, channel: "@tradeguard_live" });
+await wait(700);
+const gd = G.w.document;
+check("دورهٔ رایگان: همه‌چیز برای کاربر عادی باز است",
+  ((gd.querySelector("#planChip") || {}).className || "").includes("pro"),
+  (gd.querySelector("#planChip") || {}).className);
+check("دورهٔ رایگان: کارت خرید (subIdle) پنهان است", gd.querySelector("#subIdle").classList.contains("hidden"));
+check("دورهٔ رایگان: یادداشت «رایگان» دیده می‌شود", !gd.querySelector("#freeNote").classList.contains("hidden"));
+check("دورهٔ رایگان: نشان کارت «رایگان» است",
+  /رایگان|Free|Gratis|Ücretsiz|Бесплатно|مجاني/i.test((gd.querySelector("#planChip") || {}).textContent || ""),
+  (gd.querySelector("#planChip") || {}).textContent);
+check("دورهٔ رایگان: خطای جاوااسکریپت نیست", G.errors.length === 0, G.errors.slice(0, 2).join(" | "));
+
+check("دکمهٔ کانال با کانال تنظیم‌شده دیده می‌شود", !gd.querySelector("#joinChannelBtn").classList.contains("hidden"));
+gd.querySelector("#joinChannelBtn").dispatchEvent(new G.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("دکمهٔ کانال، لینک کانال را باز می‌کند",
+  String(G.w.__opened || "").includes("t.me/tradeguard_live"), String(G.w.__opened));
+
+const H = boot({ userId: 666000222, proUsers: {}, channel: "" });
+await wait(400);
+const hd = H.w.document;
+check("بدون دورهٔ رایگان: کارت خرید برمی‌گردد", !hd.querySelector("#subIdle").classList.contains("hidden"));
+check("بدون کانال در config: دکمهٔ کانال پنهان است", hd.querySelector("#joinChannelBtn").classList.contains("hidden"));
 
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }
