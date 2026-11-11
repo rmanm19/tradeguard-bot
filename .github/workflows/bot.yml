@@ -14,8 +14,10 @@ on:
   push:
     branches: [main]
 
+# نوشتن لازم است چون ربات وضعیت اشتراک را در docs/pro_users.json می‌نویسد
+# تا مینی‌اپ استاتیک بتواند پرو را نشان دهد (بدون هیچ بک‌اند).
 permissions:
-  contents: read
+  contents: write
 
 # این بخش قلب تپنده ربات است:
 #   cancel-in-progress: false  ⇒  جاب در حال اجرا هرگز قطع نمی‌شود
@@ -46,6 +48,8 @@ jobs:
       AI_API_BASE: ${{ secrets.AI_API_BASE }}
       AI_API_KEY: ${{ secrets.AI_API_KEY }}
       AI_MODEL: ${{ secrets.AI_MODEL }}
+      # اجازهٔ کامیت/پوش فایل وضعیت اشتراک برای مینی‌اپ
+      PRO_STATUS_PUSH: "1"
 
     steps:
       - name: دریافت کد

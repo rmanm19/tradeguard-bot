@@ -1001,11 +1001,11 @@
   });
   $("#invBack")?.addEventListener("click", () => invoice.classList.add("hidden"));
 
-  $("#payBtn")?.addEventListener("click", () => {
-    haptic("heavy");
-    showStep(2);
-    setTimeout(() => showStep(3), 1300);
-  });
+  /* نام واقعی ربات در شیت پرداخت — از config تولیدشده (قبلاً هاردکد و اشتباه بود) */
+  const TG_CONFIG = window.TG_CONFIG || {};
+  const BOT_USERNAME = String(TG_CONFIG.botUsername || "TradeGuard1_bot").replace(/^@/, "");
+  const invBotName = $("#invBotName");
+  if (invBotName) invBotName.textContent = "@" + BOT_USERNAME;
 
   /* ربات صاحب پرداخت است (Telegram Stars).
      قبلاً این دکمه فقط `setPro(true)` می‌کرد؛ یعنی هر کسی با یک کلیک
@@ -1042,8 +1042,9 @@
       $(".ea-lock", pine).textContent = isPro ? d.dlPineTxt : d.lockTxt;
     }
 
-    const refEl = $("#refCounter");
-    if (refEl) refEl.textContent = tpl(d.vcCountTpl, { n: fmt(inviteCount) });
+    renderInviteCard();
+    const expEl = $("#proActiveDate");
+    if (expEl) expEl.textContent = proExpiryDate ? tpl(d.proExpiryTpl, { d: proExpiryDate }) : d.proActiveDate;
     $("#planStarsNum") && ($("#planStarsNum").textContent = fmt(300));
     $("#invPriceNum") && ($("#invPriceNum").textContent = fmt(300));
     $("#alertTabBadge") && ($("#alertTabBadge").textContent = fmt(3));
@@ -1067,22 +1068,126 @@
     }, 1000);
   }
 
-  $("#simInviteBtn")?.addEventListener("click", () => {
+  /* ---------- کارت دعوت واقعی (بدون شبیه‌سازی) ----------
+     لینک از آیدی خودِ کاربر ساخته می‌شود و همان پارامتری است که ربات در
+     /start می‌خواند: https://t.me/<bot>?start=ref_<uid>
+     شمارنده و وضعیت پرو از فایل عمومی pro_users.json می‌آید که فقط ربات
+     آن را می‌نویسد؛ کاربر نمی‌تواند خودش را پرو کند. */
+  function tgUser() {
+    try {
+      return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe &&
+        window.Telegram.WebApp.initDataUnsafe.user) || null;
+    } catch (e) { return null; }
+  }
+
+  function inviteLinkFor(uid) {
+    if (!uid) return "";
+    return "https://t.me/" + BOT_USERNAME + "?start=ref_" + uid;
+  }
+
+  function renderInviteCard() {
+    const d = t();
+    const u = tgUser();
+    const link = inviteLinkFor(u && u.id);
+    const box = $("#refLink");
+    if (box && link) box.value = link;
+    const goal = 3;
+    const shown = Math.max(0, Math.min(goal, Number(inviteCount) || 0));
+    const cnt = $("#refCounter");
+    if (cnt) cnt.textContent = tpl(d.vcCountTpl, { n: fmt(shown) });
+    const fill = $("#refFill");
+    if (fill) fill.style.width = Math.min(100, Math.round((shown / goal) * 100)) + "%";
+    [$("#refCopyBtn"), $("#refShareBtn")].forEach((b) => {
+      if (b) b.disabled = !link;
+    });
+    const hint = $(".vc-hint");
+    if (hint) hint.textContent = proExpiryDate ? tpl(d.proExpiryTpl, { d: proExpiryDate }) : d.refHint;
+  }
+
+  $("#refCopyBtn")?.addEventListener("click", async () => {
     haptic("medium");
-    inviteCount = Math.min(3, inviteCount + 1);
-    $("#refCounter").textContent = tpl(t().vcCountTpl, { n: fmt(inviteCount) });
-    $("#refFill").style.width = `${Math.round((inviteCount / 3) * 100)}%`;
-    if (inviteCount < 3) {
-      appToast(tpl(t().toastInviteStep, { c: fmt(inviteCount), r: fmt(3 - inviteCount) }));
-    } else {
-      setTimeout(() => {
-        // ۳ دعوت شبیه‌سازی‌شده ≠ اشتراک واقعی؛ فعال‌سازی فقط در ربات و با تأیید سرور
-        openBotChat("invite");
-        appToast(t().toastInviteViaBot || t().toastInviteDone);
-      }, 400);
+    const link = ($("#refLink") || {}).value || "";
+    if (!link) {
+      openBotChat("invite");
+      appToast(t().toastInviteViaBot);
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const el = $("#refLink");
+        el.select();
+        document.execCommand("copy");
+      }
+      appToast(t().refCopied);
+    } catch (e) {
+      appToast(t().refCopyFail);
     }
   });
 
+  $("#refreshProBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    appToast(t().toastChecking);
+    await loadEntitlements();
+    if (!isPro) appToast(t().toastProStillFree);
+  });
+
+  $("#refShareBtn")?.addEventListener("click", () => {
+    haptic("medium");
+    const link = ($("#refLink") || {}).value || "";
+    if (!link) {
+      openBotChat("invite");
+      appToast(t().toastInviteViaBot);
+      return;
+    }
+    const share = "https://t.me/share/url?url=" + encodeURIComponent(link) +
+      "&text=" + encodeURIComponent(t().refShareText || "");
+    try {
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
+        Telegram.WebApp.openTelegramLink(share);
+        return;
+      }
+    } catch (e) {}
+    window.open(share, "_blank", "noopener");
+  });
+
+  /* ---------- وضعیت واقعی اشتراک (منبع: pro_users.json که ربات می‌نویسد) ---------- */
+  let proExpiryDate = "";
+
+  async function proStatusKey(uid) {
+    const enc = new TextEncoder().encode("tg-pro:" + uid);
+    const dig = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(dig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 16);
+  }
+
+  async function loadEntitlements() {
+    const u = tgUser();
+    if (!u || !u.id || !(window.crypto && crypto.subtle)) return;
+    try {
+      const key = await proStatusKey(u.id);
+      const res = await fetch("pro_users.json?v=" + Date.now(), { cache: "no-store" });
+      if (!res || !res.ok) return;
+      const data = await res.json();
+      const entry = (data && data.users && data.users[key]) || null;
+      if (!entry) return;
+      const now = Math.floor(Date.now() / 1000);
+      inviteCount = Math.max(0, Number(entry.ref) || 0);
+      const exp = Number(entry.exp) || 0;
+      if (exp > now) {
+        proExpiryDate = new Date(exp * 1000).toLocaleDateString();
+        setPro(true);
+      }
+      syncProUi();
+    } catch (e) {
+      /* آفلاین یا فایل موجود نیست ⇒ حالت پایه */
+    }
+  }
+
+  /* =======================================================
   /* =======================================================
      5) FOUNDER PROFIT SIMULATOR
   ======================================================= */
@@ -1220,4 +1325,14 @@
   fetchLiveMarket();
   fetchLiveWhales();
   setInterval(fetchLiveMarket, 22000);
+
+  // وضعیت واقعی اشتراک/دعوت از فایلی که ربات می‌نویسد
+  loadEntitlements();
+  // بعد از برگشت از چت ربات (پرداخت/دعوت) دوباره چک می‌شود
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") loadEntitlements();
+  });
+  $$(".tab-btn").forEach((b) => {
+    if (b.dataset.tab === "sub") b.addEventListener("click", loadEntitlements);
+  });
 })();

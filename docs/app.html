@@ -313,6 +313,7 @@
           </ul>
           <button id="buyBtn" class="btn-block btn-stars" data-i18n="buyBtn">خرید اشتراک با Telegram Stars</button>
           <div class="plan-note" data-i18n="planNote">پرداخت کاملاً داخل تلگرام انجام می‌شود و از طریق Fragment به TON/USDT تسویه می‌گردد.</div>
+          <button id="refreshProBtn" class="btn-block btn-ghost-dark" data-i18n="refreshPro">خریدم — وضعیت را بررسی کن</button>
         </div>
 
         <div class="viral-card">
@@ -323,7 +324,12 @@
           <div class="vc-title" data-i18n="vcTitle">دعوت ۳ دوست تریدر = ۷ روز پرو رایگان!</div>
           <div class="vc-sub" data-i18n="vcSub">استارز نداری؟ لینک اختصاصی‌ت رو بفرست گروه پراپ؛ با استارت ۳ نفر، کل قفل‌ها + فایل MT5 و TradingView باز می‌شه.</div>
           <div class="vc-bar"><i id="refFill" style="width:0%"></i></div>
-          <button id="simInviteBtn" class="btn-block btn-viral" data-i18n="simInviteBtn">شبیه‌سازی دعوت ۱ دوست تریدر +</button>
+          <input id="refLink" class="vc-link" type="text" readonly value="" dir="ltr" />
+          <div class="vc-actions">
+            <button id="refCopyBtn" class="btn-block btn-viral" data-i18n="refCopy">کپی لینک دعوت</button>
+            <button id="refShareBtn" class="btn-block btn-ghost-dark" data-i18n="refShare">اشتراک در تلگرام</button>
+          </div>
+          <div class="vc-hint" data-i18n="refHint">دعوت‌ها فقط با استارت واقعی دوستانت در ربات ثبت می‌شوند و شمارنده به‌صورت خودکار به‌روز می‌شود.</div>
         </div>
       </div>
 
@@ -331,7 +337,7 @@
         <div class="plan-card active">
           <div class="active-check">✓</div>
           <div class="plan-badge green" data-i18n="proActiveBadge">پلن پرو فعال است</div>
-          <div class="plan-price small" data-i18n="proActiveDate">۳۰ روز فعال ✓</div>
+          <div class="plan-price small" id="proActiveDate" data-i18n="proActiveDate">۳۰ روز فعال ✓</div>
           <div class="plan-fiat" data-i18n="proActiveSub">تمدید خودکار یا لغو در هر لحظه با Stars</div>
           <ul class="plan-feats">
             <li data-i18n="proActFeat1">همه قفل‌های رادار و هشدارها باز شد ✓</li>
@@ -383,7 +389,7 @@
         <div class="inv-avatar">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" opacity=".45"/><circle cx="12" cy="12" r="5" opacity=".7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
         </div>
-        <div class="inv-name">@TradeGuard_bot</div>
+        <div class="inv-name" id="invBotName">@TradeGuard1_bot</div>
       </div>
       <div class="inv-item">
         <div class="inv-label" data-i18n="invItemLabel">اشتراک پلن پرو — ۳۰ روز</div>
@@ -391,25 +397,9 @@
       </div>
       <div class="inv-rows">
         <div class="inv-row"><span data-i18n="invMethod">روش پرداخت</span><b>Telegram Stars</b></div>
-        <div class="inv-row"><span data-i18n="invBal">موجودی شما</span><b>320 ⭐</b></div>
-        <div class="inv-row"><span data-i18n="invAfter">پس از پرداخت</span><b data-i18n="invRemains">۲۰ ⭐ باقی می‌ماند</b></div>
       </div>
-      <button id="payBtn" class="btn-block btn-stars" data-i18n="payBtn">پرداخت ۳۰۰ ⭐</button>
-      <div class="inv-note" data-i18n="invNote">بدون کارت بانکی · بدون مرز · تسویه رسمی Fragment</div>
-    </div>
-
-    <div class="sheet-step hidden" data-step="2">
-      <div class="inv-loading"><span class="spinner"></span></div>
-      <div class="inv-loading-text" data-i18n="invLoading">در حال تأیید پرداخت…</div>
-    </div>
-
-    <div class="sheet-step hidden" data-step="3">
-      <div class="inv-success">
-        <div class="success-ring">✓</div>
-        <div class="success-title" data-i18n="invSuccessTitle">خرید موفق</div>
-        <div class="success-sub" data-i18n-html="invSuccessSubHtml">پلن پرو برای <b>۳۰ روز کامل</b> فعال شد.<br />همه قفل‌ها و دانلودها باز شدند.</div>
-        <button id="startBtn" class="btn-block btn-primary" data-i18n="startBtn">شروع کن</button>
-      </div>
+      <button id="startBtn" class="btn-block btn-stars" data-i18n="invOpenBotBtn">پرداخت امن در ربات</button>
+      <div class="inv-note" data-i18n="invStepsNote">پرداخت داخل چت ربات و با تأیید تلگرام انجام می‌شود؛ بلافاصله بعد از پرداخت، ۳۰ روز پرو فعال و همین صفحه به‌روز می‌شود.</div>
     </div>
   </div>
 

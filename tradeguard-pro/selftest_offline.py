@@ -28,6 +28,9 @@ os.environ["BOT_TOKEN"] = "123456789:AAtest-token-not-real-000000000000"
 os.environ.pop("TG_DB_KEY", None)
 os.environ.pop("ADMIN_USER_ID", None)
 os.environ.pop("AI_API_KEY", None)
+os.environ.pop("PRO_STATUS_PUSH", None)   # تست هرگز به ریپو پوش نمی‌کند
+_STATUS_TMP = Path(tempfile.mkdtemp()) / "pro_users.json"
+os.environ["PRO_STATUS_PATH"] = str(_STATUS_TMP)
 
 import bot  # noqa: E402  (بعد از تنظیم متغیرها import می‌شود)
 
@@ -173,6 +176,13 @@ bot.handle_message(payment)
 pro, exp = bot.is_user_pro(USER)
 check("اشتراک PRO فعال شد", pro, f"pro={pro}")
 
+# همان پرداخت باید وضعیت را برای مینی‌اپ هم منتشر کند
+_status = __import__("json").loads(_STATUS_TMP.read_text(encoding="utf-8")) if _STATUS_TMP.exists() else {}
+_key = bot.pro_status_key(USER)
+check("بعد از پرداخت، فایل وضعیت مینی‌اپ به‌روز شد",
+      int((_status.get("users", {}).get(_key) or {}).get("exp", 0)) > 0,
+      str(list(_status.get("users", {}).keys())))
+
 n_dl = len(DOWNLOADS)
 for data in ("download_ea", "download_pine"):
     bot.handle_callback({"id": f"cb-{data}", "from": {"id": USER}, "data": data,
@@ -296,6 +306,90 @@ check("نمای کاربر از پنل، منوی کاربر را برمی‌گ�
 SENT.clear()
 bot.handle_message(msg("/id"))
 check("/id شناسه عددی را نشان می‌دهد", str(USER) in last_text())
+
+print("\n۷د) خرید Stars و دعوت واقعی (مسیر مینی‌اپ)")
+import hashlib as _hashlib
+
+# --- deep-link خرید: /start pro باید فاکتور بفرستد ---
+BUYER = USER + 9000          # کاربر تازه (کاربر قبلی در تست پرداخت، پرو شده است)
+SENT.clear()
+bot.handle_message(msg("/start pro", uid=BUYER))
+invoices = [pl for api, pl in SENT if api == "sendInvoice"]
+check("/start pro فاکتور Stars می‌فرستد", len(invoices) == 1, f"sendInvoice×{len(invoices)}")
+if invoices:
+    inv = invoices[0]
+    check("فاکتور با ارز XTR است", inv.get("currency") == "XTR", str(inv.get("currency")))
+    check("قیمت فاکتور با SUBSCRIPTION_STARS یکی است",
+          (inv.get("prices") or [{}])[0].get("amount") == bot.SUBSCRIPTION_STARS)
+    check("payload فاکتور قابل تشخیص است", str(inv.get("payload", "")).startswith("tradeguard_pro"))
+    check("provider_token برای Stars خالی است", inv.get("provider_token") == "")
+
+# --- alias های دیگر ---
+for alias in ("/start buy", "/buy", "/pro"):
+    SENT.clear()
+    bot.handle_message(msg(alias, uid=BUYER))
+    check(f"«{alias}» هم فاکتور می‌فرستد", any(api == "sendInvoice" for api, _ in SENT))
+
+# کاربری که از قبل پرو است به‌جای فاکتور تکراری، وضعیتش را می‌بیند
+SENT.clear()
+bot.handle_message(msg("/start pro", uid=USER))
+check("کاربر پرو فاکتور تکراری نمی‌گیرد، وضعیتش را می‌بیند",
+      not any(api == "sendInvoice" for api, _ in SENT) and "PRO" in last_text().upper())
+
+# --- deep-link دعوت: لینک واقعی با آیدی خودِ کاربر ---
+SENT.clear()
+bot.handle_message(msg("/start invite", uid=USER))
+txt = last_text()
+ref_link = bot.invite_link(USER)
+check("لینک دعوت با آیدی کاربر ساخته می‌شود", ref_link.endswith(f"?start=ref_{USER}"), ref_link)
+check("/start invite لینک اختصاصی را می‌فرستد", ref_link in txt or f"start=ref_{USER}" in txt, txt[:80])
+check("پیام دعوت پیشرفت واقعی را نشان می‌دهد",
+      ("0" in txt) and ("3" in txt) and any(
+          w in txt.lower() for w in ("دعوت", "invite", "referral", "davet", "приглаш", "دعو", "invit")),
+      txt[:80])
+SENT.clear()
+bot.handle_message(msg("/invite", uid=USER))
+check("دستور /invite هم لینک می‌دهد", f"start=ref_{USER}" in last_text())
+
+# --- /status وضعیت واقعی را می‌گوید ---
+SENT.clear()
+bot.handle_message(msg("/status", uid=USER))
+_st = last_text()
+check("/status وضعیت اشتراک را نشان می‌دهد",
+      ("PRO" in _st.upper()) and any(ch.isdigit() for ch in _st), _st[:80])
+
+# --- pre_checkout: فقط فاکتور خود ربات تأیید می‌شود ---
+SENT.clear()
+bot.process_update({"update_id": 1, "pre_checkout_query": {
+    "id": "pcq-ok", "invoice_payload": f"tradeguard_pro_30d_{bot.SUBSCRIPTION_STARS}",
+    "currency": "XTR", "total_amount": bot.SUBSCRIPTION_STARS}})
+answers = [pl for api, pl in SENT if api == "answerPreCheckoutQuery"]
+check("pre_checkout معتبر تأیید می‌شود", answers and answers[-1].get("ok") is True, str(answers[-1:]))
+SENT.clear()
+bot.process_update({"update_id": 2, "pre_checkout_query": {
+    "id": "pcq-bad", "invoice_payload": "hacker_payload", "currency": "XTR", "total_amount": 1}})
+answers = [pl for api, pl in SENT if api == "answerPreCheckoutQuery"]
+check("pre_checkout جعلی رد می‌شود", answers and answers[-1].get("ok") is False, str(answers[-1:]))
+
+# --- وضعیت پرو برای مینی‌اپ (فایل عمومی، بدون آیدی خام) ---
+tmp_status = Path(tempfile.mkdtemp()) / "pro_users.json"
+old_status_file = bot.PRO_STATUS_FILE
+bot.PRO_STATUS_FILE = tmp_status
+bot.publish_pro_status([USER])
+raw = tmp_status.read_text(encoding="utf-8")
+data = __import__("json").loads(raw)
+key = _hashlib.sha256(("tg-pro:" + str(USER)).encode()).hexdigest()[:16]
+check("فایل وضعیت پرو ساخته می‌شود", isinstance(data.get("users"), dict), raw[:60])
+check("کلید کاربر هش است، نه آیدی خام", key in data["users"] and str(USER) not in raw)
+check("کاربر پرو در فایل exp دارد", int((data["users"].get(key) or {}).get("exp", 0)) > 0)
+check("کلید pro_status_key با الگوریتم مینی‌اپ یکی است", bot.pro_status_key(USER) == key)
+# بعد از انقضا باید حذف شود
+with bot._db_lock, __import__("sqlite3").connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE users SET pro_until = 0, referrals_count = 0 WHERE user_id = ?", (USER,))
+bot.publish_pro_status([USER])
+data2 = __import__("json").loads(tmp_status.read_text(encoding="utf-8"))
+check("کاربر بدون پرو و بدون دعوت از فایل حذف می‌شود", key not in data2.get("users", {}), str(data2)[:60])
+bot.PRO_STATUS_FILE = old_status_file
 
 print("\n۸) امنیت پیکربندی")
 check("MINI_APP_URL تقلبی رد می‌شود", not bot.is_real_app_url("https://example.com"))

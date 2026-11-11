@@ -88,10 +88,25 @@ check("config.js ساختار درست دارد",
   JSON.stringify(cfg).slice(0, 80));
 
 /* ── ۳) پرداخت واقعی، نه کلید جادویی ───────────────────────────── */
-check("app.js دیگر PRO را با کلیک محلی باز نمی‌کند",
-  !/setPro\(\s*true\s*\)/.test(stripComments(appJs)));
-check("دکمه پرداخت به چت ربات وصل است", /openBotChat\("pro"\)/.test(appJs));
-check("دعوت شبیه‌سازی‌شده هم PRO نمی‌دهد", /toastInviteViaBot/.test(appJs));
+const appJsClean = stripComments(appJs);
+/* setPro(true) فقط باید داخل loadEntitlements باشد؛ یعنی فقط از روی فایل
+   وضعیتی که خودِ ربات می‌نویسد — نه از روی کلیک یا پارامتر URL. */
+const entStart = appJsClean.indexOf("async function loadEntitlements");
+const entEnd = entStart >= 0 ? appJsClean.indexOf("\n  }", entStart) : -1;
+const entBody = entStart >= 0 && entEnd > entStart ? appJsClean.slice(entStart, entEnd) : "";
+const setProTrue = appJsClean.match(/setPro\(\s*true\s*\)/g) || [];
+check("PRO فقط از فایل وضعیت ربات فعال می‌شود (نه با کلیک/پارامتر)",
+  setProTrue.length === 1 && entBody.includes("setPro(true)") && /pro_users\.json/.test(entBody),
+  `setPro(true)×${setProTrue.length} در ${entBody ? "loadEntitlements" : "جای دیگر"}`);
+check("پارامتر URL هیچ‌وقت PRO را باز نمی‌کند",
+  !/[?&](pro|pro_until|vip)=/i.test(appJsClean) && !/URLSearchParams[^;]*pro/i.test(appJsClean));
+check("دکمه پرداخت به چت ربات وصل است", /openBotChat\("pro"\)/.test(appJsClean));
+check("شبیه‌سازی دعوت حذف شد و لینک واقعی ref_ ساخته می‌شود",
+  !/simInviteBtn/.test(html) && !/simInviteBtn/.test(appJsClean) && /start=ref_/.test(appJsClean));
+check("کارت دعوت فقط پیام ربات را باز نمی‌کند (کپی/اشتراک واقعی دارد)",
+  /refCopyBtn/.test(html) && /refShareBtn/.test(html) && /t\.me\/share\/url/.test(appJsClean));
+check("شیت پرداخت ادعای موفقیت جعلی ندارد",
+  !/payBtn/.test(html) && !/invSuccessTitle/.test(html) && !/setTimeout\(\s*\(\)\s*=>\s*showStep\(3\)/.test(appJsClean));
 
 /* ── ۴) هم‌خوانی الگوریتم هش JS و Python ───────────────────────── */
 const sampleId = "123456789";

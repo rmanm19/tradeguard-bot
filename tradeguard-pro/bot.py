@@ -14,10 +14,12 @@ TradeGuard Pro v7.0 Global — موتور ۶ زبانه بدون نیاز به �
 5) پنل مدیریت مؤسس (/admin) + ارسال همگانی (/broadcast) + پست‌گذار خودکار ۸ ساعته کانال
 """
 
+import hashlib
 import json
 import logging
 import os
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -98,6 +100,15 @@ CHANNEL_REASON: str = ""
 FREE_PRO_INVITE_TARGET = int(os.environ.get("FREE_PRO_INVITE_TARGET", "3") or "3")
 ADMIN_USER_ID = os.environ.get("ADMIN_USER_ID", "").strip()
 
+# ── وضعیت پرو برای مینی‌اپ (بدون بک‌اند) ─────────────────────────────
+# مینی‌اپ استاتیک است و به هیچ سروری وصل نیست؛ پس وضعیت اشتراک را از یک
+# فایل عمومی می‌خواند که فقط خودِ ربات آن را می‌نویسد (کاربر نمی‌تواند
+# خودش را پرو کند). کلید هر کاربر هش است تا آیدی عددی عمومی نشود.
+REPO_ROOT = BASE_DIR.parent
+PRO_STATUS_FILE = Path(os.environ.get("PRO_STATUS_PATH") or (REPO_ROOT / "docs" / "pro_users.json"))
+PRO_STATUS_PUSH = os.environ.get("PRO_STATUS_PUSH", "").strip() == "1"
+PRO_STATUS_LOCK = threading.Lock()
+
 AI_API_BASE = os.environ.get("AI_API_BASE", "https://openrouter.ai/api/v1").rstrip("/")
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "google/gemini-2.5-flash").strip()
@@ -148,6 +159,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 لینک اختصاصی تو:\n`{link}`\n\n"
             "📊 دعوت‌های تو: *{count} از {target}*"
         ),
+        "invite_progress": "📊 دعوت‌های تأییدشده: *{count} از {target}*",
         "ref_new": "🔥 یک تریدر جدید با لینک تو وارد شد! پیشرفت: *{count}/{target}*",
         "ref_unlocked": "🎉 *تبریک! ۳ دعوت تکمیل شد و ۷ روز پلن پرو رایگان برایت فعال شد!*",
         "need_pro": "این قابلیت ویژه اعضای پلن پرو است ⭐",
@@ -198,6 +210,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 Your referral link:\n`{link}`\n\n"
             "📊 Progress: *{count} / {target} referrals*"
         ),
+        "invite_progress": "📊 Verified invites: *{count} of {target}*",
         "ref_new": "🔥 New trader joined via your link! Progress: *{count}/{target}*",
         "ref_unlocked": "🎉 *Congrats! 3 referrals completed — 7 Days of PRO unlocked for free!*",
         "need_pro": "This feature requires TradeGuard Pro ⭐",
@@ -248,6 +261,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 Ваша ссылка:\n`{link}`\n\n"
             "📊 Приглашено: *{count} из {target}*"
         ),
+        "invite_progress": "📊 Подтверждённые приглашения: *{count} из {target}*",
         "ref_new": "🔥 По вашей ссылке зашёл новый трейдер! Прогресс: *{count}/{target}*",
         "ref_unlocked": "🎉 *Поздравляем! 3 друга приглашены — вам начислено 7 дней PRO бесплатно!*",
         "need_pro": "Доступно в тарифе PRO ⭐",
@@ -296,6 +310,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 رابط الدعوة:\n`{link}`\n\n"
             "📊 الدعوات المسجلة: *{count} من {target}*"
         ),
+        "invite_progress": "📊 الدعوات المؤكدة: *{count} من {target}*",
         "ref_new": "🔥 انضم متداول جديد عبر رابطك! التقدم: *{count}/{target}*",
         "ref_unlocked": "🎉 *مبروك! اكتملت 3 دعوات وتم تفعيل 7 أيام PRO مجاناً!*",
         "need_pro": "هذه الميزة مخصصة لمشتركي PRO ⭐",
@@ -345,6 +360,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 Davet linkiniz:\n`{link}`\n\n"
             "📊 İlerleme: *{count} / {target} davet*"
         ),
+        "invite_progress": "📊 Onaylanan davetler: *{count} / {target}*",
         "ref_new": "🔥 Linkinizle yeni bir trader katıldı! İlerleme: *{count}/{target}*",
         "ref_unlocked": "🎉 *Tebrikler! 3 davet tamamlandı — 7 Gün Ücretsiz PRO aktif edildi!*",
         "need_pro": "Bu özellik PRO üyeler içindir ⭐",
@@ -394,6 +410,7 @@ BOT_STRINGS: Dict[str, Dict[str, str]] = {
             "🔗 Tu enlace:\n`{link}`\n\n"
             "📊 Progreso: *{count} / {target} invitados*"
         ),
+        "invite_progress": "📊 Invitaciones confirmadas: *{count} de {target}*",
         "ref_new": "🔥 ¡Nuevo trader registrado con tu enlace! Progreso: *{count}/{target}*",
         "ref_unlocked": "🎉 *¡Felicidades! 3 invitados completados — 7 Días PRO activados gratis!*",
         "need_pro": "Esta función requiere el Plan PRO ⭐",
@@ -713,6 +730,134 @@ def register_user_and_check_referral(
         return True, valid_ref, ref_count, unlocked_now
 
 
+# =====================================================================
+#  انتشار وضعیت اشتراک برای مینی‌اپ استاتیک (docs/pro_users.json)
+#  ─ مینی‌اپ هیچ بک‌اندی ندارد؛ تنها منبع حقیقتِ وضعیت پرو همین فایل است
+#    که فقط ربات آن را می‌نویسد. کاربر نمی‌تواند خودش را پرو کند.
+#  ─ کلید هر کاربر = sha256("tg-pro:" + user_id)[:16] (آیدی خام لو نمی‌رود)
+# =====================================================================
+PRO_STATUS_MAX_AGE = 30 * 86400
+
+
+def pro_status_key(user_id: int) -> str:
+    return hashlib.sha256(("tg-pro:" + str(int(user_id))).encode()).hexdigest()[:16]
+
+
+def load_pro_status() -> dict:
+    try:
+        raw = PRO_STATUS_FILE.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        if isinstance(data, dict) and isinstance(data.get("users"), dict):
+            return data
+    except Exception:
+        pass
+    return {"updated": 0, "users": {}}
+
+
+def save_pro_status(data: dict) -> bool:
+    """فایل را می‌نویسد؛ True یعنی محتوا واقعاً تغییر کرد."""
+    old = load_pro_status()
+    if old.get("users") == data.get("users"):
+        return False
+    PRO_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PRO_STATUS_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=0, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
+def _git_publish_status_file() -> None:
+    """کامیت و پوش فایل وضعیت (فقط وقتی PRO_STATUS_PUSH روشن است)."""
+    if not PRO_STATUS_PUSH:
+        return
+    try:
+        rel = str(PRO_STATUS_FILE.relative_to(REPO_ROOT))
+    except ValueError:
+        logger.warning("فایل وضعیت پرو خارج از ریپو است؛ پوش انجام نشد")
+        return
+    try:
+        subprocess.run(["git", "add", rel], cwd=str(REPO_ROOT), capture_output=True, timeout=60)
+        commit = subprocess.run(
+            [
+                "git",
+                "-c", "user.name=github-actions[bot]",
+                "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+                "commit", "-m", "chore(pro): sync subscription status [skip ci]",
+            ],
+            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60,
+        )
+        if commit.returncode != 0:
+            return  # چیزی برای کامیت نبود
+        for attempt in (1, 2):
+            subprocess.run(["git", "pull", "--rebase", "--autostash"], cwd=str(REPO_ROOT), capture_output=True, timeout=120)
+            push = subprocess.run(["git", "push"], cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=120)
+            if push.returncode == 0:
+                logger.info("📤 وضعیت پرو در ریپو منتشر شد")
+                return
+            logger.warning("پوش وضعیت پرو ناموفق (تلاش %s): %s", attempt, (push.stderr or "")[:200])
+    except Exception as exc:
+        logger.warning("انتشار وضعیت پرو ناموفق بود: %s", exc)
+
+
+def publish_pro_status(user_ids: Optional[List[int]] = None) -> None:
+    """وضعیت پرو/دعوتِ کاربران داده‌شده را از دیتابیس تازه می‌کند و منتشر می‌کند.
+
+    user_ids=None ⇒ همهٔ کاربرانی که پرو فعال یا دعوت ثبت‌شده دارند.
+    """
+    now = int(time.time())
+    with PRO_STATUS_LOCK:
+        data = load_pro_status()
+        users = dict(data.get("users") or {})
+        try:
+            with _db_lock, sqlite3.connect(DB_PATH) as conn:
+                if user_ids:
+                    ids = [int(u) for u in user_ids]
+                    rows: List[Tuple[int, int, int]] = []
+                    for uid in ids:
+                        row = conn.execute(
+                            "SELECT pro_until, referrals_count FROM users WHERE user_id = ?",
+                            (uid,),
+                        ).fetchone()
+                        if row:
+                            rows.append((uid, int(row[0] or 0), int(row[1] or 0)))
+                else:
+                    rows = [
+                        (int(r[0]), int(r[1] or 0), int(r[2] or 0))
+                        for r in conn.execute(
+                            "SELECT user_id, pro_until, referrals_count FROM users "
+                            "WHERE pro_until > ? OR referrals_count > 0",
+                            (now - PRO_STATUS_MAX_AGE,),
+                        ).fetchall()
+                    ]
+        except Exception as exc:
+            logger.warning("خواندن وضعیت پرو از دیتابیس ناموفق بود: %s", exc)
+            return
+
+        for uid, pro_until, ref_count in rows:
+            key = pro_status_key(uid)
+            if pro_until > now or ref_count > 0:
+                users[key] = {"exp": int(pro_until), "ref": int(ref_count)}
+            else:
+                users.pop(key, None)
+
+        # هرسِ رکوردهای منقضی و قدیمی
+        for key in list(users.keys()):
+            entry = users.get(key) or {}
+            try:
+                exp = int(entry.get("exp") or 0)
+                ref = int(entry.get("ref") or 0)
+            except Exception:
+                users.pop(key, None)
+                continue
+            if exp and exp < now - PRO_STATUS_MAX_AGE and not ref:
+                users.pop(key, None)
+
+        data = {"updated": now, "users": users}
+        if save_pro_status(data):
+            _git_publish_status_file()
+
+
 def get_user_referral_stats(user_id: int) -> Tuple[int, bool]:
     with _db_lock, sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
@@ -984,7 +1129,9 @@ def sync_telegram_menus() -> None:
         {"command": "scan", "description": "🛡️ Token Anti-Rug & Honeypot Scanner"},
         {"command": "wallet", "description": "🐋 Hyperliquid Whale Wallet X-Ray"},
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
-        {"command": "pro", "description": "⭐ Unlock TradeGuard PRO (Stars)"},
+        {"command": "buy", "description": "⭐ Unlock TradeGuard PRO (Stars)"},
+        {"command": "invite", "description": "🎁 Invite 3 Friends → 7 Days Free Pro"},
+        {"command": "status", "description": "🔎 My Subscription Status"},
         {"command": "check", "description": "🩺 Health Check"},
         {"command": "stars", "description": "⭐ Star Balance & Sales"},
         {"command": "admin", "description": "👑 Founder Revenue & Stats Panel"},
@@ -996,7 +1143,9 @@ def sync_telegram_menus() -> None:
         {"command": "scan", "description": "🛡️ اسکن هانی‌پات و امنیت ارزها"},
         {"command": "wallet", "description": "🐋 ردیاب کیف پول نهنگ‌ها"},
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
-        {"command": "pro", "description": "⭐ فعال‌سازی اشتراک ویژه Pro"},
+        {"command": "buy", "description": "⭐ خرید اشتراک ویژه Pro با استارز"},
+        {"command": "invite", "description": "🎁 دعوت ۳ دوست = ۷ روز پرو رایگان"},
+        {"command": "status", "description": "🔎 وضعیت اشتراک من"},
         {"command": "check", "description": "🩺 بررسی سلامت و وضعیت ربات"},
         {"command": "stars", "description": "⭐ موجودی استارز و فروش‌ها"},
         {"command": "admin", "description": "👑 پنل مدیریت و آمار درآمد مؤسس"},
@@ -1313,6 +1462,34 @@ def send_pro_invoice(chat_id: int, lang: str = "fa") -> None:
     )
 
 
+def invite_link(user_id: int) -> str:
+    """لینک اختصاصی دعوت — همان پارامتری که /start آن را می‌خواند."""
+    return f"https://t.me/{BOT_USERNAME}?start=ref_{int(user_id)}"
+
+
+def send_invite_message(chat_id: int, uid: int, lang: str) -> None:
+    """پیام «دعوت دوستان» با لینک واقعی و پیشرفت واقعی (بدون شبیه‌سازی)."""
+    count, _claimed = get_user_referral_stats(uid)
+    pro, _ = is_user_pro(uid)
+    tg_send_message(
+        chat_id,
+        tr(lang, "invite_body", link=invite_link(uid), count=count, target=FREE_PRO_INVITE_TARGET),
+        reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)),
+    )
+
+
+def send_status_message(chat_id: int, uid: int, lang: str, pro: bool, pro_until: int) -> None:
+    """وضعیت واقعی اشتراک + راه بازگشت به مینی‌اپ."""
+    count, _claimed = get_user_referral_stats(uid)
+    if pro:
+        exp_str = datetime.fromtimestamp(int(pro_until), tz=timezone.utc).strftime("%Y-%m-%d")
+        text = tr(lang, "status_pro", exp=exp_str)
+    else:
+        text = tr(lang, "status_free")
+    text += "\n\n" + tr(lang, "invite_progress", count=count, target=FREE_PRO_INVITE_TARGET)
+    tg_send_message(chat_id, text, reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)))
+
+
 # =====================================================================
 # ۵) پردازشگر پیام‌ها، دستورات و پرداخت‌های Stars
 # =====================================================================
@@ -1361,6 +1538,7 @@ def handle_message(msg: dict) -> None:
         else:
             logger.info("پرداخت تکراری نادیده گرفته شد: %s", charge_id[:22])
 
+        publish_pro_status([uid])
         tg_send_message(chat_id, tr(lang, "paid_ok", exp=exp_str), reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)))
         return
 
@@ -1370,10 +1548,12 @@ def handle_message(msg: dict) -> None:
 
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
+        # پارامتر deep-link مینی‌اپ / لینک دعوت (مثلاً: /start pro یا /start ref_123456)
+        payload = parts[1].strip().lower() if len(parts) > 1 else ""
         ref_id = None
-        if len(parts) > 1 and parts[1].startswith("ref_"):
+        if payload.startswith("ref_"):
             try:
-                ref_id = int(parts[1].replace("ref_", ""))
+                ref_id = int(payload.replace("ref_", ""))
             except ValueError:
                 ref_id = None
 
@@ -1382,24 +1562,55 @@ def handle_message(msg: dict) -> None:
         lang = get_user_lang(uid, tg_lang)
 
         if is_new and valid_ref:
+            publish_pro_status([valid_ref])
             ref_lang = get_user_lang(valid_ref, "fa")
             if unlocked_now:
                 tg_send_message(valid_ref, tr(ref_lang, "ref_unlocked"), reply_markup=main_keyboard(True, ref_lang, is_admin_user=is_admin(valid_ref)))
             else:
                 tg_send_message(valid_ref, tr(ref_lang, "ref_new", count=ref_count, target=FREE_PRO_INVITE_TARGET))
 
-        pro, _ = is_user_pro(uid)
+        pro, pro_until = is_user_pro(uid)
+
+        # 🛒 دکمهٔ «خرید اشتراک» مینی‌اپ ⇒ مستقیم فاکتور Stars می‌آید
+        if payload in ("pro", "buy", "pay", "stars", "pro_30", "pricing", "subscribe"):
+            if pro and pro_until > int(time.time()):
+                send_status_message(chat_id, uid, lang, pro, pro_until)
+            else:
+                send_pro_invoice(chat_id, lang)
+            return
+
+        # 🎁 دکمهٔ «دعوت دوستان» مینی‌اپ ⇒ لینک اختصاصی + پیشرفت واقعی
+        if payload in ("invite", "refer", "ref", "friends", "refs"):
+            send_invite_message(chat_id, uid, lang)
+            return
+
+        # 🔎 بازگشت از پرداخت / بررسی وضعیت
+        if payload in ("status", "check", "my", "pro_status"):
+            send_status_message(chat_id, uid, lang, pro, pro_until)
+            return
+
         send_user_home(chat_id, uid, lang, pro)
+        return
+
+    if text.startswith("/buy") or text.startswith("/pay") or text.startswith("/pro"):
+        lang = get_user_lang(uid, tg_lang)
+        send_pro_invoice(chat_id, lang)
+        return
+
+    if text.startswith("/invite") or text.startswith("/ref"):
+        lang = get_user_lang(uid, tg_lang)
+        send_invite_message(chat_id, uid, lang)
+        return
+
+    if text.startswith("/status") or text.startswith("/me"):
+        lang = get_user_lang(uid, tg_lang)
+        pro, pro_until = is_user_pro(uid)
+        send_status_message(chat_id, uid, lang, pro, pro_until)
         return
 
     if text.startswith("/lang"):
         lang = get_user_lang(uid, tg_lang)
         tg_send_message(chat_id, tr(lang, "lang_prompt"), reply_markup=language_keyboard())
-        return
-
-    if text.startswith("/pro"):
-        lang = get_user_lang(uid, tg_lang)
-        send_pro_invoice(chat_id, lang)
         return
 
     if text.startswith("/wallet"):
@@ -1691,6 +1902,7 @@ def handle_message(msg: dict) -> None:
         target_id = int(parts[1]) if (len(parts) > 1 and parts[1].isdigit()) else uid
         gift_charge = f"admin_gift_{target_id}_{int(time.time())}"
         exp, _ = activate_pro_subscription(target_id, stars=0, charge_id=gift_charge, days=30)
+        publish_pro_status([target_id])   # مینی‌اپ هم بلافاصله پرو را ببیند
         exp_str = datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d")
         tg_send_message(chat_id, f"🎁 اشتراک ۳۰ روزه Pro برای کاربر `{target_id}` تا تاریخ `{exp_str}` فعال شد!")
         return
@@ -1855,9 +2067,7 @@ def handle_callback(cb: dict) -> None:
 
     if data == "invite_free":
         tg_answer_callback(cb_id)
-        ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
-        count, _ = get_user_referral_stats(uid)
-        tg_send_message(chat_id, tr(lang, "invite_body", link=ref_link, count=count, target=FREE_PRO_INVITE_TARGET))
+        send_invite_message(chat_id, uid, lang)
         return
 
     if data == "ai_brief":
@@ -1999,7 +2209,23 @@ def process_update(upd: dict) -> None:
     try:
         if "pre_checkout_query" in upd:
             pq = upd["pre_checkout_query"]
-            tg_call("answerPreCheckoutQuery", {"pre_checkout_query_id": pq["id"], "ok": True})
+            payload = str(pq.get("invoice_payload") or "")
+            currency = str(pq.get("currency") or "")
+            amount = int(pq.get("total_amount") or 0)
+            # فقط فاکتور خودِ ربات پذیرفته می‌شود؛ تلگرام فقط ۱۰ ثانیه برای پاسخ صبر می‌کند
+            valid = payload.startswith("tradeguard_pro") and currency == "XTR" and amount > 0
+            if valid:
+                tg_call("answerPreCheckoutQuery", {"pre_checkout_query_id": pq["id"], "ok": True})
+            else:
+                logger.warning("pre_checkout نامعتبر رد شد: payload=%s currency=%s amount=%s", payload[:40], currency, amount)
+                tg_call(
+                    "answerPreCheckoutQuery",
+                    {
+                        "pre_checkout_query_id": pq["id"],
+                        "ok": False,
+                        "error_message": "این فاکتور معتبر نیست. لطفاً از منوی ربات دوباره اقدام کنید.",
+                    },
+                )
         elif "message" in upd:
             handle_message(upd["message"])
         elif "callback_query" in upd:
@@ -2102,6 +2328,13 @@ def main() -> None:
     logger.info("✅ متصل شد به ربات: @%s (id: %s)", BOT_USERNAME, BOT_ID)
     logger.info("📢 وضعیت کانال ویترین: %s", CHANNEL_REASON)
     logger.info("🌍 ربات جهانی ۶ زبانه TradeGuard v7.5 (نسخه نهایی کامل!) روشن و آماده است! به تلگرام بروید و /start بزنید.")
+
+    # همگام‌سازی وضعیت پرو با مینی‌اپ (docs/pro_users.json) هنگام روشن شدن
+    try:
+        publish_pro_status()
+        logger.info("🗂 وضعیت اشتراک برای مینی‌اپ آماده است: %s", PRO_STATUS_FILE)
+    except Exception as exc:
+        logger.warning("همگام‌سازی وضعیت پرو در استارت‌آپ ناموفق بود: %s", exc)
 
     threading.Thread(target=auto_channel_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=8)

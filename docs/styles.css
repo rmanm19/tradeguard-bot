@@ -510,6 +510,19 @@ section{scroll-margin-top:84px}
   padding:9px 12px;border-radius:11px;font-size:12.5px;font-weight:800;width:100%;
 }
 .btn-viral:hover{background:rgba(42,171,238,.32)}
+/* ---------- کارت دعوت واقعی: لینک، کپی، اشتراک ---------- */
+.vc-link{
+  width:100%;margin-bottom:9px;padding:9px 11px;border-radius:11px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  color:#DCE6F7;font-size:11.5px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  text-align:left;direction:ltr;
+}
+.vc-link:focus{outline:none;border-color:rgba(42,171,238,.6)}
+.vc-actions{display:grid;gap:7px;margin-bottom:8px}
+.vc-actions .btn-ghost-dark{background:transparent;border:1px solid rgba(255,255,255,.16);color:#DCE6F7;
+  padding:9px 12px;border-radius:11px;font-size:12.5px;font-weight:800;width:100%}
+.vc-actions button:disabled{opacity:.5;cursor:not-allowed}
+.vc-hint{font-size:10.5px;color:#8C9BB5;line-height:1.6}
 
 /* ---------- v3 Ultimate: live radar switch, prop cashback, story card & founder sim ---------- */
 .opp-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
