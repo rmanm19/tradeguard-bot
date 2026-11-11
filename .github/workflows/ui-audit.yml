@@ -45,7 +45,12 @@ jobs:
           python tests/ui_smoke.py 2>&1 | tee ui_out.txt
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
+            # سنجه‌های ناموفق
             grep -a '❌' ui_out.txt | head -n 8 | while IFS= read -r line; do echo "::error title=سنجه ناموفق::$line"; done
+            # اگر اسکریپت کرش کرده باشد (بدون هیچ ❌)، انتهای خروجی را نشان بده
+            if ! grep -aq '❌' ui_out.txt; then
+              tail -n 12 ui_out.txt | while IFS= read -r line; do echo "::error title=خروجی پایانی::$line"; done
+            fi
           fi
           exit "$code"
 
