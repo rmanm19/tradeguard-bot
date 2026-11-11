@@ -1645,3 +1645,96 @@ window.TG_I18N = {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
   });
 })();
+
+/* ===== افزوده‌ی v8: خرید واقعی Stars + دعوت واقعی (۶ زبان) ===== */
+(function () {
+  var EXTRA = {
+    fa: {
+      invOpenBotBtn: "پرداخت امن در ربات",
+      invStepsNote: "پرداخت داخل چت ربات و با تأیید رسمی تلگرام انجام می‌شود؛ بلافاصله بعد از پرداخت ۳۰ روز پرو فعال و همین صفحه به‌روز می‌شود.",
+      refCopy: "کپی لینک دعوت",
+      refCopied: "✅ لینک دعوت کپی شد",
+      refCopyFail: "کپی نشد — لینک را دستی انتخاب کن",
+      refShare: "اشتراک در تلگرام",
+      refShareText: "این ابزار رادار فاندینگ و ریسک رو امتحان کن — شروعش رایگانه:",
+      refHint: "دعوت‌ها فقط با استارت واقعی دوستانت ثبت می‌شوند؛ شمارنده خودکار به‌روز می‌شود.",
+      proExpiryTpl: "✅ پرو فعال تا {d}",
+      refreshPro: "خریدم — وضعیت را بررسی کن",
+      toastChecking: "⏳ در حال بررسی وضعیت خرید…",
+      toastProStillFree: "هنوز پرو فعال نشده — بعد از پرداخت تا یک دقیقه دیگر دوباره بزن."
+    },
+    en: {
+      invOpenBotBtn: "Pay securely in the bot",
+      invStepsNote: "Payment happens inside the bot chat with Telegram's official confirmation; PRO (30 days) activates right after and this page updates automatically.",
+      refCopy: "Copy invite link",
+      refCopied: "✅ Invite link copied",
+      refCopyFail: "Copy failed — select the link manually",
+      refShare: "Share on Telegram",
+      refShareText: "Try this funding & risk radar — free to start:",
+      refHint: "Invites count only when your friends actually start the bot; the counter updates automatically.",
+      proExpiryTpl: "✅ PRO active until {d}",
+      refreshPro: "I paid — check my status",
+      toastChecking: "⏳ Checking your purchase…",
+      toastProStillFree: "PRO is not active yet — try again within a minute after paying."
+    },
+    ru: {
+      invOpenBotBtn: "Безопасная оплата в боте",
+      invStepsNote: "Оплата проходит в чате бота с официальным подтверждением Telegram; PRO (30 дней) активируется сразу, страница обновится сама.",
+      refCopy: "Копировать ссылку",
+      refCopied: "✅ Ссылка скопирована",
+      refCopyFail: "Не удалось скопировать — выделите вручную",
+      refShare: "Поделиться в Telegram",
+      refShareText: "Попробуйте этот радар фандинга и риска — начать бесплатно:",
+      refHint: "Приглашение засчитывается только после реального старта бота другом; счётчик обновляется сам.",
+      proExpiryTpl: "✅ PRO активен до {d}",
+      refreshPro: "Я оплатил — проверить статус",
+      toastChecking: "⏳ Проверяю оплату…",
+      toastProStillFree: "PRO пока не активен — повторите через минуту после оплаты."
+    },
+    ar: {
+      invOpenBotBtn: "الدفع الآمن داخل البوت",
+      invStepsNote: "يتم الدفع داخل محادثة البوت بموافقة تيليجرام الرسمية؛ يُفعّل PRO (٣٠ يومًا) فورًا ويتم تحديث هذه الصفحة تلقائيًا.",
+      refCopy: "نسخ رابط الدعوة",
+      refCopied: "✅ تم نسخ الرابط",
+      refCopyFail: "تعذّر النسخ — حدّد الرابط يدويًا",
+      refShare: "مشاركة في تيليجرام",
+      refShareText: "جرّب رادار التمويل والمخاطر هذا — البداية مجانية:",
+      refHint: "تُحتسب الدعوة فقط عندما يبدأ صديقك البوت فعليًا؛ يتحدّث العدّاد تلقائيًا.",
+      proExpiryTpl: "✅ PRO نشط حتى {d}",
+      refreshPro: "دفعت — تحقّق من الحالة",
+      toastChecking: "⏳ جارٍ التحقق من الدفع…",
+      toastProStillFree: "لم يتم تفعيل PRO بعد — أعد المحاولة بعد دقيقة من الدفع."
+    },
+    tr: {
+      invOpenBotBtn: "Botta güvenli ödeme",
+      invStepsNote: "Ödeme bot sohbetinde Telegram'ın resmi onayıyla yapılır; PRO (30 gün) hemen aktifleşir ve bu sayfa kendini günceller.",
+      refCopy: "Davet linkini kopyala",
+      refCopied: "✅ Davet linki kopyalandı",
+      refCopyFail: "Kopyalanamadı — linki elle seçin",
+      refShare: "Telegram'da paylaş",
+      refShareText: "Bu funding ve risk radarını dene — başlamak ücretsiz:",
+      refHint: "Davetler yalnızca arkadaşın botu gerçekten başlattığında sayılır; sayaç otomatik güncellenir.",
+      proExpiryTpl: "✅ PRO {d} tarihine kadar aktif",
+      refreshPro: "Ödedim — durumu kontrol et",
+      toastChecking: "⏳ Ödeme durumu kontrol ediliyor…",
+      toastProStillFree: "PRO henüz aktif değil — ödemeden bir dakika sonra tekrar dene."
+    },
+    es: {
+      invOpenBotBtn: "Pagar de forma segura en el bot",
+      invStepsNote: "El pago se realiza dentro del chat del bot con la confirmación oficial de Telegram; PRO (30 días) se activa al instante y esta página se actualiza sola.",
+      refCopy: "Copiar enlace de invitación",
+      refCopied: "✅ Enlace copiado",
+      refCopyFail: "No se pudo copiar — selecciona el enlace manualmente",
+      refShare: "Compartir en Telegram",
+      refShareText: "Prueba este radar de funding y riesgo — empezar es gratis:",
+      refHint: "Las invitaciones cuentan solo cuando tu amigo inicia el bot; el contador se actualiza automáticamente.",
+      proExpiryTpl: "✅ PRO activo hasta {d}",
+      refreshPro: "Ya pagué — comprobar estado",
+      toastChecking: "⏳ Comprobando tu compra…",
+      toastProStillFree: "PRO aún no está activo — inténtalo de nuevo un minuto después de pagar."
+    }
+  };
+  Object.keys(EXTRA).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
+  });
+})();

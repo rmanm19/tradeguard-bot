@@ -29,6 +29,8 @@ const HL = {
   ]
 };
 
+let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
+
 function stubFetch(url) {
   const u = String(url);
   const json = (obj) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(obj), text: () => Promise.resolve(JSON.stringify(obj)) });
@@ -50,6 +52,7 @@ function stubFetch(url) {
   if (u.includes("okx.com")) return json({ data: [{ fundingRate: "0.00013" }] });
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
+  if (u.includes("pro_users.json")) return json({ updated: 0, users: PRO_USERS });
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
   return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("") });
 }
@@ -57,7 +60,8 @@ function stubFetch(url) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html" } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {} } = {}) {
+  PRO_USERS = proUsers;
   const errors = [];
   const vc = new VirtualConsole();
   vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
@@ -70,6 +74,11 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html" } = {
   Object.defineProperty(w, "crypto", { value: crypto.webcrypto, configurable: true });
   w.fetch = (u, i) => stubFetch(u, i);
   w.TextEncoder = TextEncoder;
+  w.__copied = "";
+  Object.defineProperty(w.navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: (t) => { w.__copied = t; return Promise.resolve(); } }
+  });
   w.HTMLCanvasElement.prototype.getContext = function () {
     const grad = { addColorStop() {} };
     return new Proxy({}, {
@@ -181,10 +190,20 @@ check("لیست هشدارها پر است", d.querySelectorAll('[data-pane="ale
 
 click('.tab-btn[data-tab="sub"]');
 await wait(60);
-const inv = d.querySelector("#simInviteBtn");
-if (inv) { inv.dispatchEvent(new A.w.MouseEvent("click", { bubbles: true })); }
-await wait(80);
-check("دکمه دعوت، کاربر را به ربات می‌فرستد (پرو رایگان محلی نمی‌دهد)", !!A.w.__opened, String(A.w.__opened));
+const refLink = (d.querySelector("#refLink") || {}).value || "";
+const USER_ID = 999000111;   // همان کاربرِ بوت A
+check("کارت دعوت لینک واقعی کاربر را می‌سازد",
+  refLink === `https://t.me/TradeGuard1_bot?start=ref_${USER_ID}`, refLink);
+check("دکمه شبیه‌سازی دعوت حذف شده", !d.querySelector("#simInviteBtn"));
+click("#refCopyBtn");
+await wait(60);
+check("کپی لینک کار می‌کند", A.w.__copied === refLink, A.w.__copied);
+click("#refShareBtn");
+await wait(60);
+check("اشتراک‌گذاری، شیت تلگرام را باز می‌کند",
+  String(A.w.__opened || "").includes("t.me/share/url") && String(A.w.__opened).includes("ref_"), String(A.w.__opened));
+check("شیت پرداخت ادعای موفقیت جعلی ندارد",
+  !d.querySelector("[data-step=\"3\"]") && !d.querySelector("#payBtn"));
 
 click('.tab-btn[data-tab="radar"]');
 await wait(60);
@@ -223,6 +242,45 @@ check("صفحه معرفی بدون خطا", D.errors.length === 0, D.errors.sli
 check("بخش «مدل درآمد» برای همه هست", !!dd.querySelector("#model"));
 check("سیمولاتور برای همه هست", !!dd.querySelector("#simSection"));
 check("صفحه معرفی هیچ تب ادمینی ندارد", !dd.querySelector(".admin-tab"));
+
+/* ---------- ۳) وضعیت واقعی پرو از فایلِ ربات (docs/pro_users.json) ---------- */
+const proKeyOf = (uid) => crypto.createHash("sha256").update("tg-pro:" + String(uid)).digest("hex").slice(0, 16);
+const futureExp = Math.floor(Date.now() / 1000) + 20 * 86400;
+
+const E = boot({ userId: 777000111, proUsers: { [proKeyOf(777000111)]: { exp: futureExp, ref: 3 } } });
+await wait(700);
+const ed = E.w.document;
+check("کاربر پرو (طبق فایل ربات) قفل‌ها را باز می‌بیند",
+  ((ed.querySelector("#planChip") || {}).className || "").includes("pro"),
+  (ed.querySelector("#planChip") || {}).className);
+check("پنل «پرو فعال» نمایش داده می‌شود", !ed.querySelector("#subActive").classList.contains("hidden"));
+check("شمارنده دعوت از دادهٔ واقعی می‌آید",
+  /[3۳]/.test((ed.querySelector("#refCounter") || {}).textContent || ""), (ed.querySelector("#refCounter") || {}).textContent);
+check("تاریخ انقضای پرو نمایش داده می‌شود",
+  /[\d۰-۹]/.test((ed.querySelector("#proActiveDate") || {}).textContent || ""), (ed.querySelector("#proActiveDate") || {}).textContent);
+check("ردیف‌های رادار برای پرو قفل نیستند",
+  ed.querySelectorAll("#radarList .row.locked, #radarList .locked").length === 0,
+  String(ed.querySelectorAll("#radarList .locked").length));
+check("خطای جاوااسکریپت در حالت پرو نیست", E.errors.length === 0, E.errors.slice(0, 2).join(" | "));
+ed.querySelector("#refreshProBtn")?.dispatchEvent(new E.w.MouseEvent("click", { bubbles: true }));
+await wait(400);
+check("دکمه «وضعیت را بررسی کن» برای کاربر پرو خطا نمی‌دهد", E.errors.length === 0, E.errors.slice(0, 2).join(" | "));
+
+const F = boot({ userId: 888000111 });
+await wait(500);
+const fd = F.w.document;
+check("کاربر بدون رکورد در فایل، روی پلن پایه می‌ماند",
+  !fd.querySelector("#subIdle").classList.contains("hidden"), fd.querySelector("#subIdle").className);
+check("قفل رادار برای کاربر عادی سرجایش است",
+  fd.querySelectorAll("#radarList .locked").length > 0, String(fd.querySelectorAll("#radarList .locked").length));
+check("خرید با دکمهٔ ربات هم پرو را محلی باز نمی‌کند (کاربر عادی)", !((fd.querySelector("#planChip") || {}).className || "").includes("pro"));
+fd.querySelector("#refreshProBtn")?.dispatchEvent(new F.w.MouseEvent("click", { bubbles: true }));
+await wait(400);
+check("بررسی وضعیت برای کاربر عادی، توست راهنما نشان می‌دهد",
+  !fd.querySelector("#appToast").classList.contains("hidden"),
+  (fd.querySelector("#appToast") || {}).textContent);
+check("بررسی وضعیت، پرو را برای کاربر عادی باز نمی‌کند",
+  !((fd.querySelector("#planChip") || {}).className || "").includes("pro"));
 
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }
