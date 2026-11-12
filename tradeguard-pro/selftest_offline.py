@@ -477,11 +477,13 @@ SENT.clear()
 _posts.clear()
 bot.handle_message(msg("/channelstatus"))
 _st = _posts[-1][1] if _posts else ""
-check("/channelstatus تعداد اعضا را از تلگرام می‌خواند", "اعضا" in _st and "1234" in _st, _st[:120])
+check("/channelstatus تعداد اعضا را از تلگرام می‌خواند", "اعضا" in _st and "۱۲۳۴" in _st, _st[:120])
 check("/channelstatus ادمین‌بودن ربات را نشان می‌دهد", "ادمین" in _st and "administrator" in _st, _st[:120])
 check("/channelstatus وضعیت پین را می‌گوید", "پین‌شده" in _st, _st[:120])
-check("/channelstatus پست خودکار را روشن نشان می‌دهد", "هر ۸ ساعت" in _st, _st[:120])
+check("/channelstatus پست خودکار را روشن و ۳ساعته نشان می‌دهد",
+      "هر ۳ ساعت" in _st and "روشن" in _st, _st[-160:])
 check("/channelstatus زمان آخرین پست را نشان می‌دهد", "آخرین پست خودکار" in _st and "پیش" in _st, _st[-120:])
+check("/channelstatus زمان پست بعدی را می‌گوید", "پست بعدی" in _st, _st[-160:])
 _posts.clear()
 bot.handle_message(msg("/channelstatus", uid=BUYER))
 check("غیرادمین وضعیت کانال را نمی‌گیرد",
@@ -528,6 +530,65 @@ _posts.clear()
 bot.handle_message(msg("/stats", uid=BUYER))
 check("غیرادمین با /stats هم گزارش نمی‌گیرد",
       "گزارش مدیریتی" not in " ".join(pp[1] for pp in _posts), str(_posts[-1:]))
+bot.ADMIN_USER_ID = ""
+
+print("\n۹٫۵) موتور محتوای کانال")
+import calendar as _cal  # noqa: E402
+import time as _time  # noqa: E402
+
+
+def ts_at_hour(hour: int) -> int:
+    g = _time.gmtime()
+    return _cal.timegm((g.tm_year, g.tm_mon, g.tm_mday, hour, 0, 0))
+
+
+check("بازهٔ ارسال: ظهر UTC مجاز است", bot.in_post_window(ts_at_hour(12)) is True)
+check("بازهٔ ارسال: نیمه‌شب UTC مجاز نیست", bot.in_post_window(ts_at_hour(23)) is False)
+check("فاصلهٔ پست خودکار ۳ ساعت است", bot.CHANNEL_POST_INTERVAL_SEC == 3 * 3600,
+      str(bot.CHANNEL_POST_INTERVAL_SEC))
+_cats = [bot.next_channel_category() for _ in range(len(bot.CHANNEL_CYCLE))]
+check("چرخهٔ محتوا همهٔ دسته‌ها را می‌پوشاند", set(_cats) == {"radar", "edu", "feature"}, str(_cats))
+_wrap = bot.next_channel_category()
+check("چرخه پس از یک دور به ابتدا برمی‌گردد", _wrap == _cats[0], f"{_cats[0]} vs {_wrap}")
+_e1, _ekb = bot.build_edu_post()
+_e2, _ = bot.build_edu_post()
+check("پست آموزشی ساخته می‌شود", "🎓" in _e1 and len(_e1) > 200, _e1[:60])
+check("دو پست آموزشی پشت‌سرهم تکراری نیستند", _e1 != _e2)
+check("پست آموزشی دکمهٔ مینی‌اپ دارد", "t.me/" in _ekb["inline_keyboard"][0][0]["url"])
+_f1, _fkb = bot.build_feature_post()
+check("پست معرفی قابلیت ساخته می‌شود", len(_f1) > 150, _f1[:60])
+check("پست قابلیت، دکمهٔ دعوت هم دارد", len(_fkb["inline_keyboard"]) == 2)
+_all_channel_text = " ".join(t + " " + b for t, b in bot.CHANNEL_EDU_POSTS + bot.CHANNEL_FEATURE_POSTS)
+check("هیچ پست کانال وعدهٔ سود تضمینی ندارد",
+      "تضمین" not in _all_channel_text and "سود قطعی" not in _all_channel_text)
+check("تعریف‌ها بدون داده/توصیهٔ جعلی هستند (امضای آموزش)",
+      "توصیهٔ سرمایه‌گذاری نیست" in _e1)
+check("زمان پست بعدی توضیح انسانی دارد", len(bot.next_post_eta()) > 5, bot.next_post_eta())
+_r, _rkb = bot.build_slot_post("radar")
+check("اسلات رادار، پست دادهٔ زنده می‌دهد", "$" in _r and len(_rkb["inline_keyboard"]) >= 1)
+
+_plan = bot.channel_plan(6)
+check("برنامهٔ پست‌ها ۶ اسلات نشان می‌دهد", _plan.count("\n") >= 7 and "۱." in _plan, _plan[:80])
+check("برنامه هر سه دسته را دارد", "🎓" in _plan and "✨" in _plan and "📡" in _plan, _plan[:200])
+_posts.clear()
+bot.handle_message(msg("/channelplan", uid=BUYER))
+check("غیرادمین برنامهٔ محتوا را نمی‌بیند",
+      "برنامهٔ پست" not in " ".join(pp[1] for pp in _posts), str(_posts[-1:]))
+bot.ADMIN_USER_ID = str(USER)   # بخش ۹ این را خالی کرده بود
+_posts.clear()
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+bot.handle_message(msg("/channelpost edu"))
+_chan_last = [pp for pp in _posts if pp[0] == "@testchannel"]
+check("/channelpost edu پست آموزشی می‌فرستد",
+      bool(_chan_last) and "🎓" in _chan_last[-1][1], str(_chan_last[-1:])[:120])
+_posts.clear()
+bot.handle_message(msg("/channelpost feature"))
+_chan_last = [pp for pp in _posts if pp[0] == "@testchannel"]
+check("/channelpost feature پست معرفی قابلیت می‌فرستد",
+      bool(_chan_last) and "داخل تلگرام" in _chan_last[-1][1]
+      and "t.me/" in str((_chan_last[-1][2].get("reply_markup") or {})),
+      str(_chan_last[-1:])[:140])
+bot.PUBLIC_CHANNEL_ID = ""
 bot.ADMIN_USER_ID = ""
 
 print("\n" + "─" * 46)
