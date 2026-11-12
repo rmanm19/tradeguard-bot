@@ -1873,3 +1873,72 @@ window.TG_I18N = {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA[k]);
   });
 })();
+
+/* ---------- v10: زنجیرهٔ روز + کشیدن برای به‌روزرسانی (۶ زبان) ---------- */
+(function () {
+  var EXTRA2 = {
+    fa: {
+      streakUnit: "روز پیاپی",
+      streakToast: "🔥 {n} روز پیاپی — برگشتی!",
+      streakMilestone: "🔥 {n} روز پیاپی — داری عادت می‌سازی، همین‌طوری ادامه بده.",
+      ptrPull: "برای به‌روزرسانی بکش",
+      ptrRelease: "رها کن تا به‌روز شود",
+      ptrRefreshing: "در حال به‌روزرسانی…",
+      ptrDone: "به‌روز شد ✓",
+      ptrOffline: "شبکه نبود؛ همان دادهٔ قبلی می‌ماند"
+    },
+    en: {
+      streakUnit: "day streak",
+      streakToast: "🔥 {n}-day streak — you're back!",
+      streakMilestone: "🔥 {n} days in a row — the habit is forming.",
+      ptrPull: "Pull down to refresh",
+      ptrRelease: "Release to refresh",
+      ptrRefreshing: "Refreshing…",
+      ptrDone: "Updated ✓",
+      ptrOffline: "No network — keeping the last data"
+    },
+    ru: {
+      streakUnit: "дней подряд",
+      streakToast: "🔥 {n} дней подряд — вы вернулись!",
+      streakMilestone: "🔥 {n} дней подряд — привычка формируется.",
+      ptrPull: "Потяните вниз для обновления",
+      ptrRelease: "Отпустите для обновления",
+      ptrRefreshing: "Обновляем…",
+      ptrDone: "Обновлено ✓",
+      ptrOffline: "Нет сети — остаются прошлые данные"
+    },
+    ar: {
+      streakUnit: "أيام متتالية",
+      streakToast: "🔥 {n} أيام متتالية — عدت!",
+      streakMilestone: "🔥 {n} أيام متتالية — العادة تتشكل.",
+      ptrPull: "اسحب للأسفل للتحديث",
+      ptrRelease: "اترك ليتحدث",
+      ptrRefreshing: "جارٍ التحديث…",
+      ptrDone: "تم التحديث ✓",
+      ptrOffline: "لا يوجد اتصال — تبقى البيانات السابقة"
+    },
+    tr: {
+      streakUnit: "gün üst üste",
+      streakToast: "🔥 {n} gün üst üste — geri döndün!",
+      streakMilestone: "🔥 {n} gün üst üste — alışkanlık oluşuyor.",
+      ptrPull: "Yenilemek için aşağı çek",
+      ptrRelease: "Yenilemek için bırak",
+      ptrRefreshing: "Yenileniyor…",
+      ptrDone: "Güncellendi ✓",
+      ptrOffline: "Ağ yok — son veriler kalıyor"
+    },
+    es: {
+      streakUnit: "días seguidos",
+      streakToast: "🔥 ¡{n} días seguidos — volviste!",
+      streakMilestone: "🔥 {n} días seguidos — el hábito se está formando.",
+      ptrPull: "Desliza hacia abajo para actualizar",
+      ptrRelease: "Suelta para actualizar",
+      ptrRefreshing: "Actualizando…",
+      ptrDone: "Actualizado ✓",
+      ptrOffline: "Sin red — se mantienen los últimos datos"
+    }
+  };
+  Object.keys(EXTRA2).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA2[k]);
+  });
+})();

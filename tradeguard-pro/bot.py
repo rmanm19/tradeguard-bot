@@ -1358,6 +1358,7 @@ def admin_keyboard() -> dict:
                 {"text": "🩺 سلامت سیستم", "callback_data": "adm_health"},
             ],
             [
+                {"text": "📈 گزارش مدیریتی", "callback_data": "adm_report"},
                 {"text": "📢 کانال ویترین", "callback_data": "adm_channel"},
                 {"text": "🔗 لینک مینی‌اپ", "callback_data": "adm_url"},
             ],
@@ -1439,6 +1440,8 @@ def send_admin_section(chat_id: int, uid: int, data: str) -> None:
                 f"• `{k.upper()}` — {v}" for k, v in s["langs"]
             )
         )
+    elif data == "adm_report":
+        tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
     elif data == "adm_revenue":
         now = int(time.time())
         with _db_lock, sqlite3.connect(DB_PATH) as conn:
@@ -2084,6 +2087,13 @@ def handle_message(msg: dict) -> None:
         )
         return
 
+    if text.startswith("/report") or text.startswith("/stats"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
+        return
+
     if text.startswith("/freemode"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
@@ -2169,6 +2179,7 @@ ADMIN_CALLBACKS = frozenset(
     {
         "admin_panel",
         "adm_stats",
+        "adm_report",
         "adm_revenue",
         "adm_users",
         "adm_health",
@@ -2447,6 +2458,88 @@ def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     return "\n".join(lines), {"inline_keyboard": kb_rows}
 
 
+def build_admin_report() -> str:
+    """گزارش مدیریتی با اعداد واقعی (بدون هیچ عدد ساختگی).
+
+    از دیتابیس SQLite و — اگر در دسترس بود — از API تلگرام و بازار خوانده
+    می‌شود؛ هر بخشی که در دسترس نباشد با «—» نمایش داده می‌شود، نه با حدس.
+    """
+    now = int(time.time())
+    stats = {"total": 0, "new24": 0, "new7": 0, "pro": 0, "invited": 0, "paid": 0, "stars": 0}
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            def one(sql: str, args: tuple = ()) -> int:
+                row = conn.execute(sql, args).fetchone()
+                return int(row[0] or 0) if row else 0
+
+            stats["total"] = one("SELECT COUNT(*) FROM users")
+            stats["new24"] = one("SELECT COUNT(*) FROM users WHERE created_at >= ?", (now - 86400,))
+            stats["new7"] = one("SELECT COUNT(*) FROM users WHERE created_at >= ?", (now - 7 * 86400,))
+            stats["pro"] = one("SELECT COUNT(*) FROM users WHERE pro_until > ?", (now,))
+            stats["invited"] = one("SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL")
+            stats["paid"] = one("SELECT COUNT(*) FROM payments")
+            stats["stars"] = one("SELECT COALESCE(SUM(stars_amount), 0) FROM payments")
+    except Exception as exc:
+        logger.warning("خواندن آمار گزارش ناموفق: %s", exc)
+
+    members_txt = "—"
+    if PUBLIC_CHANNEL_ID:
+        try:
+            res = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID}, timeout=8.0)
+            if res.get("ok"):
+                members_txt = f"{int(res.get('result') or 0):,}"
+        except Exception as exc:
+            logger.warning("تعداد اعضای کانال خوانده نشد: %s", exc)
+    else:
+        members_txt = "کانال تنظیم نشده"
+
+    top_txt = "—"
+    try:
+        rates = fetch_live_funding_and_oi()
+        if rates:
+            r = rates[0]
+            top_txt = f"${r.get('sym')} · {r.get('rate_pct', 0):+.3f}%/8h"
+    except Exception:
+        top_txt = "—"
+
+    lines = [
+        "📊 *گزارش مدیریتی TradeGuard*",
+        "",
+        f"👥 کاربران ربات: *{stats['total']:,}*",
+        f"🆕 امروز (۲۴س): *{stats['new24']:,}* · این هفته: *{stats['new7']:,}*",
+        f"🤝 آمده از دعوت دوستان: *{stats['invited']:,}*",
+        f"⭐ پرو فعال: *{stats['pro']:,}*",
+        f"📢 اعضای کانال: *{members_txt}*",
+        "",
+        f"💳 پرداخت موفق: *{stats['paid']:,}* · مجموع استارز: *{stats['stars']:,}*",
+        f"🎁 دورهٔ رایگان: *{'روشن' if free_mode_active() else 'خاموش'}*",
+        f"📡 برترین فرصت همین حالا: `{top_txt}`",
+        "",
+        f"🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
+    ]
+    return "\n".join(lines)
+
+
+def admin_digest_loop() -> None:
+    """هر روز یک‌بار (ساعت ۰۷:۰۰ UTC) گزارش مدیریتی را به چت ادمین می‌فرستد.
+
+    تاریخ آخرین ارسال در دیتابیس ذخیره می‌شود تا با ری‌استارت هر ۶ ساعته
+    (که GitHub Actions تحمیل می‌کند) گزارش تکراری ارسال نشود.
+    """
+    while True:
+        try:
+            admin = str(ADMIN_USER_ID or "").strip()
+            today = time.strftime("%Y-%m-%d", time.gmtime())
+            if admin.isdigit() and get_setting("last_admin_digest", "") != today and time.gmtime().tm_hour >= 7:
+                res = tg_send_message(int(admin), build_admin_report())
+                if res.get("ok"):
+                    set_setting("last_admin_digest", today)
+                    logger.info("📊 گزارش روزانه برای ادمین ارسال شد.")
+        except Exception as exc:
+            logger.warning("گزارش روزانه ارسال نشد: %s", exc)
+        time.sleep(1800)
+
+
 def auto_channel_loop() -> None:
     if not validate_channel_target(silent=True):
         return
@@ -2600,6 +2693,7 @@ def main() -> None:
         logger.warning("همگام‌سازی وضعیت پرو در استارت‌آپ ناموفق بود: %s", exc)
 
     threading.Thread(target=auto_channel_loop, daemon=True).start()
+    threading.Thread(target=admin_digest_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=8)
     offset = 0
 

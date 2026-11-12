@@ -1496,10 +1496,167 @@
     el.addEventListener("click", () => toast(t().toastDemoReady))
   );
 
+  /* ---------- v10: زنجیرهٔ روز (streak) + کشیدن برای به‌روزرسانی ---------- */
+  const STREAK_KEY = "tg_streak";
+
+  function dayKey(d) {
+    const x = d || new Date();
+    return (
+      x.getFullYear() +
+      "-" +
+      String(x.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(x.getDate()).padStart(2, "0")
+    );
+  }
+
+  function readStreak() {
+    try {
+      const o = JSON.parse(localStorage.getItem(STREAK_KEY) || "{}");
+      return { last: String(o.last || ""), days: Math.max(0, Number(o.days) || 0) };
+    } catch (e) {
+      return { last: "", days: 0 };
+    }
+  }
+
+  /* یک بار در روز شمارنده را جلو می‌برد؛ اگر یک روز کامل غایب بوده، از ۱ شروع می‌شود */
+  function bumpStreak() {
+    const s = readStreak();
+    const today = dayKey();
+    if (s.last === today) return { days: s.days, isNew: false };
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const days = s.last === dayKey(y) ? s.days + 1 : 1;
+    try {
+      localStorage.setItem(STREAK_KEY, JSON.stringify({ last: today, days }));
+    } catch (e) {}
+    return { days, isNew: true };
+  }
+
+  function renderStreak(info) {
+    const chip = $("#streakChip");
+    const num = $("#streakDays");
+    if (!chip || !num) return;
+    if (!info || !info.days) {
+      chip.classList.add("hidden");
+      return;
+    }
+    num.textContent = String(info.days);
+    chip.classList.remove("hidden");
+    if (info.isNew && info.days >= 2) {
+      const d = t();
+      const msg = info.days % 7 === 0 ? d.streakMilestone : d.streakToast;
+      appToast(String(msg || "").replace("{n}", String(info.days)));
+    }
+  }
+
+  let refreshInFlight = false;
+
+  /* به‌روزرسانی واقعی: هردو منبع زنده + نشانگر و محو شدن ردیف‌های قدیمی */
+  async function refreshAll(showToast) {
+    if (refreshInFlight) return false;
+    refreshInFlight = true;
+    const rows = $("#radarList");
+    const bar = $("#ptrBar");
+    const txt = $("#ptrTxt");
+    if (rows) rows.classList.add("is-refreshing");
+    if (bar) {
+      bar.classList.add("is-busy");
+      if (txt) txt.textContent = t().ptrRefreshing;
+    }
+    haptic("light");
+    try {
+      await Promise.all([fetchLiveMarket(), fetchLiveWhales()]);
+    } catch (e) {}
+    refreshInFlight = false;
+    if (rows) rows.classList.remove("is-refreshing");
+    if (bar) {
+      bar.classList.remove("is-busy", "is-on", "is-ready");
+      if (txt) txt.textContent = t().ptrPull;
+    }
+    if (showToast) {
+      const live = marketState && marketState.live;
+      appToast(live ? t().ptrDone : t().ptrOffline);
+    }
+    return true;
+  }
+
+  function initPullToRefresh() {
+    const scroller = $(".screen-body");
+    const bar = $("#ptrBar");
+    const txt = $("#ptrTxt");
+    if (!scroller || !bar) return;
+    const THRESHOLD = 68;
+    let startY = 0;
+    let pulling = false;
+    let dist = 0;
+
+    const reset = () => {
+      pulling = false;
+      dist = 0;
+      bar.classList.remove("is-on", "is-ready");
+      if (txt) txt.textContent = t().ptrPull;
+    };
+
+    scroller.addEventListener(
+      "touchstart",
+      (e) => {
+        if (refreshInFlight) return;
+        if (scroller.scrollTop > 0) return;
+        const ts = e.touches && e.touches[0];
+        if (!ts) return;
+        startY = ts.clientY;
+        pulling = true;
+        dist = 0;
+      },
+      { passive: true }
+    );
+
+    scroller.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!pulling || refreshInFlight) return;
+        const ts = e.touches && e.touches[0];
+        if (!ts) return;
+        dist = ts.clientY - startY;
+        if (dist <= 0) {
+          reset();
+          return;
+        }
+        if (scroller.scrollTop > 0) return;
+        const ready = dist >= THRESHOLD;
+        bar.classList.add("is-on");
+        bar.classList.toggle("is-ready", ready);
+        if (txt) txt.textContent = ready ? t().ptrRelease : t().ptrPull;
+        if (dist > 8 && e.cancelable) e.preventDefault();
+      },
+      { passive: false }
+    );
+
+    const finish = () => {
+      if (!pulling) return;
+      const ready = dist >= THRESHOLD;
+      if (ready) {
+        refreshAll(true);
+      }
+      reset();
+    };
+    scroller.addEventListener("touchend", finish, { passive: true });
+    scroller.addEventListener("touchcancel", reset, { passive: true });
+
+    // برای تست و دسترسی برنامه‌ای (بدون ژست لمسی)
+    window.TG_PULL = {
+      trigger: () => refreshAll(true),
+      state: () => ({ busy: refreshInFlight, dist, pulling })
+    };
+  }
+
   // راه‌اندازی اولیه
   setLanguage(currentLang);
   hydrateMarketCache();
   fetchLiveMarket();
+  renderStreak(bumpStreak());
+  initPullToRefresh();
   maybeShowOnboard();
   fetchLiveWhales();
   setInterval(fetchLiveMarket, 22000);

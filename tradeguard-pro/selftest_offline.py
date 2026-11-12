@@ -479,6 +479,32 @@ for lang in bot.SUPPORTED_LANGS:
     missing = [k for k in bot.BOT_STRINGS["en"] if k not in bot.BOT_STRINGS[lang]]
     check(f"ترجمه {lang} کامل است", not missing, str(missing[:5]))
 
+print("\n۹) گزارش مدیریتی")
+import sqlite3 as _sqlite  # noqa: E402
+
+bot.ADMIN_USER_ID = str(USER)
+_posts.clear()
+bot.handle_message(msg("/report"))
+_admin_posts = [pp for pp in _posts if pp[0] == USER]
+_rep = _admin_posts[-1][1] if _admin_posts else ""
+check("دستور /report برای ادمین گزارش می‌فرستد", "گزارش مدیریتی" in _rep, _rep[:80])
+check("گزارش تعداد کاربران را از دیتابیس می‌خواند",
+      "کاربران ربات" in _rep and any(ch.isdigit() for ch in _rep), _rep[:120])
+check("گزارش وضعیت دورهٔ رایگان را نشان می‌دهد", "دورهٔ رایگان" in _rep, _rep[-120:])
+_users_n = _sqlite.connect(bot.DB_PATH).execute("SELECT COUNT(*) FROM users").fetchone()[0]
+check("عدد کاربران گزارش دقیقاً همان دیتابیس است",
+      f"*{_users_n:,}*" in _rep, f"db={_users_n} report={_rep[:120]}")
+check("گزارش جای خالی/«None» ندارد", "None" not in _rep, _rep[:120])
+_posts.clear()
+bot.handle_message(msg("/report", uid=BUYER))
+check("غیرادمین گزارش نمی‌گیرد", "گزارش مدیریتی" not in " ".join(pp[1] for pp in _posts),
+      str(_posts[-1:]))
+_posts.clear()
+bot.handle_message(msg("/stats", uid=BUYER))
+check("غیرادمین با /stats هم گزارش نمی‌گیرد",
+      "گزارش مدیریتی" not in " ".join(pp[1] for pp in _posts), str(_posts[-1:]))
+bot.ADMIN_USER_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
