@@ -63,7 +63,13 @@ def fake_http_json(url, method="GET", payload=None, headers=None, timeout=12.0):
         if api == "getUpdates":
             return {"ok": True, "result": []}
         if api == "getChat":
-            return {"ok": True, "result": {"id": -100123, "type": "channel", "title": "Test"}}
+            return {"ok": True, "result": {"id": -100123, "type": "channel", "title": "Test",
+                                           "pinned_message": {"message_id": 42}}}
+        if api == "getChatMemberCount":
+            return {"ok": True, "result": 1234}
+        if api == "getChatMember":
+            return {"ok": True, "result": {"status": "administrator",
+                                           "can_post_messages": True, "can_pin_messages": True}}
         return {"ok": True, "result": {"message_id": len(SENT)}}
     # صرافی‌ها / AI — داده‌ی نمونه برمی‌گردانیم
     if "hyperliquid" in url:
@@ -467,7 +473,26 @@ check("درخواست پین ارسال شد", any(a == "pinChatMessage" for a, 
 SENT.clear()
 bot.handle_message(msg("/channelpost", uid=BUYER))
 check("غیرادمین نمی‌تواند در کانال پست بگذارد", not any(a == "sendMessage" for a, _ in SENT))
+SENT.clear()
+_posts.clear()
+bot.handle_message(msg("/channelstatus"))
+_st = _posts[-1][1] if _posts else ""
+check("/channelstatus تعداد اعضا را از تلگرام می‌خواند", "اعضا" in _st and "1234" in _st, _st[:120])
+check("/channelstatus ادمین‌بودن ربات را نشان می‌دهد", "ادمین" in _st and "administrator" in _st, _st[:120])
+check("/channelstatus وضعیت پین را می‌گوید", "پین‌شده" in _st, _st[:120])
+check("/channelstatus پست خودکار را روشن نشان می‌دهد", "هر ۸ ساعت" in _st, _st[:120])
+check("/channelstatus زمان آخرین پست را نشان می‌دهد", "آخرین پست خودکار" in _st and "پیش" in _st, _st[-120:])
+_posts.clear()
+bot.handle_message(msg("/channelstatus", uid=BUYER))
+check("غیرادمین وضعیت کانال را نمی‌گیرد",
+      "وضعیت کانال" not in " ".join(pp[1] for pp in _posts), str(_posts[-1:]))
+
 bot.PUBLIC_CHANNEL_ID = ""
+_posts.clear()
+bot.handle_message(msg("/channelstatus"))
+_st2 = _posts[-1][1] if _posts else ""
+check("بدون کانال، /channelstatus راهنمای فعال‌سازی می‌دهد",
+      "تنظیم نشده" in _st2 and "/channel" in _st2, _st2[:120])
 bot.FREE_MODE = False
 
 print("\n۸) امنیت پیکربندی")

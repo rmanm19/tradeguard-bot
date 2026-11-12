@@ -1500,7 +1500,8 @@ def send_admin_section(chat_id: int, uid: int, data: str) -> None:
             f"📢 *کانال ویترین*\n\n"
             f"• آیدی فعلی: `{PUBLIC_CHANNEL_ID or '— خالی —'}`\n"
             f"• وضعیت: `{CHANNEL_REASON or '—'}`\n\n"
-            f"تنظیم: `/setchannel @my_channel` یا `/setchannel off`"
+            f"تنظیم: `/setchannel @my_channel` یا `/setchannel off`\n\n"
+            f"🔍 عیب‌یابی کامل (اعضا، دسترسی پین، آخرین پست): `/channelstatus`"
         )
     elif data == "adm_url":
         body = (
@@ -2042,6 +2043,13 @@ def handle_message(msg: dict) -> None:
             )
         return
 
+    if text.startswith("/channelstatus"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, channel_diagnostics(), reply_markup=admin_back_keyboard())
+        return
+
     if text.startswith("/channelpost"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
@@ -2052,6 +2060,8 @@ def handle_message(msg: dict) -> None:
         post_text, kb = build_channel_post(fetch_live_funding_and_oi())
         res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
         ok_flag = bool(res.get("ok"))
+        if ok_flag:
+            set_setting("last_channel_post_ts", str(int(time.time())))
         tg_send_message(
             chat_id,
             ("✅ پست در کانال منتشر شد." if ok_flag else f"⚠️ ارسال ناموفق: {str(res.get('description'))[:120]}")
@@ -2390,8 +2400,9 @@ def validate_channel_target(silent: bool = False) -> bool:
             logger.error("❌ PUBLIC_CHANNEL_ID نامعتبر: %s", CHANNEL_REASON)
         return False
 
-    if BOT_ID:
-        mem = tg_call("getChatMember", {"chat_id": PUBLIC_CHANNEL_ID, "user_id": BOT_ID})
+    bot_id = own_bot_id()
+    if bot_id:
+        mem = tg_call("getChatMember", {"chat_id": PUBLIC_CHANNEL_ID, "user_id": bot_id})
         status = ((mem.get("result") or {}).get("status") or "") if mem.get("ok") else ""
         if status not in ("administrator", "creator"):
             CHANNEL_OK = False
@@ -2425,6 +2436,89 @@ def channel_url() -> str:
     if cid.startswith("https://t.me/"):
         return cid
     return ""
+
+
+def human_delta(seconds: int) -> str:
+    """«۳ دقیقه» / «۲ ساعت» — برای گزارش وضعیت کانال."""
+    s = max(0, int(seconds))
+    if s < 60:
+        return f"{s} ثانیه"
+    if s < 3600:
+        return f"{s // 60} دقیقه"
+    if s < 86400:
+        h = s // 3600
+        m = (s % 3600) // 60
+        return f"{h} ساعت" + (f" و {m} دقیقه" if m else "")
+    return f"{s // 86400} روز"
+
+
+def own_bot_id() -> int:
+    """شناسهٔ ربات — از getMe، و اگر هنوز خوانده نشده از پیشوند توکن."""
+    if BOT_ID:
+        return BOT_ID
+    try:
+        return int(str(BOT_TOKEN).split(":", 1)[0])
+    except Exception:
+        return 0
+
+
+def channel_diagnostics() -> str:
+    """گزارش دقیق وضعیت کانال: دسترسی ربات، پین، اعضا، آخرین پست.
+
+    همهٔ موارد از API تلگرام خوانده می‌شود؛ هر چه در دسترس نباشد «—» می‌شود
+    تا کاربر فکر نکند چیزی درست کار می‌کند که کار نمی‌کند.
+    """
+    validate_channel_target(silent=True)
+    lines = ["📢 *وضعیت کانال ویترین*", ""]
+    if not PUBLIC_CHANNEL_ID:
+        lines += [
+            "کانال تنظیم نشده است.",
+            "",
+            "۱) ربات را در کانال ادمین کنید (با دسترسی ارسال و پین).",
+            "۲) سپس: `/channel @yourchannel`",
+        ]
+        return "\n".join(lines)
+
+    info = tg_call("getChat", {"chat_id": PUBLIC_CHANNEL_ID})
+    chat = (info.get("result") or {}) if info.get("ok") else {}
+    if not info.get("ok"):
+        desc = str(info.get("description") or "بدون توضیح")[:120]
+        return "\n".join(lines + [f"❌ تلگرام این آیدی را نشناخت: `{PUBLIC_CHANNEL_ID}`", f"علت: {desc}"])
+
+    title = chat.get("title") or chat.get("username") or PUBLIC_CHANNEL_ID
+    lines.append(f"📍 کانال: *{title}* — `{PUBLIC_CHANNEL_ID}`")
+
+    mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID})
+    lines.append(f"👥 اعضا: *{mc.get('result') if mc.get('ok') else '—'}*")
+
+    bot_id = own_bot_id()
+    if bot_id:
+        mem = tg_call("getChatMember", {"chat_id": PUBLIC_CHANNEL_ID, "user_id": bot_id})
+        r = (mem.get("result") or {}) if mem.get("ok") else {}
+        status = r.get("status") or "نامشخص"
+        admin = status in ("administrator", "creator")
+        lines.append(f"🤖 دسترسی ربات: {'✅ ادمین' if admin else '❌ ادمین نیست'} (`{status}`)")
+        if admin:
+            can_post = r.get("can_post_messages", True)
+            can_pin = r.get("can_pin_messages", True)
+            lines.append(
+                f"   {'✅' if can_post is not False else '❌'} ارسال پست"
+                f" · {'✅' if can_pin is not False else '❌'} پین پیام"
+            )
+    else:
+        lines.append("🤖 شناسهٔ ربات هنوز از تلگرام خوانده نشده (getMe).")
+
+    pin = chat.get("pinned_message") or {}
+    lines.append("📌 پیام پین‌شده: " + ("✅ دارد" if pin else "— ندارد (با `/channelpin` بگذارید)"))
+
+    last = str(get_setting("last_channel_post_ts", "") or "")
+    if last.isdigit():
+        lines.append(f"🕒 آخرین پست خودکار: *{human_delta(int(time.time()) - int(last))}* پیش")
+    else:
+        lines.append("🕒 آخرین پست خودکار: — (هنوز ثبت نشده)")
+
+    lines.append("🔁 پست خودکار: " + ("روشن — هر ۸ ساعت" if CHANNEL_OK else f"خاموش ({CHANNEL_REASON})"))
+    return "\n".join(lines)
 
 
 def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
@@ -2548,6 +2642,8 @@ def auto_channel_loop() -> None:
             rates = fetch_live_funding_and_oi()
             post_text, kb = build_channel_post(rates)
             res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
+            if res.get("ok"):
+                set_setting("last_channel_post_ts", str(int(time.time())))
             if not res.get("ok") and res.get("error_code") in (400, 403):
                 logger.warning("پست کانال رد شد؛ اعتبارسنجی دوباره در چرخه بعد: %s", res.get("description"))
                 validate_channel_target(silent=True)
