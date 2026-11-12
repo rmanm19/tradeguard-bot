@@ -2050,6 +2050,13 @@ def handle_message(msg: dict) -> None:
         tg_send_message(chat_id, channel_diagnostics(), reply_markup=admin_back_keyboard())
         return
 
+    if text.startswith("/channelplan"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, channel_plan(), reply_markup=admin_back_keyboard())
+        return
+
     if text.startswith("/channelpost"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
@@ -2057,7 +2064,9 @@ def handle_message(msg: dict) -> None:
         if not validate_channel_target(silent=True):
             tg_send_message(chat_id, f"⚠️ کانال تنظیم نشده یا ربات ادمین آن نیست: {CHANNEL_REASON}")
             return
-        post_text, kb = build_channel_post(fetch_live_funding_and_oi())
+        _arg = text.split(maxsplit=1)[1].strip().lower() if len(text.split(maxsplit=1)) > 1 else ""
+        _cat = "edu" if _arg.startswith("edu") else ("feature" if _arg.startswith("feature") or _arg.startswith("قابلیت") else "radar")
+        post_text, kb = build_slot_post(_cat)
         res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
         ok_flag = bool(res.get("ok"))
         if ok_flag:
@@ -2438,18 +2447,26 @@ def channel_url() -> str:
     return ""
 
 
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def fa_num(value) -> str:
+    """اعداد را برای نمایش فارسی به رقم فارسی تبدیل می‌کند (۳ ساعت، ۱۲۳۴ عضو)."""
+    return str(value).translate(_FA_DIGITS)
+
+
 def human_delta(seconds: int) -> str:
     """«۳ دقیقه» / «۲ ساعت» — برای گزارش وضعیت کانال."""
-    s = max(0, int(seconds))
-    if s < 60:
-        return f"{s} ثانیه"
-    if s < 3600:
-        return f"{s // 60} دقیقه"
-    if s < 86400:
-        h = s // 3600
-        m = (s % 3600) // 60
-        return f"{h} ساعت" + (f" و {m} دقیقه" if m else "")
-    return f"{s // 86400} روز"
+    sec = max(0, int(seconds))
+    if sec < 60:
+        return f"{fa_num(sec)} ثانیه"
+    if sec < 3600:
+        return f"{fa_num(sec // 60)} دقیقه"
+    if sec < 86400:
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        return f"{fa_num(h)} ساعت" + (f" و {fa_num(m)} دقیقه" if m else "")
+    return f"{fa_num(sec // 86400)} روز"
 
 
 def own_bot_id() -> int:
@@ -2489,7 +2506,7 @@ def channel_diagnostics() -> str:
     lines.append(f"📍 کانال: *{title}* — `{PUBLIC_CHANNEL_ID}`")
 
     mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID})
-    lines.append(f"👥 اعضا: *{mc.get('result') if mc.get('ok') else '—'}*")
+    lines.append(f"👥 اعضا: *{fa_num(mc.get('result')) if mc.get('ok') else '—'}*")
 
     bot_id = own_bot_id()
     if bot_id:
@@ -2517,7 +2534,14 @@ def channel_diagnostics() -> str:
     else:
         lines.append("🕒 آخرین پست خودکار: — (هنوز ثبت نشده)")
 
-    lines.append("🔁 پست خودکار: " + ("روشن — هر ۸ ساعت" if CHANNEL_OK else f"خاموش ({CHANNEL_REASON})"))
+    every_h = CHANNEL_POST_INTERVAL_SEC // 3600
+    lines.append(
+        "🔁 پست خودکار: "
+        + (f"روشن — هر {fa_num(every_h)} ساعت، ساعت {fa_num(f'{CHANNEL_WINDOW_UTC[0]:02d}')}–{fa_num(f'{CHANNEL_WINDOW_UTC[1]:02d}')} UTC"
+           if CHANNEL_OK else f"خاموش ({CHANNEL_REASON})")
+    )
+    lines.append(f"⏭ پست بعدی: {next_post_eta()}")
+    lines.append("🗓 برنامه: `/channelplan` · ارسال فوری: `/channelpost edu`")
     return "\n".join(lines)
 
 
@@ -2634,25 +2658,262 @@ def admin_digest_loop() -> None:
         time.sleep(1800)
 
 
+# =====================================================================
+#  محتوای کانال: آموزش + معرفی قابلیت‌ها (چرخش زمان‌بندی‌شده)
+# =====================================================================
+# بازهٔ ارسال به وقت UTC: ۰۴:۰۰ تا ۱۹:۵۹ — معادل ۰۷:۳۰ تا ۲۳:۳۰ تهران.
+# بیرون این بازه پستی نمی‌رود تا کسی نصف‌شب نوتیف نگیرد (و کانال میوت نشود).
+CHANNEL_WINDOW_UTC = (4, 19)
+CHANNEL_POST_INTERVAL_SEC = 3 * 3600        # هر ۳ ساعت → تا ۵–۶ پست در روز
+CHANNEL_LOOP_SLEEP_SEC = 600                # هر ۱۰ دقیقه بیدار می‌شود
+
+# چرخهٔ دسته‌ها؛ هر ۶ پست یک دور کامل. «radar» دادهٔ واقعی بازار است،
+# «edu» آموزش ترید، و «feature» معرفی یک قابلیت واقعی مینی‌اپ.
+CHANNEL_CYCLE = ("radar", "edu", "feature", "edu", "radar", "feature")
+
+CHANNEL_EDU_POSTS = [
+    ("نرخ فاندینگ چیست و چرا از قیمت مهم‌تر است؟",
+     "فاندینگ، هزینه‌ای است که هر ۸ ساعت بین لانگ‌ها و شورت‌ها جابه‌جا می‌شود:\n"
+     "• فاندینگ مثبت → لانگ‌ها پول می‌دهند، شورت‌ها می‌گیرند.\n"
+     "• فاندینگ منفی → برعکس.\n\n"
+     "وقتی فاندینگ یک ارز به‌شدت مثبت می‌شود، یعنی جمعیت روی لانگ سنگین شده و ریسک «اسکوییز» بالا رفته است. "
+     "این عدد را می‌توانید هر لحظه در رادار مینی‌اپ ببینید — بدون ثبت‌نام."),
+    ("Open Interest را با حجم اشتباه نگیرید",
+     "حجم معاملات می‌گوید چقدر پول رد‌وبدل شده؛ Open Interest می‌گوید چند پوزیشن **باز** روی میز است.\n\n"
+     "• OI بالا + قیمت ثابت = دو طرف در حال انبار کردن پوزیشن‌اند؛ انفجار نوسان نزدیک است.\n"
+     "• OI بالا + حجم کم = اهرم زیاد و ریسک لیکوییدیشن زنجیره‌ای.\n\n"
+     "در رادار، ستون OI همین را نشان می‌دهد؛ به‌جای حدس، عدد را ببینید."),
+    ("قانون ۳.۸٪؛ عددی که حساب پراپ را نجات می‌دهد",
+     "در حساب پراپ، بزرگ‌ترین دشمن شما بازار نیست؛ برداشت‌های روزانه است.\n\n"
+     "یک سقف ثابت برای ریسک روزانه بگذارید که **کمتر** از قانون شرکت باشد (مثلاً ۳.۸٪ وقتی سقف ۵٪ است) "
+     "و به آن مثل قانون فیزیک احترام بگذارید. اگر امروز به سقف رسیدید، تمام — فردا روز دیگری است.\n\n"
+     "ماشین‌حساب گارد در مینی‌اپ همین سقف را برایتان حساب می‌کند."),
+    ("لات را از ریسک حساب حساب کنید، نه از احساس",
+     "ترتیب اشتباه رایج: «چقدر حجم بزنم؟» → بعد «استاپ کجا؟».\n"
+     "ترتیب درست: فاصلهٔ استاپ (به پیپ/درصد) → ریسک مجاز (مثلاً ۰.۵٪ حساب) → حجم.\n\n"
+     "مثال: حساب ۱۰٬۰۰۰ دلار، ریسک ۰.۵٪ = ۵۰ دلار. استاپ ۲۵ دلار فاصله دارد → حجم ۲ واحد.\n\n"
+     "گارد دراودان همین را در سه ثانیه می‌دهد؛ دیگر لازم نیست ذهنی حساب کنید."),
+    ("دلتا-خنثی چیست و چه ریسکی دارد؟",
+     "در آربیتراژ فاندینگ، هم‌زمان اسپات می‌خرید و پرپتوال شورت می‌زنید تا از جهت قیمت مستقل شوید و "
+     "فاندینگ مثبت را جمع کنید.\n\n"
+     "ریسک‌هایی که معمولاً گفته نمی‌شود:\n"
+     "• نرخ فاندینگ می‌تواند منفی شود.\n"
+     "• هزینهٔ اهرم و کارمزد، سود کوچک را می‌خورد.\n"
+     "• ریسک صرافی و ریسک لیکوییدیشن پای شورت.\n\n"
+     "برای همین، رادار فقط فرصت‌ها را نشان می‌دهد؛ تصمیم و مدیریت ریسک با شماست."),
+    ("شاخص ترس و طمع را چطور بخوانیم؟",
+     "این شاخص خلق‌وخوی جمعیت را نشان می‌دهد، نه جهت قیمت:\n"
+     "• بالای ۷۵ (طمع شدید): جمعیت خرید سنگین کرده — جای احتیاط، نه هیجان.\n"
+     "• زیر ۲۵ (ترس شدید): جمعیت ترسیده — جای بررسی فرصت، نه وحشت.\n\n"
+     "کاربرد درست: وقتی می‌خواهید پوزیشن سنگین باز کنید، بپرسید «آیا من دارم دنبال جمعیت می‌روم؟»",
+     ),
+    ("لییکوییدیشن زنجیره‌ای؛ چرا بازار یک‌دفعه می‌ریزد؟",
+     "وقتی قیمت به محدودهٔ استاپ‌های اهرمی می‌رسد، صرافی پوزیشن‌ها را می‌بندد. هر بستن، سفید بازار می‌زند و "
+     "قیمت را بیشتر حرکت می‌دهد → استاپ بعدی فعال می‌شود.\n\n"
+     "نشانه‌های هشدار: OI بالا + فاندینگ افراطی + نزدیک شدن به سقف/کف روزانه.\n"
+     "در این شرایط، کاهش حجم از هر تحلیلی ارزشمندتر است."),
+    ("سشن‌ها را بشناسید: ساعت طلایی نوسان",
+     "• آسیا (۰۰:۰۰–۰۷:۰۰ UTC): رنج‌های کم‌عمق، مناسب آماده‌سازی سطوح.\n"
+     "• لندن (۰۷:۰۰–۱۱:۰۰ UTC): اولین حرکت جدی روز، شکار سقف/کف آسیا.\n"
+     "• نیویورک (۱۲:۳۰–۱۶:۰۰ UTC): بیشترین نوسان طلا و بیت‌کوین.\n\n"
+     "برای پراپ، معامله در سشن‌های کم‌نوسان معمولاً یعنی استاپ‌های بی‌دلیل. "
+     "مینی‌اپ سشن فعال را در گزارش بازار نشان می‌دهد."),
+    ("ژورنال معاملاتی؛ ارزان‌ترین راه بهبود",
+     "حداقل این سه چیز را ثبت کنید: دلیل ورود، حجم، و احساس لحظهٔ ورود.\n"
+     "بعد از ۲۰ معامله الگو پیدا می‌شود: مثلاً «بعد از دو ضرر پشت‌سرهم، حجم را دو برابر می‌کنم» — "
+     "و همین یک الگو می‌تواند کل حساب را ببرد.\n\n"
+     "ژورنال لازم نیست نرم‌افزار باشد؛ یک فایل ساده کافی است. مهم پیوستگی است، نه ابزار."),
+    ("پنج اشتباه تازه‌کارها (به ترتیب گرانی)",
+     "۱) حجم ثابت برای همهٔ معاملات.\n"
+     "۲) میانگین‌گیری روی ضرر بدون برنامه.\n"
+     "۳) معامله برای «جبران» ضرر قبلی.\n"
+     "۴) نگه‌داشتن پوزیشن بدون استاپ در اخبار.\n"
+     "۵) تست نکردن استراتژی روی دمو.\n\n"
+     "هیچ‌کدام راز نیستند؛ فقط گران‌اند. یک بار نوشتنشان و مرور هفتگی، جلوی خیلی از آن‌ها را می‌گیرد."),
+    ("چک‌لیست ۵ ثانیه‌ای قبل از هر ورود",
+     "۱) استاپ کجاست و چند دلار است؟\n"
+     "۲) حجم با ریسک مجاز روزانه می‌خواند؟\n"
+     "۳) سشن فعلی ارزش معامله دارد؟\n"
+     "۴) فاندینگ و OI چه می‌گویند؟\n"
+     "۵) اگر همین حالا استاپ بخورد، فردا هم آرام می‌خوابم؟\n\n"
+     "اگر جواب یکی از این‌ها «نمی‌دانم» بود، ورود نزنید. نبودِ معامله هم یک تصمیم حرفه‌ای است."),
+    ("چرا ۹۰٪ تریدرها با تحلیل درست هم ضرر می‌کنند؟",
+     "چون مشکل معمولاً «تحلیل» نیست، «اندازهٔ پوزیشن» است. یک تحلیل ۵۰٪ درست با حجم ۱٪ حساب، "
+     "شما را زنده نگه می‌دارد؛ همان تحلیل با حجم ۱۰٪ حساب، شما را در سه ضرر حذف می‌کند.\n\n"
+     "اول بقا، بعد سود. این تنها ترتیبی است که جواب می‌دهد."),
+]
+
+CHANNEL_FEATURE_POSTS = [
+    ("📡 رادار زنده، بدون ثبت‌نام",
+     "مینی‌اپ تریدگارد، فاندینگ و Open Interest بازار پرپتوال را از خود آن‌چین می‌خواند و "
+     "سه ستون اصلی را جلوی شما می‌گذارد: داغ‌ترین فاندینگ‌ها، لیدرهای بازار و نهنگ‌های بالای یک میلیون دلار.\n\n"
+     "بدون ثبت‌نام، بدون نصب، بدون کارت بانکی — همان‌جا داخل تلگرام باز می‌شود."),
+    ("🔥 زنجیرهٔ روز: چرا باید هر روز سر بزنید؟",
+     "مینی‌اپ حالا زنجیرهٔ حضور شما را نگه می‌دارد: هر روز که سر بزنید یکی به 🔥 اضافه می‌شود.\n\n"
+     "این «بازی‌سازی» بی‌فایده نیست: بازار هر روز عوض می‌شود و کسی که روزانه رادار را می‌بیند، "
+     "تغییر رژیم فاندینگ را زودتر از بقیه می‌فهمد.\n\n"
+     "و حالا اپ با آخرین دادهٔ ذخیره‌شده فوراً باز می‌شود؛ حتی روی اینترنت ضعیف."),
+    ("⭐ دیده‌بان: فقط همان چند ارزی که واقعاً ترید می‌کنید",
+     "در رادار، ستارهٔ کنار هر ارز را بزنید؛ از این به بعد با چیپ «⭐ دیده‌بان من» فقط همان‌ها را می‌بینید.\n\n"
+     "مناسب کسانی که روی ۳–۴ ارز تمرکز دارند و نمی‌خواهند هر روز کل بازار را مرور کنند. "
+     "انتخاب‌ها روی همان دستگاه ذخیره می‌شوند."),
+    ("🤖 مربی هوش مصنوعی بازار، داخل خود مینی‌اپ",
+     "دکمهٔ «تحلیل زنده ✨» وضعیت فعلی بازار (فاندینگ، OI، ترس و طمع) را می‌خواند و "
+     "به زبان خودتان توضیح می‌دهد که الآن چه چیزی روی میز است.\n\n"
+     "این مربی، مشاور سرمایه‌گذاری نیست؛ ابزار فهمیدن است. تصمیم و ریسک همیشه با شماست."),
+    ("🛡️ اسکنر امنیت توکن قبل از خرید",
+     "آدرس یا نماد توکن را بدهید: قرارداد بررسی می‌شود که هانی‌پات باشد یا نه و "
+     "کارمزد خرید/فروش چقدر است.\n\n"
+     "برای توکن‌های کوچک، این ۱۰ ثانیه می‌تواند تفاوت بین یک سرمایه‌گذاری و یک کمک مالی باشد."),
+    ("🔎 اشعه ایکس کیف پول نهنگ",
+     "آدرس ۰x یک کیف پول هایپرلیکوید را بدهید: پوزیشن‌های باز، سمت، اهرم، قیمت ورود و قیمت لیکوییدیشن را می‌بینید.\n\n"
+     "کاربرد واقعی: وقتی یک نهنگ پوزیشن بزرگ می‌گیرد، می‌فهمید استاپش کجاست و "
+     "شکار نقدینگی کجا محتمل است."),
+    ("🧮 گارد دراودان پراپ: ریسک را قبل از ورود ببینید",
+     "حساب، سقف ضرر روزانه و درصد ریسک را وارد کنید؛ مینی‌اپ حجم مجاز، تعداد معاملات قابل انجام "
+     "و حد ضرر پیشنهادی را می‌دهد.\n\n"
+     "کمتر معامله با حجم درست = عمر بیشتر حساب. همین."),
+    ("🌍 شش زبان، یک مینی‌اپ — و همین روزها همه‌چیز رایگان",
+     "فارسی، انگلیسی، روسی، عربی، ترکی و اسپانیایی — از دکمهٔ زبان داخل اپ عوض می‌شود.\n\n"
+     "در دورهٔ رشد، رادار کامل، هشدارها، مربی AI و فایل‌های MT5/TradingView **بدون پرداخت** باز است. "
+     "کافی است کانال را دنبال کنید تا خبر پایان دوره را از دست ندهید."),
+]
+
+CHANNEL_SIGNATURE = "📊 داده‌ها زنده از آن‌چین · آموزشی است، توصیهٔ سرمایه‌گذاری نیست."
+
+
+def _mini_app_kb(start_param: str = "channel") -> dict:
+    return {
+        "inline_keyboard": [
+            [{"text": "🚀 باز کردن مینی‌اپ (۶ زبان)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
+            [{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+        ]
+    }
+
+
+def in_post_window(ts: Optional[int] = None) -> bool:
+    """آیا این لحظه در بازهٔ ارسال مجاز است؟ (UTC ۰۴:۰۰–۱۹:۵۹)"""
+    hour = time.gmtime(int(ts if ts is not None else time.time())).tm_hour
+    return CHANNEL_WINDOW_UTC[0] <= hour <= CHANNEL_WINDOW_UTC[1]
+
+
+def next_channel_category() -> str:
+    """دستهٔ پست بعدی از چرخه؛ شمارنده در دیتابیس نگه داشته می‌شود (پایدار)."""
+    raw = str(get_setting("channel_cycle_idx", "0") or "0")
+    idx = int(raw) if raw.isdigit() else 0
+    cat = CHANNEL_CYCLE[idx % len(CHANNEL_CYCLE)]
+    set_setting("channel_cycle_idx", str((idx + 1) % len(CHANNEL_CYCLE)))
+    return cat
+
+
+def _next_index(name: str, size: int) -> int:
+    raw = str(get_setting(name, "0") or "0")
+    idx = int(raw) if raw.isdigit() else 0
+    set_setting(name, str((idx + 1) % max(1, size)))
+    return idx % max(1, size)
+
+
+def build_edu_post(advance: bool = True) -> Tuple[str, dict]:
+    idx = _next_index("channel_edu_idx", len(CHANNEL_EDU_POSTS)) if advance else 0
+    title, body = CHANNEL_EDU_POSTS[idx]
+    text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE}"
+    return text, _mini_app_kb("edu")
+
+
+def build_feature_post(advance: bool = True) -> Tuple[str, dict]:
+    idx = _next_index("channel_feature_idx", len(CHANNEL_FEATURE_POSTS)) if advance else 0
+    title, body = CHANNEL_FEATURE_POSTS[idx]
+    text = f"{title}\n\n{body}\n\n👇 داخل تلگرام، بدون نصب:"
+    return text, _mini_app_kb("app")
+
+
+def channel_plan(n: int = 6) -> str:
+    """پیش‌نمایش N پست بعدی (فقط دسته و تیتر) — بدون تغییر شمارنده‌ها."""
+    def as_int(key: str) -> int:
+        raw = str(get_setting(key, "0") or "0")
+        return int(raw) if raw.isdigit() else 0
+
+    idx = as_int("channel_cycle_idx")
+    edu_i = as_int("channel_edu_idx")
+    feat_i = as_int("channel_feature_idx")
+    edu_used = 0
+    feat_used = 0
+    icons = {"radar": "📡", "edu": "🎓", "feature": "✨"}
+    lines = ["🗓 *برنامهٔ پست‌های بعدی کانال*", ""]
+    for i in range(max(1, n)):
+        cat = CHANNEL_CYCLE[(idx + i) % len(CHANNEL_CYCLE)]
+        if cat == "edu":
+            title = CHANNEL_EDU_POSTS[(edu_i + edu_used) % len(CHANNEL_EDU_POSTS)][0]
+            edu_used += 1
+        elif cat == "feature":
+            title = CHANNEL_FEATURE_POSTS[(feat_i + feat_used) % len(CHANNEL_FEATURE_POSTS)][0]
+            feat_used += 1
+        else:
+            title = "رادار زندهٔ فاندینگ و OI (دادهٔ واقعی)"
+        lines.append(f"{fa_num(i + 1)}. {icons[cat]} {title}")
+    every_h = CHANNEL_POST_INTERVAL_SEC // 3600
+    lines += [
+        "",
+        f"⏱ هر {fa_num(every_h)} ساعت · بازهٔ {fa_num(f'{CHANNEL_WINDOW_UTC[0]:02d}')}–{fa_num(f'{CHANNEL_WINDOW_UTC[1]:02d}')} UTC",
+        f"⏭ پست بعدی: {next_post_eta()}",
+        "",
+        "ارسال فوری: `/channelpost` یا `/channelpost edu` / `/channelpost feature`",
+    ]
+    return "\n".join(lines)
+
+
+def build_slot_post(category: str) -> Tuple[str, dict]:
+    """پست مناسب این اسلات: رادار واقعی، آموزش، یا معرفی قابلیت."""
+    if category == "edu":
+        return build_edu_post()
+    if category == "feature":
+        return build_feature_post()
+    return build_channel_post(fetch_live_funding_and_oi())
+
+
+def next_post_eta(now_ts: Optional[int] = None) -> str:
+    """توضیح انسانی اینکه پست بعدی کِی می‌آید (برای /channelstatus)."""
+    now = int(now_ts if now_ts is not None else time.time())
+    last = str(get_setting("last_channel_post_ts", "") or "")
+    last_ts = int(last) if last.isdigit() else 0
+    remaining = CHANNEL_POST_INTERVAL_SEC - (now - last_ts) if last_ts else 0
+    if remaining > 0:
+        return f"تا {human_delta(remaining)} دیگر"
+    if not in_post_window(now):
+        return "در بازهٔ ارسال نیست (۰۴:۰۰ UTC به بعد)"
+    if not last_ts:
+        return "به‌زودی (اولین پستِ چرخه)"
+    return "در چرخهٔ بعدی (حداکثر ۱۰ دقیقه)"
+
+
 def auto_channel_loop() -> None:
-    if not validate_channel_target(silent=True):
-        return
+    """چرخهٔ محتوای کانال: هر ۳ ساعت، در بازهٔ ۰۴–۱۹ UTC، با چرخش رادار/آموزش/قابلیت.
+
+    برخلاف نسخهٔ قبل که فقط هر ۸ ساعت یک پست رادار می‌فرستاد، این حلقه:
+      • محتوای متنوع می‌دهد (آموزش + معرفی قابلیت + دادهٔ زنده)،
+      • ساعات شب را احترام می‌گذارد،
+      • اگر ربات هنوز ادمین کانال نباشد، خودش هر ۱۰ دقیقه دوباره امتحان می‌کند
+        (به‌جای اینکه برای همیشه خاموش بماند).
+    """
     while True:
         try:
-            rates = fetch_live_funding_and_oi()
-            post_text, kb = build_channel_post(rates)
-            res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
-            if res.get("ok"):
-                set_setting("last_channel_post_ts", str(int(time.time())))
-            if not res.get("ok") and res.get("error_code") in (400, 403):
-                logger.warning("پست کانال رد شد؛ اعتبارسنجی دوباره در چرخه بعد: %s", res.get("description"))
-                validate_channel_target(silent=True)
-                if not CHANNEL_OK:
-                    logger.warning("⏹ پست خودکار کانال متوقف شد: %s", CHANNEL_REASON)
-                    return
+            if validate_channel_target(silent=True):
+                now = int(time.time())
+                last = str(get_setting("last_channel_post_ts", "") or "")
+                last_ts = int(last) if last.isdigit() else 0
+                due = (now - last_ts) >= CHANNEL_POST_INTERVAL_SEC
+                if due and in_post_window(now):
+                    category = next_channel_category()
+                    post_text, kb = build_slot_post(category)
+                    res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
+                    if res.get("ok"):
+                        set_setting("last_channel_post_ts", str(now))
+                        logger.info("📣 پست کانال ارسال شد (دسته: %s)", category)
+                    elif res.get("error_code") in (400, 403):
+                        logger.warning("پست کانال رد شد: %s", res.get("description"))
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)
-        time.sleep(8 * 3600)
+        time.sleep(CHANNEL_LOOP_SLEEP_SEC)
 
 
 def process_update(upd: dict) -> None:
