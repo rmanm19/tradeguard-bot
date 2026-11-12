@@ -885,3 +885,40 @@ section{scroll-margin-top:84px}
   padding:26px 16px;text-align:center;font-size:12.5px;line-height:1.9;color:#8C9BB5;
   border:1px dashed rgba(255,255,255,.14);border-radius:14px;
 }
+
+/* ---------- v10: pull-to-refresh، زنجیرهٔ روز، اسکلت به‌روزرسانی ---------- */
+.ptr-bar{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  height:0;opacity:0;overflow:hidden;color:#8C9BB5;font-size:11.5px;font-weight:700;
+  transition:height .18s ease,opacity .18s ease;
+}
+.ptr-bar.is-on{height:34px;opacity:1}
+.ptr-bar.is-ready{color:var(--green)}
+.ptr-bar.is-busy{color:#7FD7FF;opacity:1;height:34px}
+.ptr-spin{
+  width:13px;height:13px;border-radius:50%;display:inline-block;
+  border:2px solid rgba(255,255,255,.22);border-top-color:currentColor;
+}
+.ptr-bar.is-busy .ptr-spin{animation:ptrSpin .8s linear infinite}
+@keyframes ptrSpin{to{transform:rotate(360deg)}}
+
+.streak-row{display:flex;justify-content:flex-end;margin:-4px 0 8px}
+.streak-row:has(.streak-chip.hidden){margin:0}
+.streak-chip{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:99px;
+  font-size:11px;font-weight:800;color:#FFC94D;
+  background:rgba(255,201,77,.1);border:1px solid rgba(255,201,77,.32);
+}
+.streak-chip b{font-weight:900;color:#fff}
+.rows{position:relative}
+.rows .row{position:relative;overflow:hidden}
+.streak-chip.hidden{display:none}
+
+/* هنگام به‌روزرسانی، ردیف‌های قدیمی محو می‌شوند تا «کار در جریان» حس شود */
+.rows.is-refreshing .row{opacity:.55;transition:opacity .2s ease}
+.rows.is-refreshing .row::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.06) 45%,transparent 70%);
+  background-size:220% 100%;animation:skelSweep 1.1s linear infinite;
+}
+@keyframes skelSweep{from{background-position:130% 0}to{background-position:-130% 0}}

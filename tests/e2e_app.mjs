@@ -350,6 +350,62 @@ check("رندر آنی از کش (قبل از شبکه) انجام می‌شود
   /CACHEDCOIN/.test(K.w.document.querySelector("#radarList").textContent || ""),
   (K.w.document.querySelector("#radarList").textContent || "").slice(0, 40));
 
+/* ---------- ۳٫۶) زنجیرهٔ روز + کشیدن برای به‌روزرسانی ---------- */
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayK = dayKey(new Date());
+const yest = new Date(); yest.setDate(yest.getDate() - 1);
+const yestK = dayKey(yest);
+
+const S1 = boot({ userId: 555000111, seedStorage: { tg_onboard_v1: "1" } });
+await wait(350);
+check("چیپ زنجیرهٔ روز در اجرای اول دیده می‌شود",
+  !S1.w.document.querySelector("#streakChip").classList.contains("hidden"));
+check("اجرای اول = روز ۱",
+  (S1.w.document.querySelector("#streakDays") || {}).textContent === "1",
+  (S1.w.document.querySelector("#streakDays") || {}).textContent);
+
+const S2 = boot({ userId: 555000222, seedStorage: { tg_onboard_v1: "1", tg_streak: JSON.stringify({ last: yestK, days: 3 }) } });
+await wait(350);
+check("روز پیاپی با ورود دیروزی، یکی جلو می‌رود",
+  (S2.w.document.querySelector("#streakDays") || {}).textContent === "4",
+  (S2.w.document.querySelector("#streakDays") || {}).textContent);
+check("شمارنده در localStorage ذخیره می‌شود",
+  JSON.parse(S2.w.localStorage.getItem("tg_streak") || "{}").last === todayK,
+  S2.w.localStorage.getItem("tg_streak"));
+
+const S3 = boot({ userId: 555000333, seedStorage: { tg_onboard_v1: "1", tg_streak: JSON.stringify({ last: todayK, days: 5 }) } });
+await wait(350);
+check("دو بار در یک روز، شمارنده بالا نمی‌رود",
+  (S3.w.document.querySelector("#streakDays") || {}).textContent === "5",
+  (S3.w.document.querySelector("#streakDays") || {}).textContent);
+
+const S4 = boot({ userId: 555000444, seedStorage: { tg_onboard_v1: "1", tg_streak: JSON.stringify({ last: "2020-01-01", days: 9 }) } });
+await wait(350);
+check("غیبت چندروزه، زنجیره را از ۱ شروع می‌کند",
+  (S4.w.document.querySelector("#streakDays") || {}).textContent === "1",
+  (S4.w.document.querySelector("#streakDays") || {}).textContent);
+
+const S5 = boot({ userId: 555000555, seedStorage: { tg_onboard_v1: "1" } });
+await wait(300);
+const sd = S5.w.document;
+check("نوار کشیدن برای به‌روزرسانی وجود دارد", !!sd.querySelector("#ptrBar"));
+check("نوار به‌صورت پیش‌فرض بسته است",
+  !sd.querySelector("#ptrBar").classList.contains("is-on"));
+check("راهنمای کشیدن ترجمه شده است",
+  (sd.querySelector("#ptrTxt") || {}).textContent === "برای به‌روزرسانی بکش",
+  (sd.querySelector("#ptrTxt") || {}).textContent);
+check("درخواست به‌روزرسانی در دسترس است",
+  !!(S5.w.TG_PULL && typeof S5.w.TG_PULL.trigger === "function"));
+const refreshed = await S5.w.TG_PULL.trigger();
+await wait(120);
+check("به‌روزرسانی اجرا می‌شود", refreshed === true, String(refreshed));
+check("پس از به‌روزرسانی، نشانگر بسته می‌شود",
+  !sd.querySelector("#ptrBar").classList.contains("is-busy"));
+check("بدون شبکه، پیام صادقانه نشان داده می‌شود",
+  /شبکه|No network|сети|اتصال|Ağ|red/i.test((sd.querySelector("#appToast") || {}).textContent || ""),
+  (sd.querySelector("#appToast") || {}).textContent);
+check("هیچ خطای جاوااسکریپت در این بخش نیست", S5.errors.length === 0, S5.errors.slice(0, 2).join(" | "));
+
 /* ---------- ۴) دورهٔ رایگان و دکمهٔ کانال ---------- */
 const G = boot({ userId: 666000111, freeMode: true, channel: "@tradeguard_live" });
 await wait(700);

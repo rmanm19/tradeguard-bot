@@ -172,6 +172,11 @@ def main() -> int:
                 check("اجرای بعدی، آنبوردینگ دوباره نشان داده نمی‌شود",
                       not page.locator("#onboard").is_visible())
 
+            check("چیپ زنجیرهٔ روز در مرورگر واقعی دیده می‌شود",
+                  page.locator("#streakChip").is_visible())
+            check("نوار کشیدن برای به‌روزرسانی در DOM هست",
+                  page.locator("#ptrBar").count() == 1)
+
             # دیده‌بان: ستاره‌کردن اولین ارز رادار
             first_star = page.locator("#radarList .fav-btn").first
             if first_star.count():

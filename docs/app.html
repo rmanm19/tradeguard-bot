@@ -81,6 +81,12 @@
 
   <div class="screen-body">
 
+    <!-- کشیدن به پایین = به‌روزرسانی (v10) -->
+    <div id="ptrBar" class="ptr-bar" aria-hidden="true">
+      <i class="ptr-spin"></i>
+      <span id="ptrTxt" data-i18n="ptrPull">برای به‌روزرسانی بکش</span>
+    </div>
+
     <!-- ===== TAB: RADAR ===== -->
     <section class="tab-pane is-active" data-pane="radar">
       <div class="card opp-card">
@@ -155,6 +161,12 @@
       <div class="list-head">
         <span data-i18n="radarListHead">رادار زنده صرافی</span>
         <span class="live-tag"><span class="live-dot"></span> <span id="liveStatusTxt" data-i18n="liveConnecting">متصل به آن‌چین</span></span>
+      </div>
+
+      <div class="streak-row">
+        <span id="streakChip" class="streak-chip hidden" title="Daily streak">
+          🔥 <b id="streakDays">1</b> <span data-i18n="streakUnit">روز پیاپی</span>
+        </span>
       </div>
 
       <div id="radarList" class="rows"></div>
