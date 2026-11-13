@@ -29,6 +29,7 @@ const HL = {
   ]
 };
 
+let PARTNERS = { partners: [], disclosure: "" };   // محتوای partners.json برای تست
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
 let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
 
@@ -54,6 +55,7 @@ function stubFetch(url) {
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
   if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, users: PRO_USERS });
+  if (u.includes("partners.json")) return json(PARTNERS);
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
   return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("") });
 }
@@ -405,6 +407,40 @@ check("بدون شبکه، پیام صادقانه نشان داده می‌شو
   /شبکه|No network|сети|اتصال|Ağ|red/i.test((sd.querySelector("#appToast") || {}).textContent || ""),
   (sd.querySelector("#appToast") || {}).textContent);
 check("هیچ خطای جاوااسکریپت در این بخش نیست", S5.errors.length === 0, S5.errors.slice(0, 2).join(" | "));
+
+/* ---------- ۳٫۷) بخش شرکا (لینک همکاری) ---------- */
+PARTNERS = { partners: [], disclosure: "" };
+const P0 = boot({ userId: 666000999, seedStorage: { tg_onboard_v1: "1" } });
+await wait(500);
+check("بدون شریک، بخش شرکا پنهان است",
+  P0.w.document.querySelector("#partnersBox").classList.contains("hidden"));
+
+PARTNERS = {
+  disclosure: "لینک همکاری — ممکن است کمیسیون بگیریم.",
+  partners: [
+    { id: "propfirm_x", name: "Prop Firm X", note: "۵۰٪ تخفیف چالش — کد TRADE50", url: "https://propfirmx.example/r/tg", emoji: "🏦", badge: "۵۰٪" }
+  ]
+};
+const P1 = boot({ userId: 666000888, seedStorage: { tg_onboard_v1: "1" } });
+await wait(600);
+const pdoc = P1.w.document;
+check("با شریک، بخش شرکا نمایش داده می‌شود",
+  !pdoc.querySelector("#partnersBox").classList.contains("hidden"));
+check("نام شریک رندر می‌شود",
+  /Prop Firm X/.test(pdoc.querySelector("#partnersList").textContent));
+check("لینک شریک از مسیر ربات رد می‌شود (رهگیری کلیک واقعی)",
+  /t\.me\/TradeGuard1_bot\?start=p_propfirm_x/.test((pdoc.querySelector(".partner-item") || {}).href || ""),
+  (pdoc.querySelector(".partner-item") || {}).href);
+check("لینک اصلی شریک در data-partner-url نگه داشته می‌شود",
+  (pdoc.querySelector(".partner-item") || {}).getAttribute("data-partner-url") === "https://propfirmx.example/r/tg",
+  (pdoc.querySelector(".partner-item") || {}).getAttribute("data-partner-url"));
+check("rel امنیتی لینک ست شده",
+  /noopener/.test((pdoc.querySelector(".partner-item") || {}).getAttribute("rel") || ""));
+check("افشای شفاف کمیسیون دیده می‌شود",
+  /کمیسیون/.test(pdoc.querySelector("#partnersList").textContent),
+  pdoc.querySelector("#partnersList").textContent.slice(0, 80));
+
+PARTNERS = { partners: [], disclosure: "" };
 
 /* ---------- ۴) دورهٔ رایگان و دکمهٔ کانال ---------- */
 const G = boot({ userId: 666000111, freeMode: true, channel: "@tradeguard_live" });

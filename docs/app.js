@@ -1651,6 +1651,87 @@
     };
   }
 
+  /* ---------- شرکا / لینک‌های همکاری (v11) ---------- */
+  let partnersItems = [];
+  let partnersDisclosure = "";
+
+  function renderPartners() {
+    const box = $("#partnersBox");
+    const list = $("#partnersList");
+    if (!box || !list) return;
+    if (!partnersItems.length) {
+      box.classList.add("hidden");
+      list.innerHTML = "";
+      return;
+    }
+    const d = t();
+    list.innerHTML = "";
+    partnersItems.forEach((pt) => {
+      const url = String(pt.url || "");
+      if (!/^https?:\/\//.test(url)) return;
+      // لینک رهگیری واقعی: کلیک اول به ربات می‌رود، شمرده می‌شود، بعد به شریک
+      const pid = String(pt.id || pt.slug || "").trim();
+      const botUser = String((window.TG_CONFIG || {}).botUsername || "").replace(/^@/, "");
+      const tracked = pid && botUser ? `https://t.me/${botUser}?start=p_${encodeURIComponent(pid)}` : url;
+      const a = document.createElement("a");
+      a.className = "partner-item";
+      a.href = tracked;
+      a.setAttribute("data-partner-url", url);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer nofollow sponsored";
+      const logo = document.createElement("span");
+      logo.className = "partner-logo";
+      logo.textContent = pt.emoji || "🤝";
+      const meta = document.createElement("span");
+      meta.className = "partner-meta";
+      const name = document.createElement("b");
+      name.textContent = String(pt.name || "");
+      const note = document.createElement("small");
+      note.textContent = String(pt.note || "");
+      meta.append(name, note);
+      a.append(logo, meta);
+      if (pt.badge) {
+        const badge = document.createElement("span");
+        badge.className = "partner-badge";
+        badge.textContent = String(pt.badge);
+        a.append(badge);
+      }
+      a.addEventListener("click", () => {
+        haptic("light");
+        // داخل تلگرام، لینک در مرورگر داخلی باز شود (نه iframe اپ)
+        try {
+          const tg = window.Telegram && window.Telegram.WebApp;
+          if (tg && tg.openLink) {
+            tg.openLink(tracked);
+            a.preventDefault && a.preventDefault();
+          }
+        } catch (e) {}
+      });
+      list.appendChild(a);
+    });
+    if (!list.children.length) {
+      box.classList.add("hidden");
+      return;
+    }
+    const note = document.createElement("p");
+    note.className = "partners-note";
+    note.textContent = String(partnersDisclosure || d.partnersNote || "");
+    list.appendChild(note);
+    box.classList.remove("hidden");
+  }
+
+  async function loadPartners() {
+    try {
+      const resp = await fetch("partners.json", { cache: "no-store" });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const arr = (data && Array.isArray(data.partners)) ? data.partners : [];
+      partnersItems = arr.filter((x) => x && x.name && x.url).slice(0, 6);
+      partnersDisclosure = String((data && data.disclosure) || "");
+      renderPartners();
+    } catch (e) {}
+  }
+
   // راه‌اندازی اولیه
   setLanguage(currentLang);
   hydrateMarketCache();
@@ -1659,6 +1740,7 @@
   initPullToRefresh();
   maybeShowOnboard();
   fetchLiveWhales();
+  loadPartners();
   setInterval(fetchLiveMarket, 22000);
 
   // وضعیت واقعی اشتراک/دعوت از فایلی که ربات می‌نویسد

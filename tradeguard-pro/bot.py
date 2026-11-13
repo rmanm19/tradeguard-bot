@@ -1710,6 +1710,32 @@ def handle_message(msg: dict) -> None:
             else:
                 tg_send_message(valid_ref, tr(ref_lang, "ref_new", count=ref_count, target=FREE_PRO_INVITE_TARGET))
 
+        # 🤝 لینک همکاری شرکا: کلیک واقعی شمرده می‌شود، بعد به سایت شریک می‌رود
+        if payload.startswith("p_") and len(payload) > 2:
+            pid = payload[2:].strip()
+            pt = partner_by_id(pid)
+            n = record_partner_start(pid)
+            logger.info("🤝 کلیک لینک شریک: %s (#%s)", pid, n)
+            if not pt:
+                tg_send_message(chat_id, "⚠️ این لینک همکاری معتبر نیست یا حذف شده است.")
+                return
+            badge = f" · {pt.get('badge')}" if pt.get("badge") else ""
+            text_out = (
+                f"🤝 *{pt['name']}*{badge}\n\n"
+                f"{pt.get('note', '')}\n\n"
+                "با دکمهٔ زیر به سایت شرکا می‌روید. ثبت‌نام و شرایط، مستقیماً با خودشان است.\n"
+                f"_{load_partners()['disclosure'] or 'این لینک همکاری است؛ ممکن است کمیسیون بگیریم.'}_"
+            )
+            tg_send_message(
+                chat_id,
+                text_out,
+                reply_markup={"inline_keyboard": [
+                    [{"text": f"↗️ ادامه در {pt['name']}", "url": pt["url"]}],
+                    [{"text": "🚀 باز کردن مینی‌اپ", "url": f"https://t.me/{BOT_USERNAME}?start=app"}],
+                ]},
+            )
+            return
+
         pro, pro_until = is_user_pro(uid)
 
         # 🛒 دکمهٔ «خرید اشتراک» مینی‌اپ ⇒ مستقیم فاکتور Stars می‌آید
@@ -2210,6 +2236,12 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/partners"):
+        res = tg_send_message(chat_id, partners_text())
+        if not res.get("ok") and ADMIN_USER_ID and res.get("description"):
+            logger.warning("ارسال /partners ناموفق: %s", res.get("description"))
         return
 
     if text.startswith("/freemode"):
@@ -2763,6 +2795,79 @@ def channel_profile_report() -> str:
     return "\n".join(lines)
 
 
+PARTNERS_FILE = Path(__file__).resolve().parent.parent / "docs" / "partners.json"
+
+
+def load_partners() -> dict:
+    """شرکا/لینک‌های همکاری را از docs/partners.json می‌خواند (منبع واحد اپ و ربات)."""
+    try:
+        data = json.loads(PARTNERS_FILE.read_text(encoding="utf-8"))
+        partners = [x for x in (data.get("partners") or []) if isinstance(x, dict) and x.get("name") and x.get("url")]
+        return {
+            "partners": partners[:10],
+            "disclosure": str(data.get("disclosure") or ""),
+            "updated": data.get("updated") or 0,
+        }
+    except Exception as exc:
+        logger.warning("خواندن partners.json ناموفق: %s", exc)
+        return {"partners": [], "disclosure": "", "updated": 0}
+
+
+def partner_by_id(pid: str) -> Optional[dict]:
+    pid = str(pid or "").strip().lower()
+    for it in load_partners()["partners"]:
+        key = str(it.get("id") or it.get("slug") or "").strip().lower()
+        if key and key == pid:
+            return it
+    return None
+
+
+def record_partner_start(pid: str) -> int:
+    """شمارش کلیک واقعی روی لینک هر شریک (کلید در دیتابیس، پایدار)."""
+    key = f"partner_start_{str(pid).strip().lower()}"
+    raw = str(get_setting(key, "0") or "0")
+    n = (int(raw) if raw.isdigit() else 0) + 1
+    set_setting(key, str(n))
+    return n
+
+
+def partner_click_summary() -> List[Tuple[str, int]]:
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM settings WHERE key LIKE 'partner_start_%'"
+            ).fetchall()
+    except Exception:
+        return []
+    out: List[Tuple[str, int]] = []
+    for key, value in rows:
+        try:
+            out.append((str(key).replace("partner_start_", ""), int(value or 0)))
+        except (TypeError, ValueError):
+            continue
+    out.sort(key=lambda x: x[1], reverse=True)
+    return out
+
+
+def partners_text() -> str:
+    data = load_partners()
+    items = data["partners"]
+    if not items:
+        return (
+            "🤝 *شرکای TradeGuard*\n\n"
+            "هنوز هیچ شریکی ثبت نشده است.\n\n"
+            "هدف: همکاری با بروکرها/پراپ‌فرم‌ها به‌صورت لینک همکاری رسمی — "
+            "تخفیف برای کاربر، درآمد برای ما، و افشای شفاف کمیسیون."
+        )
+    lines = ["🤝 *شرکای TradeGuard*", ""]
+    for it in items:
+        badge = f" · {it.get('badge')}" if it.get("badge") else ""
+        lines.append(f"• *{it['name']}*{badge}\n  {it.get('note', '')}\n  {it['url']}")
+    disclosure = data["disclosure"] or "این لینک‌ها همکاری‌اند؛ ممکن است کمیسیون بگیریم."
+    lines += ["", f"_{disclosure}_"]
+    return "\n".join(lines)
+
+
 def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     """پست کانال: ۳ فرصت برتر + ترس و طمع + یک نکتهٔ آموزشی چرخشی."""
     if not rates:
@@ -2838,6 +2943,12 @@ def build_admin_report() -> str:
     except Exception:
         top_txt = "—"
 
+    clicks = partner_click_summary()
+    clicks_line = (
+        "🤝 کلیک لینک شرکا: " + " · ".join(f"{pid}: {n}" for pid, n in clicks[:5])
+        if clicks else "🤝 کلیک لینک شرکا: —"
+    )
+
     lines = [
         "📊 *گزارش مدیریتی TradeGuard*",
         "",
@@ -2849,6 +2960,7 @@ def build_admin_report() -> str:
         "",
         f"💳 پرداخت موفق: *{stats['paid']:,}* · مجموع استارز: *{stats['stars']:,}*",
         f"🎁 دورهٔ رایگان: *{'روشن' if free_mode_active() else 'خاموش'}*",
+        clicks_line,
         f"📡 برترین فرصت همین حالا: `{top_txt}`",
         "",
         f"🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
@@ -3104,6 +3216,56 @@ def next_post_eta(now_ts: Optional[int] = None) -> str:
     return "در چرخهٔ بعدی (حداکثر ۱۰ دقیقه)"
 
 
+def auto_channel_profile_once() -> None:
+    """یک بار در استارت‌آپ، فقط چیزهای *خالی* پروفایل کانال را پر می‌کند.
+
+    عمداً idempotent است: اگر توضیحات/عکس/پین از قبل باشد، دست نمی‌زند.
+    عنوان کانال هرگز خودکار عوض نمی‌شود (نام برند انتخاب خود صاحب کسب‌وکار است).
+    """
+    try:
+        if not validate_channel_target(silent=True):
+            logger.info("پروفایل خودکار کانال رد شد: %s", CHANNEL_REASON)
+            return
+        info = tg_call("getChat", {"chat_id": PUBLIC_CHANNEL_ID})
+        chat = (info.get("result") or {}) if info.get("ok") else {}
+        filled: List[str] = []
+
+        if len(str(chat.get("description") or "")) < 40:
+            if apply_channel_description().get("ok"):
+                filled.append("📝 توضیحات")
+
+        if not chat.get("photo") and CHANNEL_AVATAR_PATH.exists():
+            if tg_set_chat_photo(PUBLIC_CHANNEL_ID, CHANNEL_AVATAR_PATH).get("ok"):
+                filled.append("🖼 عکس پروفایل")
+
+        if not chat.get("pinned_message"):
+            pr = tg_send_message(
+                PUBLIC_CHANNEL_ID,
+                "👋 *به کانال TradeGuard خوش آمدید*\n\n"
+                "اینجا رادار زندهٔ فاندینگ و OI آن‌چین، آموزش مدیریت ریسک و معرفی ابزارها را می‌بینید.\n"
+                "🎁 این روزها همه‌چیز رایگان است.\n\n👇 مینی‌اپ ۶ زبانه، بدون نصب:",
+                reply_markup={"inline_keyboard": [[{"text": "🚀 باز کردن مینی‌اپ",
+                                                   "url": f"https://t.me/{BOT_USERNAME}?start=channel"}]]},
+            )
+            mid = ((pr.get("result") or {}).get("message_id")) if pr.get("ok") else None
+            if mid and tg_call("pinChatMessage", {"chat_id": PUBLIC_CHANNEL_ID, "message_id": mid,
+                                                  "disable_notification": True}).get("ok"):
+                filled.append("📌 پیام خوش‌آمد پین شد")
+
+        if filled:
+            logger.info("🧾 پروفایل کانال کامل شد: %s", " · ".join(filled))
+            if ADMIN_USER_ID:
+                tg_send_message(
+                    int(ADMIN_USER_ID),
+                    "🧾 *پروفایل کانال خودکار تکمیل شد*\n\n" + "\n".join(filled)
+                    + "\n\nبرای بازبینی: `/channelinfo`",
+                )
+        else:
+            logger.info("🧾 پروفایل کانال از قبل کامل بود.")
+    except Exception as exc:
+        logger.warning("تکمیل خودکار پروفایل کانال ناموفق: %s", exc)
+
+
 def auto_channel_loop() -> None:
     """چرخهٔ محتوای کانال: هر ۳ ساعت، در بازهٔ ۰۴–۱۹ UTC، با چرخش رادار/آموزش/قابلیت.
 
@@ -3268,6 +3430,8 @@ def main() -> None:
         logger.warning("همگام‌سازی وضعیت پرو در استارت‌آپ ناموفق بود: %s", exc)
 
     threading.Thread(target=auto_channel_loop, daemon=True).start()
+    if os.environ.get("AUTO_CHANNEL_PROFILE", "1") != "0":
+        threading.Thread(target=auto_channel_profile_once, daemon=True).start()
     threading.Thread(target=admin_digest_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=8)
     offset = 0

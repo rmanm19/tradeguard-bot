@@ -668,6 +668,71 @@ bot.PUBLIC_CHANNEL_ID = ""
 bot.ADMIN_USER_ID = ""
 CHAT_STATE.update({"pinned_message": {"message_id": 42}, "description": "", "photo": None})
 
+print("\n۹٫۷) شرکا / لینک همکاری")
+import json as _json  # noqa: E402
+
+_pfile = Path(tempfile.mkdtemp()) / "partners.json"
+bot.PARTNERS_FILE = _pfile
+_pfile.write_text(_json.dumps({"disclosure": "لینک همکاری — ممکن است کمیسیون بگیریم.",
+                               "partners": [{"name": "Prop Firm X", "note": "۵۰٪ تخفیف",
+                                             "url": "https://t.me/propfirm_x", "badge": "۵۰٪"}]},
+                              ensure_ascii=False), encoding="utf-8")
+_partners = bot.load_partners()
+check("partners.json خوانده می‌شود", len(_partners["partners"]) == 1, str(_partners)[:100])
+_ptext = bot.partners_text()
+check("متن /partners نام شریک را دارد", "Prop Firm X" in _ptext, _ptext[:80])
+check("متن /partners لینک را دارد", "https://t.me/propfirm_x" in _ptext, _ptext[:120])
+check("متن /partners افشای کمیسیون دارد", "کمیسیون" in _ptext, _ptext[-80:])
+_posts.clear()
+bot.handle_message(msg("/partners"))
+check("دستور /partners برای کاربر عادی جواب می‌دهد",
+      bool(_posts) and "Prop Firm X" in _posts[-1][1], str(_posts[-1:])[:120])
+
+_pfile.write_text(_json.dumps({"partners": []}), encoding="utf-8")
+_empty = bot.partners_text()
+check("بدون شریک، پیام صادقانه است", "هنوز هیچ شریکی" in _empty, _empty[:60])
+_posts.clear()
+bot.handle_message(msg("/partners"))
+check("دستور /partners با لیست خالی هم پاسخ می‌دهد",
+      bool(_posts) and "هنوز هیچ شریکی" in _posts[-1][1], str(_posts[-1:])[:120])
+_pfile.unlink()
+check("فایل نبودن partners.json ربات را نمی‌شکند", bot.load_partners()["partners"] == [])
+
+print("\n۹٫۸) رهگیری کلیک لینک شرکا")
+_pfile2 = Path(tempfile.mkdtemp()) / "partners.json"
+bot.PARTNERS_FILE = _pfile2
+_pfile2.write_text(_json.dumps({"disclosure": "لینک همکاری — کمیسیون می‌گیریم.",
+                                "partners": [{"id": "propfirm_x", "name": "Prop Firm X",
+                                              "note": "۵۰٪ تخفیف", "url": "https://propfirmx.example/r/tg",
+                                              "badge": "۵۰٪"}]}, ensure_ascii=False), encoding="utf-8")
+check("شریک با id پیدا می‌شود", (bot.partner_by_id("propfirm_x") or {}).get("name") == "Prop Firm X")
+check("id ناشناس None برمی‌گرداند", bot.partner_by_id("nope") is None)
+_posts.clear()
+bot.handle_message(msg("/start p_propfirm_x", uid=BUYER))
+_landing = [pp for pp in _posts if pp[0] == BUYER]
+check("لینک شرکا در ربات پیام مقصد می‌دهد", bool(_landing) and "Prop Firm X" in _landing[-1][1],
+      str(_landing[-1:])[:120])
+check("دکمهٔ رفتن به سایت شریک وجود دارد",
+      bool(_landing) and "propfirmx.example" in str(_landing[-1][2].get("reply_markup") or {}),
+      str(_landing[-1:])[:160])
+check("کلیک شریک در دیتابیس ثبت می‌شود",
+      bot.get_setting("partner_start_propfirm_x") == "1", bot.get_setting("partner_start_propfirm_x"))
+bot.handle_message(msg("/start p_propfirm_x", uid=BUYER))
+check("کلیک دوم شمارنده را ۲ می‌کند", bot.get_setting("partner_start_propfirm_x") == "2",
+      bot.get_setting("partner_start_propfirm_x"))
+_summary = dict(bot.partner_click_summary())
+check("خلاصهٔ کلیک‌ها شریک را نشان می‌دهد", _summary.get("propfirm_x") == 2, str(_summary))
+_posts.clear()
+bot.handle_message(msg("/start p_ghost", uid=BUYER))
+check("لینک شرکای نامعتبر، پیام صادقانه می‌دهد",
+      bool(_posts) and "معتبر نیست" in _posts[-1][1], str(_posts[-1:])[:100])
+_posts.clear()
+bot.ADMIN_USER_ID = str(USER)
+bot.handle_message(msg("/report"))
+check("گزارش مدیریتی کلیک شرکا را دارد",
+      bool(_posts) and "کلیک لینک شرکا" in _posts[-1][1], str(_posts[-1:])[:120])
+bot.ADMIN_USER_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
