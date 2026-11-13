@@ -922,3 +922,23 @@ section{scroll-margin-top:84px}
   background-size:220% 100%;animation:skelSweep 1.1s linear infinite;
 }
 @keyframes skelSweep{from{background-position:130% 0}to{background-position:-130% 0}}
+
+/* ---------- v11: شرکا / لینک‌های همکاری ---------- */
+.partners{margin-top:14px;background:linear-gradient(165deg,rgba(18,28,46,.9),rgba(12,18,30,.9));
+  border:1px solid var(--line);border-radius:16px;padding:13px 13px 11px}
+.partners.hidden{display:none}
+.partners-head{display:flex;align-items:center;justify-content:space-between;
+  font-size:12.5px;font-weight:800;color:#DDE6F5;margin-bottom:9px}
+.partners-list{display:flex;flex-direction:column;gap:8px}
+.partner-item{display:flex;align-items:center;gap:10px;text-decoration:none;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  border-radius:12px;padding:10px 11px;transition:border-color .2s,background .2s}
+.partner-item:hover{border-color:rgba(37,214,154,.45);background:rgba(37,214,154,.06)}
+.partner-logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  font-size:16px;background:rgba(37,214,154,.14);border:1px solid rgba(37,214,154,.28);flex:none}
+.partner-meta{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.partner-meta b{font-size:12.5px;color:#fff;font-weight:800}
+.partner-meta small{font-size:11px;color:#8C9BB5;line-height:1.6}
+.partner-badge{font-size:10.5px;font-weight:800;color:#25D69A;
+  background:rgba(37,214,154,.12);border:1px solid rgba(37,214,154,.3);border-radius:99px;padding:3px 8px;flex:none}
+.partners-note{margin:9px 2px 0;font-size:10.5px;line-height:1.8;color:#71809A}

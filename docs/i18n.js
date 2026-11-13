@@ -1942,3 +1942,18 @@ window.TG_I18N = {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA2[k]);
   });
 })();
+
+/* ---------- v11: بخش شرکا (۶ زبان) ---------- */
+(function () {
+  var EXTRA3 = {
+    fa: { partnersTitle: "🤝 شرکای ما", partnersNote: "لینک‌های این بخش لینک همکاری‌اند؛ اگر از آن‌ها ثبت‌نام کنید ممکن است کمیسیون بگیریم — بدون هزینهٔ اضافه برای شما." },
+    en: { partnersTitle: "🤝 Our partners", partnersNote: "These are affiliate links: we may earn a commission if you sign up — at no extra cost to you." },
+    ru: { partnersTitle: "🤝 Наши партнёры", partnersNote: "Это партнёрские ссылки: мы можем получить комиссию — без доплат для вас." },
+    ar: { partnersTitle: "🤝 شركاؤنا", partnersNote: "هذه روابط شراكة: قد نحصل على عمولة دون أي تكلفة إضافية عليك." },
+    tr: { partnersTitle: "🤝 Ortaklarımız", partnersNote: "Bunlar ortaklık bağlantılarıdır: kayıt olursanız komisyon alabiliriz — size ek maliyeti yok." },
+    es: { partnersTitle: "🤝 Nuestros socios", partnersNote: "Son enlaces de afiliado: podemos recibir una comisión sin coste extra para ti." }
+  };
+  Object.keys(EXTRA3).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA3[k]);
+  });
+})();
