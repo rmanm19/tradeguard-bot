@@ -1100,6 +1100,8 @@
       const cfgChannel = String(TG_CONFIG.channel || "").replace(/^@/, "");
       channelUrl = cfgChannel ? "https://t.me/" + cfgChannel : "";
       chBtn.classList.toggle("hidden", !channelUrl);
+      const claimBtn = $("#claimJoinBtn");
+      if (claimBtn) claimBtn.classList.toggle("hidden", !channelUrl);
     }
 
     const ea = $("#eaRow");
@@ -1198,6 +1200,12 @@
     } catch (e) {
       appToast(t().refCopyFail);
     }
+  });
+
+  $("#claimJoinBtn")?.addEventListener("click", () => {
+    haptic("medium");
+    // پاداش فقط بعد از تأیید واقعی عضویت در ربات داده می‌شود
+    openBotChat("checkjoin");
   });
 
   $("#joinChannelBtn")?.addEventListener("click", () => {

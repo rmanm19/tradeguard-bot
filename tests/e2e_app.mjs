@@ -462,6 +462,13 @@ await wait(60);
 check("دکمهٔ کانال، لینک کانال را باز می‌کند",
   String(G.w.__opened || "").includes("t.me/tradeguard_live"), String(G.w.__opened));
 
+check("دکمهٔ پاداش عضویت کانال دیده می‌شود",
+  !gd.querySelector("#claimJoinBtn").classList.contains("hidden"));
+gd.querySelector("#claimJoinBtn").dispatchEvent(new G.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("دکمهٔ پاداش، کاربر را به بررسی واقعی عضویت در ربات می‌فرستد",
+  String(G.w.__opened || "").includes("t.me/TradeGuard1_bot?start=checkjoin"), String(G.w.__opened));
+
 const H = boot({ userId: 666000222, proUsers: {}, channel: "" });
 await wait(400);
 const hd = H.w.document;
