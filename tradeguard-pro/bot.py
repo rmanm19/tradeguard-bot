@@ -1634,7 +1634,7 @@ def send_status_message(chat_id: int, uid: int, lang: str, pro: bool, pro_until:
 # =====================================================================
 # ۵) پردازشگر پیام‌ها، دستورات و پرداخت‌های Stars
 # =====================================================================
-BOT_USERNAME = "TradeGuard_bot"
+BOT_USERNAME = "TradeGuard1_bot"
 
 
 def handle_message(msg: dict) -> None:
@@ -2041,6 +2041,105 @@ def handle_message(msg: dict) -> None:
                 f"❌ این کانال تأیید نشد:\n{CHANNEL_REASON}\n\n"
                 f"یادآوری: باید یوزرنیم **کانال** باشد و ربات در آن **ادمین** باشد — نه یوزرنیم خود ربات.",
             )
+        return
+
+    if text.startswith("/channelinfo") or text.startswith("/channelprofile"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, channel_profile_report(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/channeldesc"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        parts = text.split(maxsplit=1)
+        custom = parts[1].strip() if len(parts) > 1 else ""
+        if custom.lower() in ("reset", "پیش‌فرض", "default"):
+            custom = ""
+        res = apply_channel_description(custom or None)
+        if res.get("ok"):
+            tg_send_message(
+                chat_id,
+                "✅ توضیحات کانال به‌روز شد:\n\n" + (custom or channel_description_text())[:CHANNEL_DESC_LIMIT],
+                reply_markup=admin_back_keyboard(),
+            )
+        else:
+            tg_send_message(
+                chat_id,
+                f"❌ ست نشد: {str(res.get('description'))[:150]}\n\n"
+                "برای عیب‌یابی: `/channelstatus` (ربات باید ادمین با دسترسی تغییر اطلاعات باشد).",
+            )
+        return
+
+    if text.startswith("/channeltitle"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        parts = text.split(maxsplit=1)
+        new_title = parts[1].strip() if len(parts) > 1 else ""
+        if not new_title:
+            tg_send_message(chat_id, "مثال: `/channeltitle TradeGuard | رادار و آموزش ترید`")
+            return
+        res = tg_call("setChatTitle", {"chat_id": PUBLIC_CHANNEL_ID, "title": new_title[:CHANNEL_TITLE_LIMIT]})
+        tg_send_message(
+            chat_id,
+            ("✅ عنوان کانال شد: *" + new_title[:CHANNEL_TITLE_LIMIT] + "*") if res.get("ok")
+            else f"❌ ست نشد: {str(res.get('description'))[:150]}",
+        )
+        return
+
+    if text.startswith("/channelphoto"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        if not PUBLIC_CHANNEL_ID:
+            tg_send_message(chat_id, "⚠️ اول کانال را تنظیم کنید: `/channel @yourchannel`")
+            return
+        res = tg_set_chat_photo(PUBLIC_CHANNEL_ID, CHANNEL_AVATAR_PATH)
+        tg_send_message(
+            chat_id,
+            "✅ عکس پروفایل کانال ست شد." if res.get("ok")
+            else f"❌ ست نشد: {str(res.get('description'))[:150]}",
+        )
+        return
+
+    if text.startswith("/channelcomplete"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        if not PUBLIC_CHANNEL_ID:
+            tg_send_message(chat_id, "⚠️ اول کانال را تنظیم کنید: `/channel @yourchannel`")
+            return
+        info = tg_call("getChat", {"chat_id": PUBLIC_CHANNEL_ID})
+        chat = (info.get("result") or {}) if info.get("ok") else {}
+        done: List[str] = []
+        if len(str(chat.get("description") or "")) < 40:
+            if apply_channel_description().get("ok"):
+                done.append("📝 توضیحات ست شد")
+        if not chat.get("photo"):
+            if tg_set_chat_photo(PUBLIC_CHANNEL_ID, CHANNEL_AVATAR_PATH).get("ok"):
+                done.append("🖼 عکس پروفایل ست شد")
+        if not chat.get("pinned_message"):
+            pr = tg_send_message(
+                PUBLIC_CHANNEL_ID,
+                "👋 *به کانال TradeGuard خوش آمدید*\n\n"
+                "اینجا رادار زندهٔ فاندینگ و OI آن‌چین، آموزش مدیریت ریسک و معرفی ابزارها را می‌بینید.\n"
+                "🎁 این روزها همه‌چیز رایگان است.\n\n👇 مینی‌اپ ۶ زبانه، بدون نصب:",
+                reply_markup={"inline_keyboard": [[{"text": "🚀 باز کردن مینی‌اپ",
+                                                   "url": f"https://t.me/{BOT_USERNAME}?start=channel"}]]},
+            )
+            mid = ((pr.get("result") or {}).get("message_id")) if pr.get("ok") else None
+            if mid and tg_call("pinChatMessage", {"chat_id": PUBLIC_CHANNEL_ID, "message_id": mid,
+                                                  "disable_notification": True}).get("ok"):
+                done.append("📌 پیام خوش‌آمد ارسال و پین شد")
+        tg_send_message(
+            chat_id,
+            ("🎉 " + "\n".join(done) if done else "ℹ️ پروفایل از قبل کامل بود؛ چیزی تغییر نکرد.")
+            + "\n\n" + channel_profile_report(),
+            reply_markup=admin_back_keyboard(),
+        )
         return
 
     if text.startswith("/channelstatus"):
@@ -2545,6 +2644,125 @@ def channel_diagnostics() -> str:
     return "\n".join(lines)
 
 
+# =====================================================================
+#  تکمیل پروفایل کانال: توضیحات، عنوان، عکس
+# =====================================================================
+# محدودیت تلگرام: توضیحات کانال حداکثر ۲۵۵ کاراکتر، عنوان حداکثر ۱۲۸.
+CHANNEL_DESC_LIMIT = 255
+CHANNEL_TITLE_LIMIT = 128
+CHANNEL_DESCRIPTION = (
+    "📡 رادار زندهٔ فاندینگ و OI آن‌چین + آموزش مدیریت ریسک برای تریدر پراپ.\n"
+    "🎁 دورهٔ رشد: رادار کامل، هشدارها، مربی AI و فایل MT5/TV رایگان است.\n"
+    "🧠 آموزش روزانه · 🌍 مینی‌اپ ۶ زبانه بدون نصب"
+)
+CHANNEL_AVATAR_PATH = Path(__file__).resolve().parent / "bot_avatar.png"
+
+
+def channel_description_text() -> str:
+    """توضیحاتی که با /channeldesc روی کانال ست می‌شود (همیشه ≤۲۵۵ کاراکتر)."""
+    bot_user = str(BOT_USERNAME or "TradeGuard1_bot")
+    tail = f"\n👇 شروع: t.me/{bot_user}?start=channel"
+    text = CHANNEL_DESCRIPTION + tail
+    if len(text) > CHANNEL_DESC_LIMIT:
+        text = text[: CHANNEL_DESC_LIMIT - len(tail)].rstrip() + tail
+    return text
+
+
+def tg_set_chat_photo(chat_id: int | str, file_path: Path) -> dict:
+    """آپلود عکس پروفایل کانال (setChatPhoto) با multipart — بدون کتابخانهٔ خارجی."""
+    if not file_path.exists():
+        return {"ok": False, "description": "فایل عکس پیدا نشد"}
+    boundary = f"----TradeGuardPhoto{uuid.uuid4().hex}"
+    parts: List[bytes] = []
+
+    def add_field(name: str, value: str) -> None:
+        parts.append(f"--{boundary}\r\n".encode())
+        parts.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
+        parts.append(f"{value}\r\n".encode())
+
+    add_field("chat_id", str(chat_id))
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(b'Content-Disposition: form-data; name="photo"; filename="channel_avatar.png"\r\n')
+    parts.append(b"Content-Type: image/png\r\n\r\n")
+    parts.append(file_path.read_bytes() + b"\r\n")
+    parts.append(f"--{boundary}--".encode())
+    body = b"".join(parts)
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setChatPhoto"
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "User-Agent": "TradeGuardBot/7.5"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="ignore")
+        logger.warning("Telegram API error on setChatPhoto: %s", raw[:200])
+        return {"ok": False, "description": raw[:200]}
+    except Exception as exc:
+        logger.warning("Network error on setChatPhoto: %s", exc)
+        return {"ok": False, "description": str(exc)}
+
+
+def apply_channel_description(text: Optional[str] = None) -> dict:
+    """توضیحات کانال را ست می‌کند؛ خروجی خام API تلگرام."""
+    if not PUBLIC_CHANNEL_ID:
+        return {"ok": False, "description": "کانال تنظیم نشده است"}
+    payload = {"chat_id": PUBLIC_CHANNEL_ID, "description": (text or channel_description_text())[:CHANNEL_DESC_LIMIT]}
+    return tg_call("setChatDescription", payload)
+
+
+def channel_profile_report() -> str:
+    """چک‌لیست کامل بودن پروفایل کانال — هر مورد مستقیم از تلگرام خوانده می‌شود."""
+    lines = ["🧾 *تکمیل پروفایل کانال*", ""]
+    if not PUBLIC_CHANNEL_ID:
+        return "\n".join(lines + ["کانال تنظیم نشده — اول `/channel @yourchannel`"])
+
+    info = tg_call("getChat", {"chat_id": PUBLIC_CHANNEL_ID})
+    if not info.get("ok"):
+        return "\n".join(lines + [f"❌ کانال خوانده نشد: {str(info.get('description'))[:100]}"])
+
+    chat = info.get("result") or {}
+    title = chat.get("title") or "—"
+    username = chat.get("username") or ""
+    desc = str(chat.get("description") or "")
+    photo = chat.get("photo") or {}
+    pin = chat.get("pinned_message") or {}
+    mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID})
+    members = fa_num(mc.get("result")) if mc.get("ok") else "—"
+
+    def mark(ok: bool) -> str:
+        return "✅" if ok else "❌"
+
+    lines += [
+        f"📍 عنوان: *{title}* {mark(bool(title and title != '—'))}",
+        f"🔗 یوزرنیم: {'@' + username if username else '— ندارد (لینک عمومی لازم است)'} {mark(bool(username))}",
+        f"🖼 عکس پروفایل: {mark(bool(photo))}",
+        f"📝 توضیحات: {mark(len(desc) >= 40)}",
+        f"📌 پیام پین‌شده: {mark(bool(pin))}",
+        f"👥 اعضا: *{members}*",
+        "",
+    ]
+    if desc:
+        lines += ["_توضیحات فعلی:_", desc[:200], ""]
+
+    missing: List[str] = []
+    if len(desc) < 40:
+        missing.append("`/channeldesc` — توضیحات آماده را بگذار")
+    if not photo:
+        missing.append("`/channelphoto` — لوگوی برند را بگذار")
+    if not pin:
+        missing.append("`/channelpin` — پیام خوش‌آمد را پین کن")
+    lines.append("🎯 *کارهای باقی‌مانده:*" if missing else "🎉 *پروفایل کامل است.*")
+    lines += missing
+    if not missing:
+        lines.append("فقط محتوا: `/channelplan` را ببین.")
+    lines += ["", "همهٔ این‌ها یک‌جا: `/channelcomplete`"]
+    return "\n".join(lines)
+
+
 def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     """پست کانال: ۳ فرصت برتر + ترس و طمع + یک نکتهٔ آموزشی چرخشی."""
     if not rates:
@@ -3028,7 +3246,7 @@ def main() -> None:
         _gh_error("BOT_TOKEN نامعتبر است یا تلگرام در دسترس نیست", str(me.get("description"))[:200])
         sys.exit(3)
 
-    BOT_USERNAME = me["result"].get("username", "TradeGuard_bot")
+    BOT_USERNAME = me["result"].get("username", "TradeGuard1_bot")
     BOT_ID = int((me.get("result") or {}).get("id") or 0)
     # اعتبارسنجی کانال ویترین (جلوگیری از خطای 403 «bot can't send messages to the bot»)
     validate_channel_target()
