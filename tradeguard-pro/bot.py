@@ -96,6 +96,8 @@ SUBSCRIPTION_STARS = int(os.environ.get("SUBSCRIPTION_STARS", "300") or "300")
 # اعتبارسنجی (ادمین‌بودن ربات) همچنان در validate_channel_target انجام می‌شود.
 DEFAULT_CHANNEL_ID = "@tradeguard1"
 PUBLIC_CHANNEL_ID = (os.environ.get("PUBLIC_CHANNEL_ID", "") or DEFAULT_CHANNEL_ID).strip()
+# کانال انگلیسی (اختیاری) — برای کمپین‌های بین‌المللی
+PUBLIC_CHANNEL_EN = (os.environ.get("PUBLIC_CHANNEL_EN_ID", "") or "").strip()
 
 # شناسه عددی خود ربات و وضعیت اعتبار کانال ویترین (در main مقدار می‌گیرند)
 BOT_ID: int = 0
@@ -540,6 +542,26 @@ def is_real_app_url(url: str) -> bool:
         return False
     placeholders = ("example.com", "your-tradeguard-app.pages.dev", "your-domain")
     return not any(p in url for p in placeholders)
+
+
+def partner_landing_url(pid: str, lang: str = "fa") -> str:
+    """
+    آدرس صفحهٔ فرود اختصاصی شریک را می‌سازد (docs/p.html?id=<pid>).
+    از همان دامنهٔ مینی‌اپ استفاده می‌کند تا دامنهٔ دومی لازم نباشد.
+    """
+    base = MINI_APP_URL if is_real_app_url(MINI_APP_URL) else ""
+    if not base or not pid:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(base)
+        path = parsed.path or "/"
+        parent = path.rsplit("/", 1)[0] if "/" in path else ""
+        return urllib.parse.urlunparse(
+            parsed._replace(path=f"{parent}/p.html".replace("//", "/"),
+                            query=urllib.parse.urlencode({"id": pid, "lang": lang}))
+        )
+    except Exception:
+        return ""
 
 
 def build_app_url(lang: str) -> str:
@@ -1654,7 +1676,7 @@ BOT_USERNAME = "TradeGuard1_bot"
 
 
 def handle_message(msg: dict) -> None:
-    global MINI_APP_URL, PUBLIC_CHANNEL_ID
+    global MINI_APP_URL, PUBLIC_CHANNEL_ID, PUBLIC_CHANNEL_EN
     chat_id = msg["chat"]["id"]
     user = msg.get("from") or {}
     uid = int(user.get("id", chat_id))
@@ -2052,7 +2074,7 @@ def handle_message(msg: dict) -> None:
         icon = "✅" if CHANNEL_OK else "⚠️"
         tg_send_message(
             chat_id,
-            f"{icon} *وضعیت کانال ویترین (پست خودکار هر ۸ ساعت)*\n\n"
+            f"{icon} *وضعیت کانال ویترین (پست خودکار هر ۳ ساعت)*\n\n"
             f"• آیدی فعلی: `{PUBLIC_CHANNEL_ID or '— خالی —'}`\n"
             f"• وضعیت: {CHANNEL_REASON}\n\n"
             f"*چطور درستش کنم؟*\n"
@@ -2193,6 +2215,54 @@ def handle_message(msg: dict) -> None:
         )
         return
 
+    if text.startswith("/channelen"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        parts = text.split(maxsplit=1)
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        if not arg:
+            if not PUBLIC_CHANNEL_EN:
+                tg_send_message(
+                    chat_id,
+                    "🌍 *کانال انگلیسی تنظیم نشده*\n\n"
+                    "۱) یک کانال عمومی بسازید.\n"
+                    "۲) ربات را ادمین کنید (ارسال پست + پین).\n"
+                    "۳) بزنید: `/channelen @your_en_channel`\n\n"
+                    "_محتوا آماده است: ۸ درس + ۶ معرفی قابلیت + رادار زنده، همه انگلیسی._",
+                    reply_markup=admin_back_keyboard(),
+                )
+                return
+            ok_en, detail = validate_target(PUBLIC_CHANNEL_EN)
+            mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_EN})
+            tg_send_message(
+                chat_id,
+                f"🌍 *کانال انگلیسی*: `{PUBLIC_CHANNEL_EN}`\n"
+                f"وضعیت: {'✅ تأییدشده — ' + str(detail) if ok_en else '❌ ' + str(detail)}\n"
+                f"اعضا: *{fa_num(mc.get('result')) if mc.get('ok') else '—'}*\n"
+                f"⏭ پست بعدی: {next_post_eta_en()}",
+                reply_markup=admin_back_keyboard(),
+            )
+            return
+        if arg.lower() in ("off", "none", "خاموش", "-"):
+            PUBLIC_CHANNEL_EN = ""
+            set_setting("PUBLIC_CHANNEL_EN_ID", "")
+            tg_send_message(chat_id, "✅ کانال انگلیسی خاموش شد.")
+            return
+        val = arg if arg.startswith("@") or arg.lstrip("-").isdigit() else "@" + arg
+        ok_en, detail = validate_target(val)
+        if ok_en:
+            PUBLIC_CHANNEL_EN = val
+            set_setting("PUBLIC_CHANNEL_EN_ID", val)
+            tg_send_message(
+                chat_id,
+                f"✅ کانال انگلیسی ثبت شد: `{val}` ({detail})\n\n"
+                "محتوا: ۸ درس + ۶ معرفی قابلیت + رادار زنده، هر ۳ ساعت در بازهٔ ۰۴–۱۹ UTC.",
+            )
+        else:
+            tg_send_message(chat_id, f"❌ این کانال تأیید نشد: {detail}\n\nربات باید در کانال **ادمین** باشد.")
+        return
+
     if text.startswith("/channelstatus"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
@@ -2293,6 +2363,45 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         tg_send_message(chat_id, funnel_text(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/partnerlink"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        args = text.split(maxsplit=1)
+        pid = args[1].strip().lower() if len(args) > 1 else ""
+        if not pid:
+            ids = ", ".join(f"`{p.get('id')}`" for p in load_partners()["partners"] if p.get("id")) or "—"
+            tg_send_message(
+                chat_id,
+                "🔗 ساخت لینک رهگیری شریک\n\n"
+                f"شناسه‌های موجود: {ids}\n\n"
+                "`/partnerlink <id>` — لینک صفحهٔ فرود + لینک تلگرام",
+                reply_markup=admin_back_keyboard(),
+            )
+            return
+        pt = partner_by_id(pid)
+        if not pt:
+            tg_send_message(chat_id, f"❓ شریکی با شناسهٔ `{pid}` در partners.json نیست.", reply_markup=admin_back_keyboard())
+            return
+        name = pt.get("name") or pid
+        tg_url = f"https://t.me/{BOT_USERNAME}?start=p_{pid}" if BOT_USERNAME else ""
+        land = partner_landing_url(pid)
+        lines = [f"🔗 *{name}* — کد رهگیری `p_{pid}`", ""]
+        if land:
+            lines += [f"🌐 صفحهٔ فرود (برای تبلیغ/بایو):\n`{land}`", ""]
+        else:
+            lines += ["⚠️ آدرس مینی‌اپ تنظیم نشده، پس صفحهٔ فرود ساخته نشد (`/seturl`).", ""]
+        if tg_url:
+            lines += [f"✈️ لینک مستقیم تلگرام:\n`{tg_url}`", ""]
+        if pt.get("code"):
+            lines += [f"🏷 کد تخفیف/معرفی شریک: `{pt['code']}`", ""]
+        lines += [
+            "آمار هر منبع (کاربر، عضویت کانال، پرو) با `/sources` دیده می‌شود.",
+            "این لینک فقط وقتی کار می‌کند که شریک واقعی و تأییدشده باشد.",
+        ]
+        tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/partners"):
@@ -3420,18 +3529,223 @@ def _mini_app_kb(start_param: str = "channel") -> dict:
     }
 
 
+# ---------------------------------------------------------------------
+#  محتوای انگلیسی کانال بین‌المللی
+# ---------------------------------------------------------------------
+CHANNEL_SIGNATURE_EN = "📊 Live on-chain data · Educational only, not investment advice."
+
+CHANNEL_EDU_POSTS_EN = [
+    ("What is funding rate — and why it matters more than price",
+     "Funding is paid every 8 hours between longs and shorts:\n"
+     "• Positive funding → longs pay, shorts receive.\n"
+     "• Negative funding → the opposite.\n\n"
+     "When funding gets extreme, the crowd is one-sided and a squeeze becomes likely. "
+     "You can see it live in the mini app — no signup, no install."),
+    ("Open Interest is not volume",
+     "Volume shows how much was traded; Open Interest shows how many positions are **open** right now.\n\n"
+     "• High OI + flat price = both sides are building size.\n"
+     "• High OI + low volume = heavy leverage, chain-liquidation risk.\n\n"
+     "The radar shows OI next to funding so you stop guessing."),
+    ("The 3.8% rule that saves prop accounts",
+     "In a prop account, your biggest enemy is not the market — it is the daily drawdown limit.\n\n"
+     "Set a personal daily risk cap **below** the firm's rule (e.g. 3.8% when the limit is 5%) "
+     "and treat it like physics. Hit the cap? You are done for the day.\n\n"
+     "The guard calculator in the app does this math for you."),
+    ("Size from risk, not from feelings",
+     "Wrong order: “How big should I go?” → then “where is my stop?”\n"
+     "Right order: stop distance → allowed risk (e.g. 0.5% of account) → position size.\n\n"
+     "Example: $10,000 account, 0.5% risk = $50. Stop is $25 away → 2 units.\n\n"
+     "That is what the drawdown guard computes in three seconds."),
+    ("Delta-neutral funding: what nobody tells you",
+     "You buy spot and short the perpetual to become price-neutral and collect funding.\n\n"
+     "Real risks:\n"
+     "• Funding can flip negative.\n"
+     "• Fees and leverage costs eat the small edge.\n"
+     "• Exchange risk and liquidation risk on the short leg.\n\n"
+     "The radar surfaces opportunities; risk management is still yours."),
+    ("Reading Fear & Greed correctly",
+     "The index measures crowd mood, not direction:\n"
+     "• Above 75 (extreme greed): the crowd is loaded long — be careful, not excited.\n"
+     "• Below 25 (extreme fear): the crowd is scared — look for opportunity, not panic.\n\n"
+     "Use it as one question before sizing up: “Am I just following the crowd?”"),
+    ("Liquidation cascades: why price suddenly dumps",
+     "When price reaches clusters of leveraged stops, exchanges close positions. "
+     "Each close hits the book, moves price further, and triggers the next stop.\n\n"
+     "Warning signs: high OI + extreme funding + price at the daily high/low.\n"
+     "In those moments, reducing size beats any forecast."),
+    ("Sessions: the golden windows for volatility",
+     "• Asia (00:00–07:00 UTC): shallow ranges, good for marking levels.\n"
+     "• London (07:00–11:00 UTC): first real move, sweeps Asia's high/low.\n"
+     "• New York (12:30–16:00 UTC): highest volatility in BTC and gold.\n\n"
+     "For prop accounts, trading quiet sessions usually means random stop-outs. "
+     "The app shows the active session for you."),
+]
+
+CHANNEL_FEATURE_POSTS_EN = [
+    ("📡 Live radar, no signup",
+     "TradeGuard reads funding and Open Interest straight from the chain and shows "
+     "three views: hottest funding, market leaders, and whales above $1M.\n\n"
+     "No account, no install, no bank card — it opens inside Telegram."),
+    ("🔥 Daily streak — why come back every day?",
+     "The app tracks your daily streak: every day you open it, 🔥 goes up by one.\n\n"
+     "It is not empty gamification: funding regimes rotate, and people who check the radar daily "
+     "notice regime changes earlier.\n\n"
+     "And the app now opens instantly from cached data — even on weak mobile networks."),
+    ("⭐ Watchlist: only the coins you actually trade",
+     "Tap the star next to any coin and use the “⭐ My watchlist” chip to see only those.\n\n"
+     "Built for traders who focus on 3–4 markets instead of scrolling the whole board. "
+     "Your picks stay on your device."),
+    ("🤖 AI market copilot inside the mini app",
+     "The “Live analysis ✨” button reads current conditions (funding, OI, Fear & Greed) "
+     "and explains what is on the table, in your language.\n\n"
+     "It is a thinking tool, not a financial advisor. Decisions and risk are yours."),
+    ("🛡️ Token safety scanner before you buy",
+     "Paste a token symbol or contract: it checks honeypot flags and buy/sell taxes.\n\n"
+     "For small caps, these ten seconds can be the difference between an investment and a donation."),
+    ("🌍 Six languages, one mini app — free during the growth phase",
+     "Persian, English, Russian, Arabic, Turkish and Spanish. The full radar, alerts, "
+     "AI copilot and the MT5/TradingView files are **free** right now.\n\n"
+     "Follow the channel so you do not miss the end of the free phase."),
+]
+
+
+def _mini_app_kb_en(start_param: str = "channel") -> dict:
+    return {
+        "inline_keyboard": [
+            [{"text": "🚀 Open the mini app (6 languages)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
+            [{"text": "🎁 Invite friends (3 = 7 days PRO)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+        ]
+    }
+
+
+def build_channel_post_en(rates: List[Dict]) -> Tuple[str, dict]:
+    """پست رادار انگلیسی (همان دادهٔ واقعی، متن انگلیسی)."""
+    top = rates[:3] if rates else []
+    fng_val, fng_lbl = fetch_fear_greed()
+    lines = ["📡 *TradeGuard — live market radar* 🌍", ""]
+    medals = ("🥇", "🥈", "🥉")
+    for i, r in enumerate(top):
+        oi_txt = f" | OI `${r.get('oi_m', 0):.0f}M`" if r.get("oi_m", 0) else ""
+        lines.append(
+            f"{medals[i]} *${r['sym']}* `{r['rate_pct']:+.3f}%/8h`{oi_txt}"
+            f" | $500: `${r['daily_500']:.2f}/day`"
+        )
+    if not top:
+        lines.append("Live data is being refreshed — open the app for the current board.")
+    lines += [
+        "",
+        f"🧭 Fear & Greed: `{fng_val}/100` ({fng_lbl})",
+        "",
+        "🎁 *Free during the growth phase* — full radar, alerts, AI copilot, MT5/TradingView files.",
+        "",
+        "👇 Open inside Telegram (6 languages):",
+    ]
+    kb = {"inline_keyboard": [
+        [{"text": "🚀 Open TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=post_radar_en"}],
+        [{"text": "🤝 Invite friends", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+    ]}
+    return "\n".join(lines), kb
+
+
+def build_edu_post_en(advance: bool = True) -> Tuple[str, dict]:
+    idx = _next_index("channel_edu_idx_en", len(CHANNEL_EDU_POSTS_EN)) if advance else 0
+    title, body = CHANNEL_EDU_POSTS_EN[idx]
+    return f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE_EN}", _mini_app_kb_en("post_edu_en")
+
+
+def build_feature_post_en(advance: bool = True) -> Tuple[str, dict]:
+    idx = _next_index("channel_feature_idx_en", len(CHANNEL_FEATURE_POSTS_EN)) if advance else 0
+    title, body = CHANNEL_FEATURE_POSTS_EN[idx]
+    return f"{title}\n\n{body}\n\n👇 Open inside Telegram:", _mini_app_kb_en("post_feature_en")
+
+
+def validate_target(channel_id: str) -> Tuple[bool, str]:
+    """اعتبارسنجی یک کانال دلخواه (بدون دست‌زدن به وضعیت جهانی کانال فارسی)."""
+    channel_id = str(channel_id or "").strip()
+    if not channel_id:
+        return False, "تنظیم نشده"
+    info = tg_call("getChat", {"chat_id": channel_id})
+    if not info.get("ok"):
+        return False, f"تلگرام این آیدی را نشناخت ({str(info.get('description'))[:80]})"
+    chat = info.get("result") or {}
+    if chat.get("type") != "channel":
+        return False, f"کانال نیست (نوع: {chat.get('type')})"
+    bot_id = own_bot_id()
+    if bot_id:
+        mem = tg_call("getChatMember", {"chat_id": channel_id, "user_id": bot_id})
+        status = ((mem.get("result") or {}).get("status") or "") if mem.get("ok") else ""
+        if status not in ("administrator", "creator"):
+            return False, f"ربات در این کانال ادمین نیست (وضعیت: {status or 'نامشخص'})"
+    return True, chat.get("title") or channel_id
+
+
+def post_due_slots(now: Optional[int] = None) -> List[Tuple[str, str]]:
+    """ارسال پست‌های سررسیده برای همهٔ کانال‌های تنظیم‌شده (فارسی + انگلیسی).
+
+    خروجی: فهرست [(کانال، دسته)] که واقعاً ارسال شد — برای تست و لاگ.
+    """
+    now = int(now or time.time())
+    posted: List[Tuple[str, str]] = []
+    if not in_post_window(now):
+        return posted
+    targets = []
+    if PUBLIC_CHANNEL_ID:
+        targets.append((PUBLIC_CHANNEL_ID, "fa"))
+    if PUBLIC_CHANNEL_EN:
+        targets.append((PUBLIC_CHANNEL_EN, "en"))
+    for channel_id, lang in targets:
+        key = "last_channel_post_ts" + ("_en" if lang == "en" else "")
+        raw = str(get_setting(key, "") or "")
+        last_ts = int(raw) if raw.isdigit() else 0
+        if now - last_ts < CHANNEL_POST_INTERVAL_SEC:
+            continue
+        category = next_channel_category(lang, advance=False)
+        if lang == "en":
+            if category == "edu":
+                text, kb = build_edu_post_en()
+            elif category == "feature":
+                text, kb = build_feature_post_en()
+            else:
+                text, kb = build_channel_post_en(fetch_live_funding_and_oi())
+        else:
+            text, kb = build_slot_post(category)
+        res = tg_send_message(channel_id, text, reply_markup=kb)
+        if res.get("ok"):
+            set_setting(key, str(now))
+            _advance_channel_cycle(lang)
+            posted.append((channel_id, category))
+            logger.info("📣 post sent → %s (%s)", channel_id, category)
+        elif res.get("error_code") in (400, 403):
+            logger.warning("post rejected for %s: %s", channel_id, res.get("description"))
+    return posted
+
+
 def in_post_window(ts: Optional[int] = None) -> bool:
     """آیا این لحظه در بازهٔ ارسال مجاز است؟ (UTC ۰۴:۰۰–۱۹:۵۹)"""
     hour = time.gmtime(int(ts if ts is not None else time.time())).tm_hour
     return CHANNEL_WINDOW_UTC[0] <= hour <= CHANNEL_WINDOW_UTC[1]
 
 
-def next_channel_category() -> str:
-    """دستهٔ پست بعدی از چرخه؛ شمارنده در دیتابیس نگه داشته می‌شود (پایدار)."""
-    raw = str(get_setting("channel_cycle_idx", "0") or "0")
+def _advance_channel_cycle(lang: str = "fa") -> None:
+    """یک قدم جلو بردن چرخهٔ محتوای همان زبان."""
+    key = "channel_cycle_idx" + ("_en" if lang == "en" else "")
+    raw = str(get_setting(key, "0") or "0")
+    idx = int(raw) if raw.isdigit() else 0
+    set_setting(key, str((idx + 1) % len(CHANNEL_CYCLE)))
+
+
+def next_channel_category(lang: str = "fa", advance: bool = True) -> str:
+    """دستهٔ پست بعدی از چرخه؛ شمارندهٔ هر زبان جدا و پایدار است.
+
+    با advance=False فقط «نگاه می‌کند»؛ شمارنده بعد از ارسال موفق جلو می‌رود
+    تا یک ارسال ناموفق (مثلاً ربات ادمین نبودن) کل یک دستهٔ محتوا را نسوزاند.
+    """
+    key = "channel_cycle_idx" + ("_en" if lang == "en" else "")
+    raw = str(get_setting(key, "0") or "0")
     idx = int(raw) if raw.isdigit() else 0
     cat = CHANNEL_CYCLE[idx % len(CHANNEL_CYCLE)]
-    set_setting("channel_cycle_idx", str((idx + 1) % len(CHANNEL_CYCLE)))
+    if advance:
+        _advance_channel_cycle(lang)
     return cat
 
 
@@ -3454,6 +3768,18 @@ def build_feature_post(advance: bool = True) -> Tuple[str, dict]:
     title, body = CHANNEL_FEATURE_POSTS[idx]
     text = f"{title}\n\n{body}\n\n👇 داخل تلگرام، بدون نصب:"
     return text, _mini_app_kb("post_feature")
+
+
+def next_post_eta_en(now_ts: Optional[int] = None) -> str:
+    now = int(now_ts if now_ts is not None else time.time())
+    last = str(get_setting("last_channel_post_ts_en", "") or "")
+    last_ts = int(last) if last.isdigit() else 0
+    remaining = CHANNEL_POST_INTERVAL_SEC - (now - last_ts) if last_ts else 0
+    if remaining > 0:
+        return f"تا {human_delta(remaining)} دیگر"
+    if not in_post_window(now):
+        return "در بازهٔ ارسال نیست (۰۴:۰۰ UTC به بعد)"
+    return "در چرخهٔ بعدی (حداکثر ۱۰ دقیقه)"
 
 
 def channel_plan(n: int = 6) -> str:
@@ -3566,30 +3892,17 @@ def auto_channel_profile_once() -> None:
 
 
 def auto_channel_loop() -> None:
-    """چرخهٔ محتوای کانال: هر ۳ ساعت، در بازهٔ ۰۴–۱۹ UTC، با چرخش رادار/آموزش/قابلیت.
+    """چرخهٔ محتوای همهٔ کانال‌ها (فارسی + انگلیسی): هر ۳ ساعت، ۰۴–۱۹ UTC.
 
-    برخلاف نسخهٔ قبل که فقط هر ۸ ساعت یک پست رادار می‌فرستاد، این حلقه:
-      • محتوای متنوع می‌دهد (آموزش + معرفی قابلیت + دادهٔ زنده)،
-      • ساعات شب را احترام می‌گذارد،
-      • اگر ربات هنوز ادمین کانال نباشد، خودش هر ۱۰ دقیقه دوباره امتحان می‌کند
-        (به‌جای اینکه برای همیشه خاموش بماند).
+    محتوا می‌چرخد بین رادار واقعی / آموزش / معرفی قابلیت. هر کانال شمارنده و
+    زمان‌بندی مستقل دارد، پس کانال انگلیسی با محتوای انگلیسی خودش جلو می‌رود.
+    اگر ربات هنوز ادمین نباشد، هر ۱۰ دقیقه دوباره امتحان می‌کند.
     """
     while True:
         try:
-            if validate_channel_target(silent=True):
-                now = int(time.time())
-                last = str(get_setting("last_channel_post_ts", "") or "")
-                last_ts = int(last) if last.isdigit() else 0
-                due = (now - last_ts) >= CHANNEL_POST_INTERVAL_SEC
-                if due and in_post_window(now):
-                    category = next_channel_category()
-                    post_text, kb = build_slot_post(category)
-                    res = tg_send_message(PUBLIC_CHANNEL_ID, post_text, reply_markup=kb)
-                    if res.get("ok"):
-                        set_setting("last_channel_post_ts", str(now))
-                        logger.info("📣 پست کانال ارسال شد (دسته: %s)", category)
-                    elif res.get("error_code") in (400, 403):
-                        logger.warning("پست کانال رد شد: %s", res.get("description"))
+            if PUBLIC_CHANNEL_ID:
+                validate_channel_target(silent=True)
+            post_due_slots()
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)
         time.sleep(CHANNEL_LOOP_SLEEP_SEC)
@@ -3636,7 +3949,12 @@ def apply_persisted_settings() -> None:
     روی GitHub Actions هر جاب از صفر شروع می‌شود، پس بدون این تابع
     قیمت اشتراک / آیدی ادمین / لینک مینی‌اپ هر ۶ ساعت به حالت اول برمی‌گشت.
     """
-    global ADMIN_USER_ID, MINI_APP_URL, PUBLIC_CHANNEL_ID
+    global ADMIN_USER_ID, MINI_APP_URL, PUBLIC_CHANNEL_ID, PUBLIC_CHANNEL_EN
+
+    saved_en = get_setting("PUBLIC_CHANNEL_EN_ID")
+    if saved_en and not PUBLIC_CHANNEL_EN:
+        PUBLIC_CHANNEL_EN = saved_en
+        logger.info("🌍 کانال انگلیسی از دیتابیس بازیابی شد: %s", PUBLIC_CHANNEL_EN)
 
     saved_admin = get_setting("ADMIN_USER_ID")
     if not ADMIN_USER_ID and saved_admin:

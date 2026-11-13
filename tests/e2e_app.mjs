@@ -475,6 +475,90 @@ const hd = H.w.document;
 check("بدون دورهٔ رایگان: کارت خرید برمی‌گردد", !hd.querySelector("#subIdle").classList.contains("hidden"));
 check("بدون کانال در config: دکمهٔ کانال پنهان است", hd.querySelector("#joinChannelBtn").classList.contains("hidden"));
 
+// ---------------------------------------------------------------
+// صفحهٔ فرود اختصاصی هر شریک (docs/p.html?id=<id>)
+// ---------------------------------------------------------------
+console.log("\n🔗 صفحهٔ فرود شریک (p.html)\n");
+const ONE = {
+  disclosure: "لینک همکاری — کمیسیون می‌گیریم.",
+  partners: [{
+    id: "propfirm_x", name: "Prop Firm X", note: "۵۰٪ تخفیف ثبت‌نام",
+    url: "https://propfirmx.example/r/tg", badge: "۵۰٪", emoji: "🏦",
+    perks: ["چالش رایگان ۲ مرحله‌ای", "برداشت سریع"]
+  }]
+};
+
+function bootLanding(query, partners) {
+  PARTNERS = partners;
+  const errors = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
+  vc.on("error", (...a) => errors.push("console.error: " + a.join(" ")));
+  const dom = new JSDOM(read("p.html"), {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    virtualConsole: vc,
+    url: "https://example.com/p.html" + query,
+    beforeParse(w) {
+      w.fetch = (u) => stubFetch(u);
+      w.addEventListener("error", (e) => errors.push("window.error: " + ((e.error && e.error.stack) || e.message)));
+      w.addEventListener("unhandledrejection", (e) => errors.push("rejection: " + ((e.reason && e.reason.stack) || e.reason)));
+    }
+  });
+  return { dom, w: dom.window, errors };
+}
+
+const L = bootLanding("?id=propfirm_x", ONE);
+await wait(120);
+const lw = L.w, ld = lw.document, lmain = ld.getElementById("main");
+check("صفحهٔ فرود شریک نام شریک را نشان می‌دهد", /Prop Firm X/.test(lmain.textContent), lmain.textContent.slice(0, 80));
+check("صفحهٔ فرود مزیت‌های شریک را فهرست می‌کند", /چالش رایگان ۲ مرحله‌ای/.test(lmain.textContent), lmain.textContent.slice(0, 120));
+check("صفحهٔ فرود نشان (badge) شریک را نشان می‌دهد", /۵۰٪/.test(lmain.textContent));
+check("دکمهٔ اصلی صفحهٔ فرود کد رهگیری اختصاصی دارد",
+  /t\.me\/TradeGuard1_bot\?start=p_propfirm_x/.test((lmain.querySelector(".cta") || {}).href || ""),
+  (lmain.querySelector(".cta") || {}).href);
+check("صفحهٔ فرود کد رهگیری را برای چسباندن نشان می‌دهد", /p_propfirm_x/.test(lmain.textContent));
+check("صفحهٔ فرود افشای کمیسیون را نشان می‌دهد", /کمیسیون/.test(lmain.textContent));
+check("صفحهٔ فرود خودش را لینک وابسته اعلام می‌کند",
+  /sponsored/.test((lmain.querySelector(".cta") || {}).getAttribute("rel") || ""),
+  (lmain.querySelector(".cta") || {}).getAttribute("rel"));
+check("عنوان صفحه با نام شریک ست می‌شود", /Prop Firm X/.test(ld.title), ld.title);
+check("صفحهٔ فرود بدون خطای جاوااسکریپت اجرا می‌شود", L.errors.length === 0, L.errors.slice(0, 2).join(" | "));
+check("صفحهٔ فرود راست‌به‌چپ و فارسی است",
+  ld.documentElement.dir === "rtl" && ld.documentElement.lang === "fa",
+  `${ld.documentElement.dir}/${ld.documentElement.lang}`);
+
+const L2 = bootLanding("?id=propfirm_x&lang=en", ONE);
+await wait(120);
+check("نسخهٔ انگلیسی صفحهٔ فرود چپ‌به‌راست است",
+  L2.w.document.documentElement.dir === "ltr" && L2.w.document.documentElement.lang === "en",
+  `${L2.w.document.documentElement.dir}/${L2.w.document.documentElement.lang}`);
+check("نسخهٔ انگلیسی متن انگلیسی دارد",
+  /Sign up with this link/.test(L2.w.document.getElementById("main").textContent),
+  L2.w.document.getElementById("main").textContent.slice(0, 80));
+
+const L3 = bootLanding("?id=ghost_partner", ONE);
+await wait(120);
+check("شناسهٔ ناشناس صفحهٔ معتبر نبودن لینک را نشان می‌دهد",
+  /معتبر نیست/.test(L3.w.document.getElementById("main").textContent),
+  L3.w.document.getElementById("main").textContent.slice(0, 80));
+const L4 = bootLanding("", ONE);
+await wait(120);
+check("بدون شناسه هم پیام صادقانه نشان داده می‌شود",
+  /معتبر نیست/.test(L4.w.document.getElementById("main").textContent));
+const L5 = bootLanding("?id=propfirm_x", { partners: [], disclosure: "" });
+await wait(120);
+check("وقتی هیچ شریکی منتشر نشده، صفحه شریک جعلی نمی‌سازد",
+  /منتشر نشده|معتبر نیست/.test(L5.w.document.getElementById("main").textContent),
+  L5.w.document.getElementById("main").textContent.slice(0, 80));
+
+const EVIL = { partners: [{ id: "x1", name: "<img src=x onerror=alert(1)>", note: "n", url: "https://evil.example/r" }] };
+const L6 = bootLanding("?id=x1", EVIL);
+await wait(120);
+check("نام شریک در صفحهٔ فرود امن escape می‌شود",
+  L6.w.document.querySelectorAll("#main img").length === 0,
+  L6.w.document.getElementById("main").innerHTML.slice(0, 120));
+
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }
 console.log("✅ کل مینی‌اپ و صفحه معرفی بدون خطا اجرا شد");

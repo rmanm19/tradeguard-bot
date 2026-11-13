@@ -731,6 +731,30 @@ bot.ADMIN_USER_ID = str(USER)
 bot.handle_message(msg("/report"))
 check("گزارش مدیریتی کلیک شرکا را دارد",
       bool(_posts) and "کلیک لینک شرکا" in _posts[-1][1], str(_posts[-1:])[:120])
+from pathlib import Path as _Path  # noqa: E402
+_u = _posts[-1][2].get("reply_markup") or {}
+check("گزارش مدیریتی دکمهٔ گزارش/بازگشت دارد", isinstance(_u, dict), str(_u)[:80])
+
+bot.MINI_APP_URL = "https://rmanm19.github.io/tradeguard-bot/app.html"
+_pl = bot.partner_landing_url("propfirm_x")
+check("صفحهٔ فرود شریک از دامنهٔ مینی‌اپ ساخته می‌شود",
+      _pl.endswith("/p.html?id=propfirm_x&lang=fa") and "/app.html" not in _pl, _pl)
+check("صفحهٔ فرود برای شناسهٔ خالی ساخته نمی‌شود", bot.partner_landing_url("") == "")
+_posts.clear()
+bot.handle_message(msg("/partnerlink propfirm_x"))
+check("/partnerlink لینک صفحهٔ فرود را می‌دهد",
+      bool(_posts) and "p.html?id=propfirm_x" in _posts[-1][1], str(_posts[-1:])[:160])
+check("/partnerlink لینک تلگرام با کد رهگیری را می‌دهد",
+      bool(_posts) and "start=p_propfirm_x" in _posts[-1][1], str(_posts[-1:])[:160])
+_posts.clear()
+bot.handle_message(msg("/partnerlink ghost"))
+check("/partnerlink برای شناسهٔ ناشناس صادق است",
+      bool(_posts) and "partners.json نیست" in _posts[-1][1], str(_posts[-1:])[:120])
+_posts.clear()
+bot.handle_message(msg("/partnerlink", uid=BUYER))
+check("غیرادمین به /partnerlink دسترسی ندارد",
+      bool(_posts) and "فقط ادمین" in _posts[-1][1], str(_posts[-1:])[:100])
+bot.MINI_APP_URL = ""
 bot.ADMIN_USER_ID = ""
 
 print("\n۹٫۹) پاداش عضویت کانال + رهگیری منبع ورود")
@@ -828,6 +852,75 @@ bot.handle_message(msg("/sources"))
 check("/sources خروجی قیف می‌دهد",
       bool(_posts) and "قیف واقعی" in _posts[-1][1], str(_posts[-1:])[:100])
 bot.ADMIN_USER_ID = ""
+bot.PUBLIC_CHANNEL_ID = ""
+
+print("\n۹٫۱۱) کانال انگلیسی + ارسال چندکاناله")
+import re as _re  # noqa: E402
+
+_fa_re = _re.compile(r"[\u0600-\u06FF]")
+_en_edu, _en_kb = bot.build_edu_post_en()
+_en_feat, _en_fkb = bot.build_feature_post_en()
+_en_radar, _ = bot.build_channel_post_en([])
+check("پست آموزشی انگلیسی ساخته می‌شود", "🎓" in _en_edu and len(_en_edu) > 150, _en_edu[:60])
+check("پست آموزشی انگلیسی هیچ حرف فارسی ندارد", not _fa_re.search(_en_edu), _en_edu[:80])
+check("پست قابلیت انگلیسی فارسی ندارد", not _fa_re.search(_en_feat), _en_feat[:80])
+check("رادار انگلیسی هم بدون فارسی است", not _fa_re.search(_en_radar), _en_radar[:80])
+check("دکمهٔ انگلیسی به کد رهگیری خودش لینک دارد",
+      "post_edu_en" in _en_kb["inline_keyboard"][0][0]["url"], str(_en_kb)[:120])
+
+_c1 = bot.next_channel_category("en")
+_c2 = bot.next_channel_category("en")
+check("چرخهٔ انگلیسی مستقل از فارسی است",
+      _c1 == bot.CHANNEL_CYCLE[0] and _c2 == bot.CHANNEL_CYCLE[1], f"{_c1},{_c2}")
+check("شمارندهٔ فارسی با انگلیسی قاطی نمی‌شود",
+      bot.get_setting("channel_cycle_idx_en") == "2", bot.get_setting("channel_cycle_idx_en"))
+
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+bot.PUBLIC_CHANNEL_EN = "@testchannel_en"
+bot.set_setting("last_channel_post_ts", "1")
+bot.set_setting("last_channel_post_ts_en", "1")
+_posts.clear()
+_noon = int(_cal.timegm((_time.gmtime().tm_year, _time.gmtime().tm_mon, _time.gmtime().tm_mday, 12, 0, 0)))
+_sent = bot.post_due_slots(_noon)
+_chan_ids = {c for c, _ in _sent}
+check("در بازهٔ ارسال، هر دو کانال پست می‌گیرند",
+      _chan_ids == {"@testchannel", "@testchannel_en"}, str(_sent))
+_en_posts = [pp for pp in _posts if pp[0] == "@testchannel_en"]
+check("پست کانال انگلیسی به انگلیسی است",
+      bool(_en_posts) and not _fa_re.search(_en_posts[-1][1]), str(_en_posts[-1:])[:100])
+check("زمان آخرین پست هر کانال جدا ذخیره می‌شود",
+      bot.get_setting("last_channel_post_ts") == str(_noon)
+      and bot.get_setting("last_channel_post_ts_en") == str(_noon))
+_posts.clear()
+_sent2 = bot.post_due_slots(_noon + 60)
+check("پست تکراری قبل از ۳ ساعت ارسال نمی‌شود", _sent2 == [], str(_sent2))
+_sent3 = bot.post_due_slots(_noon + 4 * 3600)
+check("بعد از ۳ ساعت دوباره ارسال می‌شود", len(_sent3) == 2, str(_sent3))
+
+_orig_send = bot.tg_send_message
+bot.tg_send_message = lambda *a, **k: {"ok": False, "error_code": 403, "description": "no rights"}
+_idx_en_before = bot.get_setting("channel_cycle_idx_en")
+bot.set_setting("last_channel_post_ts_en", "1")
+bot.set_setting("last_channel_post_ts", str(_noon + 4 * 3600))
+_failed = bot.post_due_slots(_noon + 4 * 3600)
+check("ارسال ناموفق به کانال، پست ثبت‌شده ندارد", _failed == [], str(_failed))
+check("ارسال ناموفق، چرخهٔ محتوا را جلو نمی‌برد",
+      bot.get_setting("channel_cycle_idx_en") == _idx_en_before,
+      f"{_idx_en_before} → {bot.get_setting('channel_cycle_idx_en')}")
+bot.tg_send_message = _orig_send
+bot.set_setting("last_channel_post_ts_en", "1")
+
+bot.ADMIN_USER_ID = str(USER)
+_posts.clear()
+bot.handle_message(msg("/channelen"))
+check("/channelen وضعیت کانال انگلیسی را می‌دهد",
+      bool(_posts) and "کانال انگلیسی" in _posts[-1][1], str(_posts[-1:])[:100])
+bot.ADMIN_USER_ID = ""
+_posts.clear()
+bot.handle_message(msg("/channelen @whatever", uid=BUYER))
+check("غیرادمین نمی‌تواند کانال انگلیسی را عوض کند",
+      not any("@whatever" in pp[1] for pp in _posts), str(_posts[-1:])[:80])
+bot.PUBLIC_CHANNEL_EN = ""
 bot.PUBLIC_CHANNEL_ID = ""
 
 print("\n" + "─" * 46)
