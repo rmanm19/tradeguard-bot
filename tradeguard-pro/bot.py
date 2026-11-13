@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -724,6 +725,16 @@ def init_db() -> None:
         # تنظیمات زمان اجرا (/seturl، /price، /setchannel، ادمین) — چون هر
         # جاب GitHub Actions از صفر شروع می‌شود، این‌ها باید در دیتابیس بمانند
         # تا با ری‌استارت هر ۶ ساعت به حالت اول برنگردند.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS join_rewards (
+                user_id INTEGER PRIMARY KEY,
+                days INTEGER NOT NULL,
+                granted_at INTEGER NOT NULL
+            )
+            """
+        )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -1736,6 +1747,10 @@ def handle_message(msg: dict) -> None:
             )
             return
 
+        # 🔗 رهگیری منبع ورود (کمپین تبلیغ): /start ad_campaign
+        if payload and SOURCE_CODE_RE.match(payload) and not payload.startswith(("ref_", "p_")):
+            record_source(payload)
+
         pro, pro_until = is_user_pro(uid)
 
         # 🛒 دکمهٔ «خرید اشتراک» مینی‌اپ ⇒ مستقیم فاکتور Stars می‌آید
@@ -2000,7 +2015,7 @@ def handle_message(msg: dict) -> None:
         )
         return
 
-    if text.startswith("/check"):
+    if text.strip() == "/check" or text.startswith("/check "):
         lang = get_user_lang(uid, tg_lang)
         pro, exp = is_user_pro(uid)
         fng_val, fng_lbl = fetch_fear_greed()
@@ -2236,6 +2251,38 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/checkjoin"):
+        ok, days, status = claim_join_reward(uid)
+        if ok:
+            tg_send_message(
+                chat_id,
+                f"✅ *عضویتت در کانال تأیید شد* (بررسی واقعی از تلگرام).\n\n"
+                f"🎁 *{fa_num(days)} روز پلن پرو* برایت ثبت شد و به جمع اشتراکت اضافه می‌شود.",
+                reply_markup=main_keyboard(True, get_user_lang(uid, tg_lang), is_admin_user=is_admin(uid)),
+            )
+            return
+        if status == "already":
+            tg_send_message(chat_id, "✅ پاداش عضویت را قبلاً گرفته‌ای — هر کاربر یک بار.", reply_markup=main_keyboard(True, get_user_lang(uid, tg_lang)))
+            return
+        if status == "not_configured":
+            tg_send_message(chat_id, "⚠️ کانال هنوز برای ربات تنظیم نشده است.")
+            return
+        join_kb = {"inline_keyboard": [[{"text": "📣 عضویت در کانال", "url": channel_url() or f"https://t.me/{BOT_USERNAME}"}]]}
+        tg_send_message(
+            chat_id,
+            "🔍 تلگرام می‌گوید هنوز عضو کانال نیستی.\n\n"
+            "عضو شو و بعد همین دستور را دوباره بزن تا پاداش بگیرد.",
+            reply_markup=join_kb,
+        )
+        return
+
+    if text.startswith("/sources"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, sources_text(), reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/partners"):
@@ -2894,9 +2941,130 @@ def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
         lines.append("⭐ نسخهٔ کامل: رادار بی‌سقف + فایل MT5 و TradingView")
     lines.append("")
     lines.append("👇 مینی‌اپ ۶ زبانه، بدون نصب:")
-    kb_rows = [[{"text": "🚀 باز کردن TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=channel"}]]
+    kb_rows = [[{"text": "🚀 باز کردن TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=post_radar"}]]
     kb_rows.append([{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}])
     return "\n".join(lines), {"inline_keyboard": kb_rows}
+
+
+# =====================================================================
+#  پاداش تأییدشدهٔ عضویت کانال + رهگیری منبع ورود (اتربیوشن تبلیغات)
+# =====================================================================
+JOIN_REWARD_DAYS = int(os.environ.get("JOIN_REWARD_DAYS", "7") or "7")
+
+
+def grant_pro_days(user_id: int, days: int) -> int:
+    """افزودن روز پرو بدون ساخت ردیف پرداخت (برای پاداش‌ها).
+
+    برخلاف activate_pro_subscription، اینجا هیچ ردیف payments ساخته نمی‌شود تا
+    آمار درآمد/استارز با هدیه قاطی نشود.
+    """
+    now = int(time.time())
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute("SELECT pro_until FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            conn.execute(
+                "INSERT OR IGNORE INTO users (user_id, username, lang, pro_until, created_at) "
+                "VALUES (?, '', 'fa', 0, ?)",
+                (user_id, now),
+            )
+            base = now
+        else:
+            base = int(row[0] or 0)
+            base = base if base > now else now
+        new_expiry = base + int(days) * 86400
+        conn.execute("UPDATE users SET pro_until = ? WHERE user_id = ?", (new_expiry, user_id))
+    return new_expiry
+
+
+def channel_membership_status(user_id: int) -> str:
+    """وضعیت واقعی عضویت کاربر در کانال از API تلگرام.
+
+    خروجی: member / administrator / creator / left / kicked / not_configured / unknown
+    """
+    if not PUBLIC_CHANNEL_ID:
+        return "not_configured"
+    res = tg_call("getChatMember", {"chat_id": PUBLIC_CHANNEL_ID, "user_id": int(user_id)})
+    if not res.get("ok"):
+        desc = str(res.get("description") or "").lower()
+        if "user not found" in desc or "participant" in desc:
+            return "left"
+        return "unknown"
+    return str((res.get("result") or {}).get("status") or "unknown")
+
+
+def claim_join_reward(user_id: int) -> Tuple[bool, int, str]:
+    """پاداش یک‌بارمصرف عضویت کانال.
+
+    خروجی: (موفق؟، تعداد روز، وضعیت/دلیل)
+    """
+    status = channel_membership_status(user_id)
+    if status in ("left", "kicked", "not_configured", "unknown"):
+        return False, 0, status
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        dup = conn.execute("SELECT days FROM join_rewards WHERE user_id = ?", (user_id,)).fetchone()
+        if dup:
+            return False, int(dup[0] or 0), "already"
+        conn.execute(
+            "INSERT INTO join_rewards (user_id, days, granted_at) VALUES (?, ?, ?)",
+            (int(user_id), JOIN_REWARD_DAYS, int(time.time())),
+        )
+    grant_pro_days(user_id, JOIN_REWARD_DAYS)
+    publish_pro_status([int(user_id)])
+    return True, JOIN_REWARD_DAYS, status
+
+
+SOURCE_CODE_RE = re.compile(r"^[a-z0-9_]{2,24}$")
+
+
+def record_source(code: str) -> int:
+    """شمارش منبع ورود (کمپین/پست/کانال تبلیغ) — کلید پایدار در دیتابیس."""
+    code = str(code or "").strip().lower()
+    if not SOURCE_CODE_RE.match(code):
+        return 0
+    key = f"src_{code}"
+    raw = str(get_setting(key, "0") or "0")
+    n = (int(raw) if raw.isdigit() else 0) + 1
+    set_setting(key, str(n))
+    if not get_setting(f"src_first_{code}"):
+        set_setting(f"src_first_{code}", str(int(time.time())))
+    return n
+
+
+def source_summary(limit: int = 10) -> List[Tuple[str, int]]:
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM settings WHERE key LIKE 'src_%' AND key NOT LIKE 'src_first_%'"
+            ).fetchall()
+    except Exception:
+        return []
+    out: List[Tuple[str, int]] = []
+    for key, value in rows:
+        try:
+            out.append((str(key).replace("src_", ""), int(value or 0)))
+        except (TypeError, ValueError):
+            continue
+    out.sort(key=lambda x: x[1], reverse=True)
+    return out[:limit]
+
+
+def sources_text() -> str:
+    rows = source_summary(15)
+    lines = ["🔗 *منابع ورود کاربران*", ""]
+    if not rows:
+        return "\n".join(lines + [
+            "هنوز هیچ منبعی ثبت نشده است.",
+            "",
+            "برای تبلیغ، لینک را با کد بسازید:",
+            f"`https://t.me/{BOT_USERNAME}?start=ad_telegramads`",
+            "کد فقط حروف کوچک انگلیسی، عدد و `_` (۲ تا ۲۴ کاراکتر).",
+        ])
+    total = sum(n for _, n in rows)
+    for code, n in rows:
+        pct = (n / total * 100) if total else 0
+        lines.append(f"• `{code}` — *{n}* کاربر ({pct:.0f}%)")
+    lines += ["", f"جمع: *{total}* کاربر از لینک‌های رهگیری‌شده", "", "منبع هر لینک را در پست تبلیغ `?start=...` بگذارید."]
+    return "\n".join(lines)
 
 
 def build_admin_report() -> str:
@@ -2943,6 +3111,11 @@ def build_admin_report() -> str:
     except Exception:
         top_txt = "—"
 
+    sources = source_summary(5)
+    sources_line = (
+        "🔗 منابع ورود: " + " · ".join(f"{c}: {n}" for c, n in sources)
+        if sources else "🔗 منابع ورود: —"
+    )
     clicks = partner_click_summary()
     clicks_line = (
         "🤝 کلیک لینک شرکا: " + " · ".join(f"{pid}: {n}" for pid, n in clicks[:5])
@@ -2961,6 +3134,7 @@ def build_admin_report() -> str:
         f"💳 پرداخت موفق: *{stats['paid']:,}* · مجموع استارز: *{stats['stars']:,}*",
         f"🎁 دورهٔ رایگان: *{'روشن' if free_mode_active() else 'خاموش'}*",
         clicks_line,
+        sources_line,
         f"📡 برترین فرصت همین حالا: `{top_txt}`",
         "",
         f"🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
@@ -3147,14 +3321,14 @@ def build_edu_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_edu_idx", len(CHANNEL_EDU_POSTS)) if advance else 0
     title, body = CHANNEL_EDU_POSTS[idx]
     text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE}"
-    return text, _mini_app_kb("edu")
+    return text, _mini_app_kb("post_edu")
 
 
 def build_feature_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_feature_idx", len(CHANNEL_FEATURE_POSTS)) if advance else 0
     title, body = CHANNEL_FEATURE_POSTS[idx]
     text = f"{title}\n\n{body}\n\n👇 داخل تلگرام، بدون نصب:"
-    return text, _mini_app_kb("app")
+    return text, _mini_app_kb("post_feature")
 
 
 def channel_plan(n: int = 6) -> str:

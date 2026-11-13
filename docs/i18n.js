@@ -1957,3 +1957,18 @@ window.TG_I18N = {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA3[k]);
   });
 })();
+
+/* ---------- v12: پاداش تأییدشدهٔ عضویت کانال (۶ زبان) ---------- */
+(function () {
+  var EXTRA4 = {
+    fa: { joinReward: "✅ عضو کانال شدم — ۷ روز پرو بگیر" },
+    en: { joinReward: "✅ I joined — claim 7 days of PRO" },
+    ru: { joinReward: "✅ Я подписался — получить 7 дней PRO" },
+    ar: { joinReward: "✅ انضممت — احصل على 7 أيام PRO" },
+    tr: { joinReward: "✅ Katıldım — 7 gün PRO al" },
+    es: { joinReward: "✅ Ya me uní — reclama 7 días PRO" }
+  };
+  Object.keys(EXTRA4).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA4[k]);
+  });
+})();

@@ -733,6 +733,70 @@ check("گزارش مدیریتی کلیک شرکا را دارد",
       bool(_posts) and "کلیک لینک شرکا" in _posts[-1][1], str(_posts[-1:])[:120])
 bot.ADMIN_USER_ID = ""
 
+print("\n۹٫۹) پاداش عضویت کانال + رهگیری منبع ورود")
+import sqlite3 as _sql2  # noqa: E402
+
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+_pay_before = _sql2.connect(bot.DB_PATH).execute("SELECT COUNT(*) FROM payments").fetchone()[0]
+
+check("گزارش عضویت، وضعیت واقعی از تلگرام می‌گیرد",
+      bot.channel_membership_status(USER) == "administrator", bot.channel_membership_status(USER))
+_ok, _days, _st = bot.claim_join_reward(FRIEND)
+check("پاداش عضویت برای عضو واقعی صادر می‌شود", _ok is True and _days == 7, f"{_ok} {_days} {_st}")
+_pay_after = _sql2.connect(bot.DB_PATH).execute("SELECT COUNT(*) FROM payments").fetchone()[0]
+check("پاداش، ردیف پرداخت جعلی نمی‌سازد (آمار درآمد آلوده نمی‌شود)",
+      _pay_after == _pay_before, f"{_pay_before} → {_pay_after}")
+_pro_until = _sql2.connect(bot.DB_PATH).execute(
+    "SELECT pro_until FROM users WHERE user_id = ?", (FRIEND,)).fetchone()[0]
+check("پرو کاربر تا ۷ روز آینده فعال است",
+      int(_pro_until) > int(_time.time()) + 6 * 86400, str(_pro_until))
+_ok2, _days2, _st2 = bot.claim_join_reward(FRIEND)
+check("پاداش عضویت فقط یک‌بار داده می‌شود", _ok2 is False and _st2 == "already", f"{_ok2} {_st2}")
+
+_orig_member = bot.channel_membership_status
+bot.channel_membership_status = lambda uid: "left"
+_ok3, _days3, _st3 = bot.claim_join_reward(USER)
+check("عضو نبودن، پاداش نمی‌گیرد", _ok3 is False and _st3 == "left", f"{_ok3} {_st3}")
+_posts.clear()
+bot.handle_message(msg("/checkjoin"))
+check("/checkjoin برای غیرعضو پیام صادقانه می‌دهد",
+      bool(_posts) and "هنوز عضو کانال نیستی" in _posts[-1][1], str(_posts[-1:])[:120])
+bot.channel_membership_status = _orig_member
+
+_posts.clear()
+bot.handle_message(msg("/checkjoin"))
+check("/checkjoin برای عضو، پاداش را تأیید می‌کند",
+      bool(_posts) and ("تأیید شد" in _posts[-1][1] or "قبلاً گرفته" in _posts[-1][1]),
+      str(_posts[-1:])[:120])
+
+check("کد منبع معتبر ثبت می‌شود", bot.record_source("ad_telegram") == 1)
+check("کد منبع تکراری شمرده می‌شود", bot.record_source("ad_telegram") == 2)
+check("کد منبع نامعتبر رد می‌شود", bot.record_source("bad code!") == 0)
+_summary = dict(bot.source_summary())
+check("خلاصهٔ منابع کد را نشان می‌دهد", _summary.get("ad_telegram") == 2, str(_summary))
+_posts.clear()
+bot.handle_message(msg("/start ad_instagram", uid=USER))
+check("ورود با لینک کمپین شمارش می‌شود",
+      bot.get_setting("src_ad_instagram") == "1", bot.get_setting("src_ad_instagram"))
+_src_text = bot.sources_text()
+check("متن /sources منابع را با تعداد نشان می‌دهد",
+      "ad_telegram" in _src_text and "ad_instagram" in _src_text, _src_text[:120])
+_posts.clear()
+bot.handle_message(msg("/sources", uid=BUYER))
+check("غیرادمین منابع ورود را نمی‌بیند",
+      "منابع ورود" not in " ".join(pp[1] for pp in _posts), str(_posts[-1:])[:100])
+bot.ADMIN_USER_ID = str(USER)
+_posts.clear()
+bot.handle_message(msg("/sources"))
+check("ادمین فهرست منابع را می‌گیرد", bool(_posts) and "منابع ورود" in _posts[-1][1],
+      str(_posts[-1:])[:100])
+_posts.clear()
+bot.handle_message(msg("/report"))
+check("گزارش مدیریتی خط منابع ورود دارد",
+      bool(_posts) and "منابع ورود" in _posts[-1][1], str(_posts[-1:])[:100])
+bot.ADMIN_USER_ID = ""
+bot.PUBLIC_CHANNEL_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
