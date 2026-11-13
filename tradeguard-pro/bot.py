@@ -709,6 +709,9 @@ def init_db() -> None:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
         if "lang" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN lang TEXT DEFAULT 'fa'")
+        # منبع ورود هر کاربر (کد کمپین/پست/شریک) — برای اندازه‌گیری قیف تبلیغات
+        if "source" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN source TEXT DEFAULT ''")
 
         conn.execute(
             """
@@ -788,6 +791,7 @@ def register_user_and_check_referral(
     username: Optional[str],
     tg_lang_code: Optional[str],
     referred_by: Optional[int] = None,
+    source: str = "",
 ) -> Tuple[bool, Optional[int], int, bool]:
     now = int(time.time())
     init_lang = normalize_lang(tg_lang_code)
@@ -802,10 +806,11 @@ def register_user_and_check_referral(
             if not ref_exists:
                 valid_ref = None
 
+        src = (source or "").strip().lower()[:32]
         conn.execute(
-            "INSERT INTO users (user_id, username, lang, referred_by, referrals_count, free_trial_claimed, pro_until, created_at) "
-            "VALUES (?, ?, ?, ?, 0, 0, 0, ?)",
-            (user_id, username or "", init_lang, valid_ref, now),
+            "INSERT INTO users (user_id, username, lang, referred_by, referrals_count, free_trial_claimed, pro_until, created_at, source) "
+            "VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?)",
+            (user_id, username or "", init_lang, valid_ref, now, src),
         )
 
         if not valid_ref:
@@ -1709,7 +1714,12 @@ def handle_message(msg: dict) -> None:
             except ValueError:
                 ref_id = None
 
-        is_new, valid_ref, ref_count, unlocked_now = register_user_and_check_referral(uid, uname, tg_lang, ref_id)
+        _src = ""
+        if payload and not payload.startswith("ref_"):
+            _src = payload if (SOURCE_CODE_RE.match(payload) or payload.startswith("p_")) else ""
+        is_new, valid_ref, ref_count, unlocked_now = register_user_and_check_referral(
+            uid, uname, tg_lang, ref_id, _src
+        )
         remember_first_user(uid)
         lang = get_user_lang(uid, tg_lang)
 
@@ -2282,7 +2292,7 @@ def handle_message(msg: dict) -> None:
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
-        tg_send_message(chat_id, sources_text(), reply_markup=admin_back_keyboard())
+        tg_send_message(chat_id, funnel_text(), reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/partners"):
@@ -3067,6 +3077,104 @@ def sources_text() -> str:
     return "\n".join(lines)
 
 
+def funnel_rows() -> List[Dict]:
+    """قیف واقعی به تفکیک منبع ورود: ثبت‌نام → عضویت کانال → پرو فعال.
+
+    منبع هر کاربر در لحظهٔ اولین /start ثبت شده است (کد کمپین، پست یا شریک).
+    """
+    now = int(time.time())
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                """
+                SELECT COALESCE(NULLIF(u.source, ''), 'direct') AS src,
+                       COUNT(*) AS users,
+                       SUM(CASE WHEN j.user_id IS NOT NULL THEN 1 ELSE 0 END) AS joined,
+                       SUM(CASE WHEN u.pro_until > ? THEN 1 ELSE 0 END) AS pro
+                FROM users u
+                LEFT JOIN join_rewards j ON j.user_id = u.user_id
+                GROUP BY src
+                ORDER BY users DESC
+                """,
+                (now,),
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("خواندن قیف منبع ورود ناموفق: %s", exc)
+        return []
+    out: List[Dict] = []
+    for src, users, joined, pro in rows:
+        users = int(users or 0)
+        joined = int(joined or 0)
+        pro = int(pro or 0)
+        out.append({
+            "source": str(src),
+            "users": users,
+            "joined": joined,
+            "pro": pro,
+            "join_rate": (joined / users * 100) if users else 0.0,
+        })
+    return out
+
+
+def funnel_text(limit: int = 12) -> str:
+    rows = funnel_rows()
+    lines = ["🔗 *منابع ورود (قیف واقعی)*", ""]
+    if not rows:
+        return "\n".join(lines + ["هنوز کاربری ثبت نشده است."])
+    total = sum(r["users"] for r in rows)
+    joined = sum(r["joined"] for r in rows)
+    pro = sum(r["pro"] for r in rows)
+    for r in rows[:limit]:
+        lines.append(
+            f"• `{r['source']}` — *{fa_num(r['users'])}* کاربر"
+            f" · عضویت کانال: {fa_num(r['joined'])} ({r['join_rate']:.0f}%)"
+            f" · پرو: {fa_num(r['pro'])}"
+        )
+    lines += [
+        "",
+        f"جمع: *{fa_num(total)}* کاربر · *{fa_num(joined)}* عضو کانال"
+        f" ({(joined / total * 100) if total else 0:.0f}%) · *{fa_num(pro)}* پرو",
+        "",
+        "برای هر کمپین یک کد بسازید: `https://t.me/" + BOT_USERNAME + "?start=ad_yourcode`",
+        "پست‌های کانال: `post_radar` / `post_edu` / `post_feature` · شرکا: `p_<id>`",
+    ]
+    return "\n".join(lines)
+
+
+def weekly_growth_report() -> str:
+    """گزارش هفتگی قیف رشد برای ادمین — همهٔ اعداد از دیتابیس، هیچ عدد حدسی."""
+    now = int(time.time())
+    week_ago = now - 7 * 86400
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            new_users = int(conn.execute(
+                "SELECT COUNT(*) FROM users WHERE created_at >= ?", (week_ago,)).fetchone()[0] or 0)
+            total_users = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+            joins_week = int(conn.execute(
+                "SELECT COUNT(*) FROM join_rewards WHERE granted_at >= ?", (week_ago,)).fetchone()[0] or 0)
+            joins_all = int(conn.execute("SELECT COUNT(*) FROM join_rewards").fetchone()[0] or 0)
+            pays_week = int(conn.execute(
+                "SELECT COUNT(*) FROM payments WHERE paid_at >= ?", (week_ago,)).fetchone()[0] or 0)
+    except Exception as exc:
+        logger.warning("گزارش هفتگی خوانده نشد: %s", exc)
+        return "📈 گزارش هفتگی در دسترس نیست (خطای دیتابیس)."
+
+    rows = funnel_rows()
+    best = rows[0] if rows else None
+    lines = [
+        "📈 *گزارش هفتگی رشد TradeGuard*",
+        "",
+        f"👥 کاربران کل: *{total_users:,}* · این هفته: *+{new_users:,}*",
+        f"🤝 عضویت کانال: *{joins_all:,}* کل · این هفته: *+{joins_week:,}*",
+        f"💳 پرداخت این هفته: *{pays_week:,}*",
+    ]
+    if best:
+        lines.append(f"🏆 بهترین منبع هفته: `{best['source']}` ({best['users']} کاربر، "
+                     f"عضویت {best['join_rate']:.0f}%)")
+    lines += ["", "👇 قیف کامل با `/sources`، گزارش مالی با `/report`."]
+    return "\n".join(lines)
+
+
 def build_admin_report() -> str:
     """گزارش مدیریتی با اعداد واقعی (بدون هیچ عدد ساختگی).
 
@@ -3140,6 +3248,23 @@ def build_admin_report() -> str:
         f"🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
     ]
     return "\n".join(lines)
+
+
+def weekly_digest_loop() -> None:
+    """دوشنبه‌ها ۰۸:۰۰ UTC گزارش هفتگی رشد را برای ادمین می‌فرستد (یک‌بار در هفته)."""
+    while True:
+        try:
+            admin = str(ADMIN_USER_ID or "").strip()
+            gm = time.gmtime()
+            week_key = time.strftime("%Y-W%W", gm)
+            if (admin.isdigit() and gm.tm_wday == 0 and gm.tm_hour >= 8
+                    and get_setting("last_weekly_digest", "") != week_key):
+                if tg_send_message(int(admin), weekly_growth_report()).get("ok"):
+                    set_setting("last_weekly_digest", week_key)
+                    logger.info("📈 گزارش هفتگی رشد ارسال شد.")
+        except Exception as exc:
+            logger.warning("گزارش هفتگی ارسال نشد: %s", exc)
+        time.sleep(1800)
 
 
 def admin_digest_loop() -> None:
@@ -3607,6 +3732,7 @@ def main() -> None:
     if os.environ.get("AUTO_CHANNEL_PROFILE", "1") != "0":
         threading.Thread(target=auto_channel_profile_once, daemon=True).start()
     threading.Thread(target=admin_digest_loop, daemon=True).start()
+    threading.Thread(target=weekly_digest_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=8)
     offset = 0
 
