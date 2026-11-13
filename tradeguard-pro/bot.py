@@ -2235,15 +2235,31 @@ def handle_message(msg: dict) -> None:
                 return
             ok_en, detail = validate_target(PUBLIC_CHANNEL_EN)
             mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_EN})
+            marks = channel_profile_marks(PUBLIC_CHANNEL_EN)
             tg_send_message(
                 chat_id,
                 f"🌍 *کانال انگلیسی*: `{PUBLIC_CHANNEL_EN}`\n"
                 f"وضعیت: {'✅ تأییدشده — ' + str(detail) if ok_en else '❌ ' + str(detail)}\n"
                 f"اعضا: *{fa_num(mc.get('result')) if mc.get('ok') else '—'}*\n"
-                f"⏭ پست بعدی: {next_post_eta_en()}",
+                f"پروفایل (توضیح · عکس · پین): {marks}\n"
+                f"⏭ پست بعدی: {next_post_eta_en()}\n\n"
+                "`/channelen setup` — تکمیل خودکار پروفایل و پین خوش‌آمد · `/channelen off` — خاموش",
                 reply_markup=admin_back_keyboard(),
             )
             return
+        if arg.lower() in ("setup", "complete", "پروفایل", "کامل"):
+            if not PUBLIC_CHANNEL_EN:
+                tg_send_message(chat_id, "⚠️ اول کانال انگلیسی را تنظیم کنید: `/channelen @your_en_channel`")
+                return
+            done = complete_en_channel_profile()
+            tg_send_message(
+                chat_id,
+                ("🎉 " + "\n".join(done) if done else "ℹ️ پروفایل کانال انگلیسی از قبل کامل بود.")
+                + f"\n\nپروفایل فعلی: {channel_profile_marks(PUBLIC_CHANNEL_EN)}",
+                reply_markup=admin_back_keyboard(),
+            )
+            return
+
         if arg.lower() in ("off", "none", "خاموش", "-"):
             PUBLIC_CHANNEL_EN = ""
             set_setting("PUBLIC_CHANNEL_EN_ID", "")
@@ -2257,7 +2273,8 @@ def handle_message(msg: dict) -> None:
             tg_send_message(
                 chat_id,
                 f"✅ کانال انگلیسی ثبت شد: `{val}` ({detail})\n\n"
-                "محتوا: ۸ درس + ۶ معرفی قابلیت + رادار زنده، هر ۳ ساعت در بازهٔ ۰۴–۱۹ UTC.",
+                "محتوا: ۸ درس + ۶ معرفی قابلیت + رادار زنده، هر ۳ ساعت در بازهٔ ۰۴–۱۹ UTC.\n\n"
+                "قدم بعدی: `/channelen setup` — توضیحات، عکس و پیام پین را خودش کامل می‌کند.",
             )
         else:
             tg_send_message(chat_id, f"❌ این کانال تأیید نشد: {detail}\n\nربات باید در کانال **ادمین** باشد.")
@@ -2864,6 +2881,78 @@ def channel_description_text() -> str:
     if len(text) > CHANNEL_DESC_LIMIT:
         text = text[: CHANNEL_DESC_LIMIT - len(tail)].rstrip() + tail
     return text
+
+
+CHANNEL_DESCRIPTION_EN = (
+    "📡 Live funding & Open Interest radar for prop traders.\n"
+    "🎁 Growth phase: full radar, alerts, AI copilot and MT5/TV files are free.\n"
+    "🧠 Daily education · 🌍 6-language mini app, no install"
+)
+
+
+def channel_description_text_en() -> str:
+    """توضیحات انگلیسی کانال (همیشه ≤۲۵۵ کاراکتر)."""
+    bot_user = str(BOT_USERNAME or "TradeGuard1_bot")
+    tail = f"\n👇 Start: t.me/{bot_user}?start=channel_en"
+    text = CHANNEL_DESCRIPTION_EN + tail
+    if len(text) > CHANNEL_DESC_LIMIT:
+        text = text[: CHANNEL_DESC_LIMIT - len(tail)].rstrip() + tail
+    return text
+
+
+def apply_channel_description_en(text: Optional[str] = None) -> dict:
+    """توضیحات کانال انگلیسی را ست می‌کند."""
+    if not PUBLIC_CHANNEL_EN:
+        return {"ok": False, "description": "English channel is not set"}
+    payload = {"chat_id": PUBLIC_CHANNEL_EN,
+               "description": (text or channel_description_text_en())[:CHANNEL_DESC_LIMIT]}
+    return tg_call("setChatDescription", payload)
+
+
+def channel_profile_marks(channel_id: str) -> str:
+    """خلاصهٔ تک‌خطی بودن/نبودن پروفایل یک کانال (توضیح/عکس/پین)."""
+    info = tg_call("getChat", {"chat_id": channel_id})
+    if not info.get("ok"):
+        return "—"
+    chat = info.get("result") or {}
+    has_desc = len(str(chat.get("description") or "")) >= 40
+    return (f"📝 {'✅' if has_desc else '❌'} · 🖼 {'✅' if chat.get('photo') else '❌'}"
+            f" · 📌 {'✅' if chat.get('pinned_message') else '❌'}")
+
+
+def complete_en_channel_profile() -> List[str]:
+    """پروفایل کانال انگلیسی را کامل می‌کند: توضیحات، عکس، پیام خوش‌آمد پین‌شده.
+
+    فقط چیزهای خالی را پر می‌کند تا چیزی که خودت دستی ست کرده‌ای پاک نشود.
+    """
+    done: List[str] = []
+    if not PUBLIC_CHANNEL_EN:
+        return done
+    info = tg_call("getChat", {"chat_id": PUBLIC_CHANNEL_EN})
+    chat = (info.get("result") or {}) if info.get("ok") else {}
+    if len(str(chat.get("description") or "")) < 40:
+        if apply_channel_description_en().get("ok"):
+            done.append("📝 Description set")
+    if not chat.get("photo"):
+        if tg_set_chat_photo(PUBLIC_CHANNEL_EN, CHANNEL_AVATAR_PATH).get("ok"):
+            done.append("🖼 Profile photo set")
+    if not chat.get("pinned_message"):
+        pr = tg_send_message(
+            PUBLIC_CHANNEL_EN,
+            "👋 *Welcome to TradeGuard*\n\n"
+            "Live funding and Open Interest radar, risk-management education, "
+            "and the tools behind them.\n"
+            "🎁 Everything is free during the growth phase — full radar, alerts, AI copilot, "
+            "MT5 and TradingView files.\n\n"
+            "👇 Open the 6-language mini app (nothing to install):",
+            reply_markup={"inline_keyboard": [[{"text": "🚀 Open the mini app",
+                                                "url": f"https://t.me/{BOT_USERNAME}?start=channel_en"}]]},
+        )
+        mid = ((pr.get("result") or {}).get("message_id")) if pr.get("ok") else None
+        if mid and tg_call("pinChatMessage", {"chat_id": PUBLIC_CHANNEL_EN, "message_id": mid,
+                                              "disable_notification": True}).get("ok"):
+            done.append("📌 Welcome message pinned")
+    return done
 
 
 def tg_set_chat_photo(chat_id: int | str, file_path: Path) -> dict:

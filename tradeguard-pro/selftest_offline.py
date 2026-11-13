@@ -915,9 +915,35 @@ _posts.clear()
 bot.handle_message(msg("/channelen"))
 check("/channelen وضعیت کانال انگلیسی را می‌دهد",
       bool(_posts) and "کانال انگلیسی" in _posts[-1][1], str(_posts[-1:])[:100])
-bot.ADMIN_USER_ID = ""
+bot.PUBLIC_CHANNEL_EN = "@testchannel_en"
+CHAT_STATE.update({"pinned_message": None, "description": "", "photo": None})
+_uploads = []
+_orig_photo = bot.tg_set_chat_photo
+bot.tg_set_chat_photo = lambda cid, path: (_uploads.append(cid) or {"ok": True})
 _posts.clear()
-bot.handle_message(msg("/channelen @whatever", uid=BUYER))
+bot.handle_message(msg("/channelen setup"))
+_pin_posts = [pp for pp in _posts if pp[0] == "@testchannel_en"]
+check("setup کانال انگلیسی: عکس پروفایل ست می‌شود", _uploads == ["@testchannel_en"], str(_uploads))
+check("setup کانال انگلیسی: توضیحات و پین انجام می‌شود",
+      bool(_posts) and "Description set" in _posts[-1][1] and "pinned" in _posts[-1][1],
+      str(_posts[-1:])[:160])
+check("پیام پین کانال انگلیسی، انگلیسی است",
+      bool(_pin_posts) and not _fa_re.search(_pin_posts[-1][1]), str(_pin_posts[-1:])[:120])
+check("توضیحات انگلیسی کوتاه‌تر از سقف ۲۵۵ کاراکتر است",
+      len(bot.channel_description_text_en()) <= bot.CHANNEL_DESC_LIMIT,
+      str(len(bot.channel_description_text_en())))
+check("توضیحات انگلیسی هیچ حرف فارسی ندارد",
+      not _fa_re.search(bot.channel_description_text_en()), bot.channel_description_text_en()[:60])
+CHAT_STATE.update({"pinned_message": {"message_id": 42}, "description": bot.channel_description_text_en(),
+                   "photo": {"big": 1}})
+_posts.clear()
+_uploads.clear()
+bot.handle_message(msg("/channelen setup"))
+check("setup دوباره، پروفایل کامل را دست نمی‌زند",
+      _uploads == [] and bool(_posts) and "از قبل کامل" in _posts[-1][1], str(_posts[-1:])[:120])
+bot.tg_set_chat_photo = _orig_photo
+_posts.clear()
+bot.handle_message(msg("/channelen", uid=BUYER))
 check("غیرادمین نمی‌تواند کانال انگلیسی را عوض کند",
       not any("@whatever" in pp[1] for pp in _posts), str(_posts[-1:])[:80])
 bot.PUBLIC_CHANNEL_EN = ""
