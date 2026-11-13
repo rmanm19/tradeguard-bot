@@ -797,6 +797,39 @@ check("گزارش مدیریتی خط منابع ورود دارد",
 bot.ADMIN_USER_ID = ""
 bot.PUBLIC_CHANNEL_ID = ""
 
+print("\n۹٫۱۰) قیف منبع ورود + گزارش هفتگی")
+NEW1, NEW2 = 909100111, 909100222
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+bot.register_user_and_check_referral(NEW1, "cmp1", "fa", None, "ad_campaign1")
+bot.register_user_and_check_referral(NEW2, "cmp2", "fa", None, "ad_campaign1")
+_src_row = _sql2.connect(bot.DB_PATH).execute(
+    "SELECT source FROM users WHERE user_id = ?", (NEW1,)).fetchone()
+check("منبع ورود کاربر در دیتابیس ذخیره می‌شود", _src_row and _src_row[0] == "ad_campaign1", str(_src_row))
+_rows = {r["source"]: r for r in bot.funnel_rows()}
+check("قیف منبع را با تعداد کاربر نشان می‌دهد",
+      _rows.get("ad_campaign1", {}).get("users") == 2, str(_rows.get("ad_campaign1")))
+check("قیف ورودی‌های بدون منبع را direct می‌کند", "direct" in _rows, str(list(_rows)[:5]))
+bot.claim_join_reward(NEW1)
+_rows = {r["source"]: r for r in bot.funnel_rows()}
+check("عضویت کانال در قیف همان منبع شمرده می‌شود",
+      _rows["ad_campaign1"]["joined"] == 1, str(_rows["ad_campaign1"]))
+check("نرخ تبدیل عضویت حساب می‌شود",
+      abs(_rows["ad_campaign1"]["join_rate"] - 50.0) < 0.01, str(_rows["ad_campaign1"]))
+_ftxt = bot.funnel_text()
+check("متن قیف درصد تبدیل را نشان می‌دهد", "ad_campaign1" in _ftxt and "%" in _ftxt, _ftxt[:140])
+check("متن قیف جمع کل را می‌دهد", "جمع:" in _ftxt, _ftxt[-160:])
+_weekly = bot.weekly_growth_report()
+check("گزارش هفتگی ساخته می‌شود", "گزارش هفتگی رشد" in _weekly, _weekly[:80])
+check("گزارش هفتگی عدد عضویت کانال دارد", "عضویت کانال" in _weekly, _weekly[:160])
+check("گزارش هفتگی مقدار None ندارد", "None" not in _weekly, _weekly[:160])
+bot.ADMIN_USER_ID = str(USER)
+_posts.clear()
+bot.handle_message(msg("/sources"))
+check("/sources خروجی قیف می‌دهد",
+      bool(_posts) and "قیف واقعی" in _posts[-1][1], str(_posts[-1:])[:100])
+bot.ADMIN_USER_ID = ""
+bot.PUBLIC_CHANNEL_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
