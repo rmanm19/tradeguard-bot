@@ -51,6 +51,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 # ── جایگزینی شبکه ────────────────────────────────────────────────
 SENT = []          # (api_method, payload)
+# وضعیت کانال جعلی؛ تست‌ها می‌توانند آن را عوض کنند (پین/توضیحات/عکس)
+CHAT_STATE = {"pinned_message": {"message_id": 42}, "description": "", "photo": None}
 DOWNLOADS = []     # (chat_id, filename)
 
 
@@ -63,8 +65,14 @@ def fake_http_json(url, method="GET", payload=None, headers=None, timeout=12.0):
         if api == "getUpdates":
             return {"ok": True, "result": []}
         if api == "getChat":
-            return {"ok": True, "result": {"id": -100123, "type": "channel", "title": "Test",
-                                           "pinned_message": {"message_id": 42}}}
+            chat = {"id": -100123, "type": "channel", "title": "Test", "username": "testchannel"}
+            if CHAT_STATE.get("pinned_message"):
+                chat["pinned_message"] = CHAT_STATE["pinned_message"]
+            if CHAT_STATE.get("description"):
+                chat["description"] = CHAT_STATE["description"]
+            if CHAT_STATE.get("photo"):
+                chat["photo"] = CHAT_STATE["photo"]
+            return {"ok": True, "result": chat}
         if api == "getChatMemberCount":
             return {"ok": True, "result": 1234}
         if api == "getChatMember":
@@ -590,6 +598,75 @@ check("/channelpost feature پست معرفی قابلیت می‌فرستد",
       str(_chan_last[-1:])[:140])
 bot.PUBLIC_CHANNEL_ID = ""
 bot.ADMIN_USER_ID = ""
+
+print("\n۹٫۶) تکمیل پروفایل کانال")
+_desc = bot.channel_description_text()
+check("توضیحات کانال از سقف ۲۵۵ کاراکتر تلگرام رد نمی‌شود", len(_desc) <= 255, str(len(_desc)))
+check("توضیحات کانال، لینک مینی‌اپ دارد",
+      "t.me/" in _desc and "?start=channel" in _desc and bot.BOT_USERNAME in _desc, _desc[-70:])
+check("توضیحات، ارزش پیشنهادی دارد", "رادار" in _desc and "آموزش" in _desc, _desc[:80])
+
+bot.ADMIN_USER_ID = str(USER)
+bot.PUBLIC_CHANNEL_ID = "@testchannel"
+CHAT_STATE.update({"pinned_message": None, "description": "", "photo": None})  # کانال ناقص
+UPLOADS = []
+bot.tg_set_chat_photo = lambda chat_id, path: (UPLOADS.append((chat_id, str(path))) or {"ok": True})
+
+SENT.clear()
+_posts.clear()
+bot.handle_message(msg("/channelinfo"))
+_info = _posts[-1][1] if _posts else ""
+check("/channelinfo چک‌لیست پروفایل می‌دهد", "تکمیل پروفایل کانال" in _info, _info[:80])
+check("چک‌لیست عکس و توضیحات و پین را جدا نشان می‌دهد",
+      "عکس پروفایل" in _info and "توضیحات" in _info and "پین‌شده" in _info, _info[:200])
+check("چک‌لیست کارهای باقی‌مانده را می‌گوید", "باقی‌مانده" in _info or "کامل است" in _info, _info[-200:])
+
+SENT.clear()
+bot.handle_message(msg("/channeldesc"))
+_setdesc = [pl for api, pl in SENT if api == "setChatDescription"]
+check("/channeldesc توضیحات را روی کانال ست می‌کند", bool(_setdesc), str([a for a, _ in SENT]))
+check("متن ارسالی همان متن آماده است",
+      bool(_setdesc) and _setdesc[0]["description"] == _desc, str(_setdesc[:1])[:120])
+
+SENT.clear()
+bot.handle_message(msg("/channeldesc کانال تستی تریدگارد — رادار و آموزش"))
+_setdesc = [pl for api, pl in SENT if api == "setChatDescription"]
+check("/channeldesc متن دلخواه را می‌پذیرد",
+      bool(_setdesc) and "کانال تستی" in _setdesc[0]["description"], str(_setdesc[:1])[:120])
+
+SENT.clear()
+bot.handle_message(msg("/channeltitle TradeGuard | رادار"))
+_title = [pl for api, pl in SENT if api == "setChatTitle"]
+check("/channeltitle عنوان را ست می‌کند", bool(_title) and "TradeGuard" in _title[0]["title"],
+      str([a for a, _ in SENT]))
+
+UPLOADS.clear()
+_posts.clear()
+bot.handle_message(msg("/channelphoto"))
+check("/channelphoto فایل لوگو را آپلود می‌کند", len(UPLOADS) == 1, str(UPLOADS))
+check("مسیر لوگو واقعاً وجود دارد", bot.CHANNEL_AVATAR_PATH.exists(), str(bot.CHANNEL_AVATAR_PATH))
+
+SENT.clear()
+UPLOADS.clear()
+_posts.clear()
+bot.handle_message(msg("/channelcomplete"))
+_api_calls = [a for a, _ in SENT]
+check("/channelcomplete توضیحات را ست می‌کند", "setChatDescription" in _api_calls, str(_api_calls))
+check("/channelcomplete عکس می‌گذارد", len(UPLOADS) == 1, str(UPLOADS))
+check("/channelcomplete پیام خوش‌آمد را پین می‌کند",
+      "pinChatMessage" in _api_calls and any(pp[0] == "@testchannel" for pp in _posts), str(_api_calls))
+
+SENT.clear()
+UPLOADS.clear()
+_posts.clear()
+for _cmd in ("/channeldesc", "/channelphoto", "/channelcomplete", "/channeltitle", "/channelinfo"):
+    bot.handle_message(msg(_cmd, uid=BUYER))
+check("غیرادمین هیچ‌کدام از دستورهای پروفایل را اجرا نمی‌کند",
+      not SENT and not UPLOADS, f"{SENT[:2]} | {UPLOADS}")
+
+bot.PUBLIC_CHANNEL_ID = ""
+bot.ADMIN_USER_ID = ""
+CHAT_STATE.update({"pinned_message": {"message_id": 42}, "description": "", "photo": None})
 
 print("\n" + "─" * 46)
 if FAILS:
