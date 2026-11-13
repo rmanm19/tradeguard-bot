@@ -138,6 +138,19 @@ check("admin.js پیش از بسته‌شدن body بارگذاری می‌شو�
 check("HTML خام هیچ بخش ادمینی ندارد (کاملاً داینامیک)",
   !/data-pane="admin"/.test(html) && !/adm-banner/.test(html));
 
+/* ── ۷) صفحهٔ فرود اختصاصی هر شریک (p.html) ──────────────────── */
+const landing = read("p.html");
+check("صفحهٔ فرود شریک وجود دارد و خودبسنده است",
+  landing.includes("TradeGuard") && !/<script[^>]+src=/.test(landing));
+check("صفحهٔ فرود لینک رهگیری p_<id> می‌سازد", landing.includes('"?start=p_"'));
+check("صفحهٔ فرود از partners.json می‌خواند", /fetch\("partners\.json"/.test(landing));
+check("صفحهٔ فرود با شناسهٔ ناشناس شریک جعلی نمی‌سازد",
+  /showFallback/.test(landing) && /notReady/.test(landing));
+check("صفحهٔ فرود ایندکس نمی‌شود و افشای کمیسیون دارد",
+  /name="robots" content="noindex/.test(landing) && /کمیسیون/.test(landing));
+check("بنرهای تبلیغاتی ساخته شده‌اند",
+  ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
+
 console.log("\n" + "─".repeat(48));
 if (fails) {
   console.log(`❌ ${fails} تست شکست خورد`);
