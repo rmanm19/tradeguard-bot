@@ -287,6 +287,43 @@ check("موتور هشدار داخل اپ واقعی است و نمادها ا�
 check("هشدار داخل اپ فقط با دادهٔ زنده شلیک می‌شود (مقدار خالی = بدون هشدار)",
   /caCurrentValue/.test(appJs) && /== null[\s\S]{0,80}return/.test(appJs));
 
+/* ── ۱۱) رشد از مسیر جست‌وجو: صفحهٔ نمادها، sitemap، robots ───────── */
+const siteBase = "https://rmanm19.github.io/tradeguard-bot";
+const sitemap = fs.existsSync(path.join(ROOT, "sitemap.xml")) ? read("sitemap.xml") : "";
+const robots = fs.existsSync(path.join(ROOT, "robots.txt")) ? read("robots.txt") : "";
+const symFiles = fs.existsSync(path.join(ROOT, "s")) ? fs.readdirSync(path.join(ROOT, "s")).filter((f) => f.endsWith(".html")) : [];
+check("robots.txt وجود دارد و به sitemap اشاره می‌کند",
+  /Sitemap:\s*https?:\/\//.test(robots) && /Allow:\s*\//.test(robots));
+check("sitemap شامل صفحهٔ اصلی، اپ، B2B، API و صفحهٔ نمادهاست",
+  /<loc>[^<]*tradeguard-bot\/<\/loc>/.test(sitemap) && /app\.html<\/loc>/.test(sitemap)
+  && /business\.html<\/loc>/.test(sitemap) && /api\/index\.html<\/loc>/.test(sitemap)
+  && /\/s\/[a-z0-9_-]+\.html<\/loc>/.test(sitemap), String(sitemap.length));
+check("برای نمادهای اصلی صفحهٔ عمومی ساخته شده", ["btc.html", "eth.html", "sol.html"].every((f) => symFiles.includes(f)),
+  symFiles.join(","));
+const btcPage = symFiles.includes("btc.html") ? read(path.join("s", "btc.html")) : "";
+check("صفحهٔ نماد، عدد همان فید را نشان می‌دهد (نه عدد ثابت هاردکد)",
+  /فاندینگ \(هر ۸ ساعت\)<\/th><td>[+-]\d+\.\d{4}٪/.test(btcPage)
+  && /آخرین به‌روزرسانی داده/.test(btcPage));
+check("صفحهٔ نماد canonical/OG/JSON-LD دارد",
+  btcPage.includes(`<link rel="canonical" href="${siteBase}/s/btc.html"`)
+  && /og:title/.test(btcPage) && /application\/ld\+json/.test(btcPage));
+check("صفحهٔ نماد CTA کانال و ربات دارد و «سیگنال نیست» را می‌گوید",
+  btcPage.includes("https://t.me/tradeguard1") && /start=sym_btc/.test(btcPage)
+  && /سیگنال/.test(btcPage) && /وعدهٔ سود/.test(btcPage));
+const scriptTags = (btcPage.match(/<script/gi) || []).length;
+check("صفحهٔ نماد فقط یک تگ اسکریپت دارد (JSON-LD) و اسکریپت اجرایی ندارد",
+  scriptTags === 1 && /application\/ld\+json/.test(btcPage), String(scriptTags));
+check("هیچ صفحهٔ نمادی دادهٔ کاربر یا آیدی عددی ندارد",
+  symFiles.every((f) => !/tg_id|user_id|-100\d{6,}/.test(read(path.join("s", f)))));
+const idxHtml = read("index.html");
+check("صفحهٔ اصلی canonical + OG + JSON-LD دارد",
+  idxHtml.includes(`<link rel="canonical" href="${siteBase}/"`)
+  && /og:image/.test(idxHtml) && /"@type":"WebApplication"/.test(idxHtml));
+check("فوتر صفحهٔ اصلی به صفحهٔ زندهٔ نمادها لینک می‌دهد",
+  /href="s\/btc\.html"/.test(idxHtml) && /href="sitemap\.xml"/.test(idxHtml));
+check("اپ هم canonical دارد (جلوگیری از ایندکس تکراری با پارامترها)",
+  read("app.html").includes(`<link rel="canonical" href="${siteBase}/app.html"`));
+
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
 

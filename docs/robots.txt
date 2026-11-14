@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://rmanm19.github.io/tradeguard-bot/sitemap.xml
