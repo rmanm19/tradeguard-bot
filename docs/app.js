@@ -584,6 +584,9 @@
         marketState = data;
         renderRadar();
         renderLocalizedAlerts();
+        caFillSymbols();
+        renderCustomAlerts();
+        evaluateInAppAlerts();
         // کش برای رندر آنی در اجرای بعدی (اپ باید فوری باز شود، حتی قبل از شبکه)
         try {
           localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
@@ -943,45 +946,280 @@
   });
 
   /* ---------- Custom Alert Builder ---------- */
-  let customAlerts = [];
-  try {
-    customAlerts = JSON.parse(localStorage.getItem("tg_custom_alerts") || "[]");
-  } catch (_) {
-    customAlerts = [];
+  /* ── هشدارهای شخصی (واقعی، نه تزئینی) ────────────────────────────
+     قاعده: { sym, metric: funding|price, op: above|below, val }
+     بررسی با هر بار رسیدن دادهٔ تازهٔ رادار انجام می‌شود؛ اگر شرط برقرار
+     شد، در همین صفحه ثبت می‌شود (با بازهٔ خنک‌شدن) و برای پیام تلگرامی
+     یک دستور آمادهٔ /alert برای کپی ساخته می‌شود.
+     هیچ هشداری بدون دادهٔ تازه ساخته نمی‌شود. */
+  function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(String(text)).catch(() => {});
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  const CA_KEY = "tg_alerts_v2";
+  const CA_LOG_KEY = "tg_alert_log_v1";
+  const CA_MAX = 5;
+  const CA_COOLDOWN_MS = 3 * 3600 * 1000;
+  const CA_SYMS_FALLBACK = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI", "PEPE", "WIF"];
+
+  function caReadRules() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(CA_KEY) || "[]");
+      return Array.isArray(arr) ? arr.filter((r) => r && r.id && r.sym) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function caWriteRules(list) {
+    try {
+      localStorage.setItem(CA_KEY, JSON.stringify(list.slice(0, CA_MAX)));
+    } catch (_) {}
+  }
+
+  function caReadLog() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(CA_LOG_KEY) || "[]");
+      return Array.isArray(arr) ? arr.slice(0, 20) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function caWriteLog(list) {
+    try {
+      localStorage.setItem(CA_LOG_KEY, JSON.stringify(list.slice(0, 20)));
+    } catch (_) {}
+  }
+
+  /* نمادها از خودِ رادار می‌آیند تا هشدار روی چیزی ساخته نشود که داده ندارد */
+  function caSymbols() {
+    const seen = {};
+    const out = [];
+    const rows = []
+      .concat((marketState && marketState.top_extremes) || [])
+      .concat((marketState && marketState.majors) || []);
+    rows.forEach((r) => {
+      const sym = r && r.sym ? String(r.sym).toUpperCase() : "";
+      if (sym && !seen[sym]) {
+        seen[sym] = 1;
+        out.push(sym);
+      }
+    });
+    return out.length ? out : CA_SYMS_FALLBACK.slice();
+  }
+
+  function caFillSymbols() {
+    const sel = $("#caSym");
+    if (!sel) return;
+    const syms = caSymbols();
+    const prev = sel.value;
+    sel.innerHTML = syms.map((x) => '<option value="' + x + '">$' + x + "</option>").join("");
+    if (prev && syms.indexOf(prev) >= 0) sel.value = prev;
+  }
+
+  /* مقدار فعلی یک نماد از دادهٔ رادار (null یعنی داده نداریم) */
+  function caCurrentValue(sym, metric) {
+    const rows = []
+      .concat((marketState && marketState.top_extremes) || [])
+      .concat((marketState && marketState.majors) || []);
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      if (String(r.sym || "").toUpperCase() !== String(sym).toUpperCase()) continue;
+      if (metric === "price") {
+        const p = Number(r.price);
+        return p > 0 ? p : null;
+      }
+      const f = Number(r.rate_8h);
+      return isFinite(f) ? f : null;
+    }
+    return null;
+  }
+
+  function caFmt(metric, v) {
+    if (v === null || v === undefined || !isFinite(Number(v))) return "—";
+    const n = Number(v);
+    if (metric === "price") {
+      if (Math.abs(n) >= 1000) return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+      return "$" + (Math.abs(n) >= 1 ? n.toFixed(2) : n.toPrecision(4));
+    }
+    return (n > 0 ? "+" : "") + n.toFixed(3) + "%";
+  }
+
+  function caRuleText(rule) {
+    const d = t();
+    const metric = rule.metric === "price" ? d.caMetricPrice : d.caMetricFunding;
+    const op = rule.op === "above" ? d.caOpAbove : d.caOpBelow;
+    return "$" + rule.sym + " · " + metric + " " + op + " " + caFmt(rule.metric, rule.val);
+  }
+
+  function caBotCommand(rule) {
+    const metric = rule.metric === "price" ? "price" : "funding";
+    const op = rule.op === "above" ? "above" : "below";
+    return "/alert " + rule.sym + " " + metric + " " + op + " " + Number(rule.val);
   }
 
   function renderCustomAlerts() {
     const box = $("#caList");
     if (!box) return;
+    const d = t();
+    const rules = caReadRules();
     box.innerHTML = "";
-    customAlerts.forEach((al, idx) => {
+    if (!rules.length) {
+      const empty = document.createElement("div");
+      empty.className = "ca-empty";
+      empty.textContent = d.caEmpty || "";
+      box.appendChild(empty);
+    }
+    rules.forEach((rule) => {
+      const now = caCurrentValue(rule.sym, rule.metric);
+      const hit = now !== null && (rule.op === "above" ? now > Number(rule.val) : now < Number(rule.val));
       const chip = document.createElement("div");
-      chip.className = "ca-chip";
-      chip.innerHTML = `<span>🔔 <b>$${al.sym}</b> ➜ ${al.val}</span><button class="ca-del" type="button">✕</button>`;
-      $(".ca-del", chip).addEventListener("click", () => {
-        customAlerts.splice(idx, 1);
-        try {
-          localStorage.setItem("tg_custom_alerts", JSON.stringify(customAlerts));
-        } catch (_) {}
+      chip.className = "ca-chip" + (hit ? " is-close" : "");
+      const cells = document.createElement("div");
+      cells.className = "ca-cells";
+      const main = document.createElement("span");
+      main.innerHTML = "🔔 " + caRuleText(rule);
+      const cur = document.createElement("small");
+      cur.textContent =
+        (d.caCurrent || "Now") + ": " + caFmt(rule.metric, now) + (hit ? " ✅" : "");
+      cells.append(main, cur);
+      const copy = document.createElement("button");
+      copy.className = "ca-act";
+      copy.type = "button";
+      copy.textContent = d.caCopy || "Bot";
+      copy.title = caBotCommand(rule);
+      copy.addEventListener("click", () => {
+        copyText(caBotCommand(rule));
+        appToast(d.caCopied || "Copied");
+      });
+      const del = document.createElement("button");
+      del.className = "ca-del";
+      del.type = "button";
+      del.textContent = "✕";
+      del.addEventListener("click", () => {
+        caWriteRules(caReadRules().filter((x) => x.id !== rule.id));
         renderCustomAlerts();
       });
+      chip.append(cells, copy, del);
       box.appendChild(chip);
     });
+    const note = $("#caNote");
+    if (note) note.textContent = d.caNote || "";
+    renderCaFired();
   }
 
-  $("#caAddBtn")?.addEventListener("click", () => {
-    const sym = $("#caSym")?.value || "BTC";
-    const valEl = $("#caVal");
-    const val = (valEl?.value || "").trim() || (sym === "BTC" ? "$82,000" : "+0.15%");
+  function renderCaFired() {
+    const box = $("#caFired");
+    const list = $("#caFiredList");
+    if (!box || !list) return;
+    const d = t();
+    const log = caReadLog();
+    if (!log.length) {
+      box.classList.add("hidden");
+      list.innerHTML = "";
+      return;
+    }
+    box.classList.remove("hidden");
+    list.innerHTML = log
+      .slice(0, 6)
+      .map((ev) => {
+        const when = new Date(Number(ev.at) || Date.now());
+        const hh = String(when.getHours()).padStart(2, "0");
+        const mm = String(when.getMinutes()).padStart(2, "0");
+        return (
+          '<div class="ca-fired-row"><span>' +
+          tpl(d.caFiredRow || "{sym} {v}", { sym: "$" + ev.sym, v: caFmt(ev.metric, ev.current) }) +
+          "</span><time>" + hh + ":" + mm + "</time></div>"
+        );
+      })
+      .join("");
+  }
+
+  /* بررسی واقعی قواعد با دادهٔ تازهٔ همین لحظه */
+  function evaluateInAppAlerts() {
+    const rules = caReadRules();
+    if (!rules.length) return [];
+    const now = Date.now();
+    const log = caReadLog();
+    const fired = [];
+    const updated = rules.map((rule) => {
+      const cur = caCurrentValue(rule.sym, rule.metric);
+      if (cur === null) return rule;
+      const hit = rule.op === "above" ? cur > Number(rule.val) : cur < Number(rule.val);
+      if (!hit) return rule;
+      if (now - Number(rule.lastFired || 0) < CA_COOLDOWN_MS) return rule;
+      fired.push({ rule: rule, current: cur });
+      return Object.assign({}, rule, { lastFired: now });
+    });
+    if (!fired.length) return [];
+    fired.forEach((f) => {
+      log.unshift({
+        id: f.rule.id,
+        sym: f.rule.sym,
+        metric: f.rule.metric,
+        op: f.rule.op,
+        val: f.rule.val,
+        current: f.current,
+        at: now,
+      });
+    });
+    caWriteLog(log);
+    caWriteRules(updated);
     haptic("medium");
-    customAlerts.unshift({ sym, val });
-    customAlerts = customAlerts.slice(0, 4);
-    if (valEl) valEl.value = "";
-    try {
-      localStorage.setItem("tg_custom_alerts", JSON.stringify(customAlerts));
-    } catch (_) {}
+    appToast(tpl(t().caFiredToast || "{sym}", { sym: "$" + fired[0].rule.sym, v: caFmt(fired[0].rule.metric, fired[0].current) }));
     renderCustomAlerts();
-    appToast(tpl(t().caAddedToast, { sym, val }));
+    return fired;
+  }
+
+  /* قلاب کوچک برای تست خودکار/دیباگ: عمداً بدون هیچ ارسال دادهٔ شخصی */
+  try {
+    window.TG_ALERTS_EVAL = evaluateInAppAlerts;
+    window.TG_ALERTS_RULES = caReadRules;
+  } catch (_) {}
+
+  $("#caAddBtn")?.addEventListener("click", () => {
+    const d = t();
+    const rules = caReadRules();
+    if (rules.length >= CA_MAX) {
+      appToast(d.caLimit || "");
+      return;
+    }
+    const sym = $("#caSym")?.value || "BTC";
+    const metric = $("#caMetric")?.value === "price" ? "price" : "funding";
+    const op = $("#caOp")?.value === "below" ? "below" : "above";
+    const valEl = $("#caVal");
+    const val = valEl ? parseFloat(String(valEl.value).replace(",", ".")) : NaN;
+    if (!isFinite(val) || (metric === "price" && val <= 0)) {
+      appToast(d.caNeedVal || "Value?");
+      return;
+    }
+    if (metric === "funding" && Math.abs(val) > 5) {
+      appToast(d.caNeedVal || "Value?");
+      return;
+    }
+    haptic("medium");
+    rules.unshift({
+      id: "a" + Date.now().toString(36),
+      sym: String(sym).toUpperCase(),
+      metric: metric,
+      op: op,
+      val: val,
+      created: Date.now(),
+      lastFired: 0,
+    });
+    caWriteRules(rules);
+    if (valEl) valEl.value = "";
+    renderCustomAlerts();
+    // همان لحظه هم بررسی می‌شود تا اگر شرط از قبل برقرار است، کاربر بداند
+    evaluateInAppAlerts();
+    appToast(tpl(d.caAddedToast, { sym: sym, val: caFmt(metric, val) }));
   });
 
   [ddRange, riskRange, slRange].forEach((el) => el.addEventListener("input", calcGuard));
@@ -2062,9 +2300,13 @@
     syncProUi();
     calcGuard();
     calcConsistency();
+    caFillSymbols();
     renderCustomAlerts();
     renderRadar();
     renderPropDeals();
+    if (partnerSheet && !partnerSheet.classList.contains("hidden") && ptCurrent) {
+      openPartnerSheet(ptCurrent.id || ptCurrent.slug || "");
+    }
     renderLocalizedAlerts();
     calcFounderProfit();
     if (storySheet && !storySheet.classList.contains("hidden")) {
@@ -2266,6 +2508,56 @@
   let partnersItems = [];
   let partnersDisclosure = "";
 
+  /* ── پروفایل شریک: همان دادهٔ partners.json، بدون متن ساختگی ────── */
+  const partnerSheet = $("#partnerSheet");
+  let ptCurrent = null;
+
+  function openPartnerSheet(pid) {
+    const id = String(pid || "").trim().toLowerCase();
+    const pt = (partnersItems || []).find(
+      (x) => String(x.id || x.slug || "").trim().toLowerCase() === id
+    );
+    if (!pt || !partnerSheet) return false;
+    const d = t();
+    ptCurrent = pt;
+    const set = (sel, txt) => {
+      const el = $(sel);
+      if (el) el.textContent = txt == null ? "" : String(txt);
+    };
+    set("#ptEmoji", pt.emoji || "🤝");
+    set("#ptName", pt.name || "");
+    set("#ptBadge", pt.badge || "");
+    const badgeEl = $("#ptBadge");
+    if (badgeEl) badgeEl.classList.toggle("hidden", !pt.badge);
+    set("#ptNote", pt.note || "");
+    set("#ptCode", pt.code || "");
+    const codeRow = $("#ptCodeRow");
+    if (codeRow) codeRow.classList.toggle("hidden", !pt.code);
+    set("#ptDisclosure", partnersDisclosure || d.partnersNote || "");
+    const why = $(".pt-why p");
+    if (why && d.ptWhyText) why.textContent = d.ptWhyText;
+    partnerSheet.classList.remove("hidden");
+    haptic("light");
+    return true;
+  }
+
+  $("#ptBack")?.addEventListener("click", () => partnerSheet?.classList.add("hidden"));
+  $("#ptCta")?.addEventListener("click", () => {
+    if (!ptCurrent) return;
+    const url = String(ptCurrent.url || "");
+    if (!/^https?:\/\//.test(url)) return;
+    haptic("medium");
+    try {
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && (tg.openLink || tg.openTelegramLink)) {
+        // openLink: مرورگر بیرونی · openTelegramLink: نسخهٔ قدیمی WebApp
+        (tg.openLink || tg.openTelegramLink).call(tg, url);
+        return;
+      }
+    } catch (_) {}
+    window.open(url, "_blank", "noopener,noreferrer");
+  });
+
   function renderPartners() {
     const box = $("#partnersBox");
     const list = $("#partnersList");
@@ -2307,15 +2599,15 @@
         badge.textContent = String(pt.badge);
         a.append(badge);
       }
-      a.addEventListener("click", () => {
+      a.addEventListener("click", (ev) => {
         haptic("light");
-        // داخل تلگرام، لینک در مرورگر داخلی باز شود (نه iframe اپ)
+        // ابتدا پروفایل شریک باز می‌شود؛ href برای کلیک میانی/دسترس‌پذیری می‌ماند
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (openPartnerSheet(pid)) return;
         try {
           const tg = window.Telegram && window.Telegram.WebApp;
-          if (tg && tg.openLink) {
-            tg.openLink(tracked);
-            a.preventDefault && a.preventDefault();
-          }
+          if (tg && tg.openLink) tg.openLink(tracked);
+          else window.location.href = tracked;
         } catch (e) {}
       });
       list.appendChild(a);
@@ -2340,6 +2632,11 @@
       partnersItems = arr.filter((x) => x && x.name && x.url).slice(0, 6);
       partnersDisclosure = String((data && data.disclosure) || "");
       renderPartners();
+      // لینک مستقیم پروفایل شریک: ?partner=<id>
+      try {
+        const pid = new URLSearchParams(location.search).get("partner");
+        if (pid) openPartnerSheet(pid);
+      } catch (_) {}
     } catch (e) {}
   }
 

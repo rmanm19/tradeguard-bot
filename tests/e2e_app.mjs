@@ -73,7 +73,7 @@ function stubFetch(url, init) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false, liveHyperliquid = false } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false, liveHyperliquid = false, search = "" } = {}) {
   PRO_USERS = proUsers;
   HL_LIVE = !!liveHyperliquid;
   PRO_FREE_MODE = freeMode;
@@ -83,7 +83,7 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proU
   vc.on("error", (...a) => errors.push("console.error: " + a.join(" ")));
 
   const html = read(htmlFile).replace(/<script[^>]*src="[^"]*"[^>]*><\/script>/g, "");
-  const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc, url: "https://example.com/" + htmlFile });
+  const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc, url: "https://example.com/" + htmlFile + (search || "") });
   const w = dom.window;
 
   // دادهٔ اولیهٔ localStorage (برای تست آنبوردینگ و کش)
@@ -451,6 +451,53 @@ check("افشای شفاف کمیسیون دیده می‌شود",
   /کمیسیون/.test(pdoc.querySelector("#partnersList").textContent),
   pdoc.querySelector("#partnersList").textContent.slice(0, 80));
 
+/* ---------- ۳٫۸) پروفایل شریک (شیت داخل اپ + لینک مستقیم) ---------- */
+const pcard = pdoc.querySelector(".partner-item");
+pcard.dispatchEvent(new P1.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+const psheet = pdoc.querySelector("#partnerSheet");
+check("کلیک روی کارت شریک، پروفایل را باز می‌کند (نه انتقال فوری)",
+  !!psheet && !psheet.classList.contains("hidden"));
+check("پروفایل نام، توضیح، بج و کد معرف را نشان می‌دهد",
+  /Prop Firm X/.test(String((pdoc.querySelector("#ptName") || {}).textContent || ""))
+  && /۵۰٪ تخفیف/.test(String((pdoc.querySelector("#ptNote") || {}).textContent || ""))
+  && /۵۰٪/.test(String((pdoc.querySelector("#ptBadge") || {}).textContent || "")),
+  String((pdoc.querySelector("#ptNote") || {}).textContent || ""));
+check("پروفایل «چرا این کارت» و افشای کمیسیون را دارد",
+  String((pdoc.querySelector(".pt-why p") || {}).textContent || "").length > 30
+  && /کمیسیون/.test(String((pdoc.querySelector("#ptDisclosure") || {}).textContent || "")));
+check("دکمهٔ اصلی پروفایل، سایت خود شریک را باز می‌کند (نه لینک رهگیری تکراری)",
+  (() => {
+    const btn = pdoc.querySelector("#ptCta");
+    if (!btn) return false;
+    btn.dispatchEvent(new P1.w.MouseEvent("click", { bubbles: true }));
+    return String(P1.w.__opened || "") === "https://propfirmx.example/r/tg";
+  })(), String(P1.w.__opened || ""));
+check("بستن پروفایل کار می‌کند", (() => {
+  pdoc.querySelector("#ptBack").dispatchEvent(new P1.w.MouseEvent("click", { bubbles: true }));
+  return pdoc.querySelector("#partnerSheet").classList.contains("hidden");
+})());
+const pdocEn = pdoc.querySelector('#appLangMenu .app-lang-item[data-lang="en"]');
+pcard.dispatchEvent(new P1.w.MouseEvent("click", { bubbles: true }));
+await wait(40);
+if (pdocEn) pdocEn.dispatchEvent(new P1.w.MouseEvent("click", { bubbles: true }));
+await wait(80);
+check("پروفایل شریک هم ۶ زبانه است (عنوان انگلیسی می‌شود)",
+  /Partner profile/.test(String((pdoc.querySelector("#partnerSheet .sheet-title") || {}).textContent || "")),
+  String((pdoc.querySelector("#partnerSheet .sheet-title") || {}).textContent || ""));
+
+// لینک مستقیم ?partner=<id>
+const P2 = boot({ userId: 666000777, seedStorage: { tg_onboard_v1: "1" }, search: "?partner=propfirm_x" });
+await wait(600);
+check("لینک مستقیم ?partner=<id> پروفایل همان شریک را باز می‌کند",
+  !P2.w.document.querySelector("#partnerSheet").classList.contains("hidden")
+  && /Prop Firm X/.test(String((P2.w.document.querySelector("#ptName") || {}).textContent || "")),
+  String((P2.w.document.querySelector("#ptName") || {}).textContent || ""));
+const P3 = boot({ userId: 666000666, seedStorage: { tg_onboard_v1: "1" }, search: "?partner=nope" });
+await wait(500);
+check("شناسهٔ ناشناس، پروفایل جعلی نمی‌سازد",
+  P3.w.document.querySelector("#partnerSheet").classList.contains("hidden"));
+
 PARTNERS = { partners: [], disclosure: "" };
 
 /* ---------- ۴) دورهٔ رایگان و دکمهٔ کانال ---------- */
@@ -523,6 +570,108 @@ await wait(60);
 check("نقشه با تغییر زبان عنوان را عوض می‌کند",
   /Liquidation map/.test(String((ld2.querySelector("#liqTitle") || {}).textContent || "")),
   String((ld2.querySelector("#liqTitle") || {}).textContent || ""));
+
+// ---------------------------------------------------------------
+// هشدارهای شخصی درون‌اپ: واقعاً بررسی می‌شوند (نه تزئینی)
+// ---------------------------------------------------------------
+console.log("\n🔔 هشدارهای شخصی\n");
+const AL = boot({ userId: 555000555, liveHyperliquid: true });
+await wait(700);
+const ad = AL.w.document;
+const aw = AL.w;
+const aClick = (sel) => {
+  const el = ad.querySelector(sel);
+  if (!el) return false;
+  el.dispatchEvent(new aw.MouseEvent("click", { bubbles: true }));
+  return true;
+};
+const aSet = (sel, v) => {
+  const el = ad.querySelector(sel);
+  if (!el) return false;
+  el.value = String(v);
+  el.dispatchEvent(new aw.Event("change", { bubbles: true }));
+  return true;
+};
+const aRules = () => { try { return JSON.parse(aw.localStorage.getItem("tg_alerts_v2") || "[]"); } catch (e) { return []; } };
+const aLog = () => { try { return JSON.parse(aw.localStorage.getItem("tg_alert_log_v1") || "[]"); } catch (e) { return []; } };
+
+aClick('.tab-btn[data-tab="alerts"]');
+await wait(60);
+check("تب هشدارها باز می‌شود و فرم واقعی دارد",
+  !!ad.querySelector("#caSym") && !!ad.querySelector("#caMetric") && !!ad.querySelector("#caOp"));
+check("نمادها از خود رادار پر می‌شوند (نه لیست هاردکد)",
+  ad.querySelectorAll("#caSym option").length >= 5,
+  String(ad.querySelectorAll("#caSym option").length));
+check("در شروع، راهنمای ساخت هشدار نشان داده می‌شود",
+  /هشدار/.test(String((ad.querySelector("#caList") || {}).textContent || "")),
+  String((ad.querySelector("#caList") || {}).textContent || "").slice(0, 40));
+
+aSet("#caSym", "BTC");
+aSet("#caMetric", "funding");
+aSet("#caOp", "above");
+aSet("#caVal", 0.05);
+aClick("#caAddBtn");
+await wait(80);
+check("هشدار با متریک و جهت و مقدار ذخیره می‌شود (نه متن آزاد)",
+  aRules().length === 1 && aRules()[0].metric === "funding" && aRules()[0].op === "above"
+  && Math.abs(Number(aRules()[0].val) - 0.05) < 1e-9, JSON.stringify(aRules()).slice(0, 120));
+check("همان لحظه با دادهٔ زنده بررسی می‌شود و شرط برقرار است (BTC ۰٫۱٪ > ۰٫۰۵٪)",
+  aLog().length === 1 && aLog()[0].sym === "BTC" && Number(aLog()[0].current) > 0.05,
+  JSON.stringify(aLog()).slice(0, 120));
+check("کارت هشدار مقدار فعلی را نشان می‌دهد",
+  /0\.100/.test(String((ad.querySelector("#caList") || {}).textContent || "")),
+  String((ad.querySelector("#caList") || {}).textContent || "").slice(0, 80));
+check("بخش «فعال‌شده‌ها» با زمان نمایش داده می‌شود",
+  !ad.querySelector("#caFired").classList.contains("hidden")
+  && ad.querySelectorAll("#caFiredList .ca-fired-row").length === 1);
+
+aw.TG_ALERTS_EVAL();
+await wait(40);
+check("در بازهٔ خنک‌شدن، هشدار تکراری ثبت نمی‌شود", aLog().length === 1, String(aLog().length));
+
+aSet("#caSym", "BTC");
+aSet("#caMetric", "funding");
+aSet("#caOp", "above");
+aSet("#caVal", 5);
+aClick("#caAddBtn");
+await wait(60);
+check("شرط غیربرقرار شلیک نمی‌کند", aLog().length === 1 && aRules().length === 2, String(aLog().length));
+
+const beforeInvalid = aRules().length;
+aSet("#caVal", "");
+aClick("#caAddBtn");
+await wait(40);
+check("مقدار خالی/نامعتبر ثبت نمی‌شود", aRules().length === beforeInvalid);
+
+// کپی دستور برای ربات
+ad.querySelector("#caList .ca-act")?.dispatchEvent(new aw.MouseEvent("click", { bubbles: true }));
+await wait(40);
+check("دکمهٔ کپی، دستور /alert آمادهٔ ارسال به ربات می‌سازد",
+  /\/alert BTC funding above/.test(String(aw.__copied || "")), String(aw.__copied || ""));
+
+// سقف ۵ هشدار
+for (let i = 0; i < 6; i++) {
+  aSet("#caSym", "ETH");
+  aSet("#caMetric", "price");
+  aSet("#caOp", "above");
+  aSet("#caVal", 999999 + i);
+  aClick("#caAddBtn");
+  await wait(10);
+}
+check("سقف ۵ هشدار در اپ رعایت می‌شود", aRules().length === 5, String(aRules().length));
+
+aClick("#caList .ca-del");
+await wait(40);
+check("حذف هشدار کار می‌کند", aRules().length === 4, String(aRules().length));
+
+const aEn = ad.querySelector('#appLangMenu .app-lang-item[data-lang="en"]');
+if (aEn) aEn.dispatchEvent(new aw.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("هشدارها هم ۶ زبانه‌اند (عنوان و برچسب‌ها انگلیسی می‌شوند)",
+  /Personal price & funding alerts/.test(String((ad.querySelector(".ca-title") || {}).textContent || ""))
+  && /Copy for bot|Now/.test(String((ad.querySelector("#caList") || {}).textContent || "")),
+  String((ad.querySelector(".ca-title") || {}).textContent || ""));
+check("هشدارها هیچ خطای جاوااسکریپت ندارند", AL.errors.length === 0, AL.errors.slice(0, 2).join(" | "));
 
 // ---------------------------------------------------------------
 // فاندینگ چند صرافی (آربیتراژ): دادهٔ واقعی هر صرافی، بدون ادعای سود

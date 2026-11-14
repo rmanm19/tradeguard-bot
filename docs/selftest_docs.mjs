@@ -256,6 +256,37 @@ check("کیت، روش بررسی اعداد را به شریک می‌دهد (s
 check("کیت متن آمادهٔ ایمیل و پیام فارسی دارد", /Subject:/.test(kit) && /پیام فارسی/.test(kit));
 check("README به کیت همکاری اشاره می‌کند", /PARTNER_KIT_FA\.md/.test(readRepo("README.md")));
 
+/* ── ۱۰) پروفایل شریک و موتور هشدار داخل اپ ─────────────────────── */
+const appHtml = read("app.html");
+const appCss = read("styles.css");
+const i18nJs = read("i18n.js");
+check("پروفایل شریک به‌صورت شیت داخل اپ وجود دارد (نه لینک خام)",
+  /id="partnerSheet"/.test(appHtml) && /id="ptName"/.test(appHtml)
+  && /id="ptCta"/.test(appHtml) && /id="ptBack"/.test(appHtml));
+check("شیت شریک از partners.json پر می‌شود و نام شریک در کد هاردکد نیست",
+  /function openPartnerSheet/.test(appJs)
+  && /partnersItems\s*\|\|\s*\[\]/.test(appJs)
+  && !/Prop Firm X/.test(appJs));
+check("لینک مستقیم ?partner=<id> پشتیبانی می‌شود",
+  /new URLSearchParams\(location\.search\)\.get\("partner"\)/.test(appJs));
+check("دکمهٔ شریک، نسخهٔ قدیمی WebApp را هم پوشش می‌دهد (openTelegramLink)",
+  /openTelegramLink/.test(appJs) && /openLink/.test(appJs));
+check("کارت شریک، کمیسیون را افشا می‌کند و عدد سود ساختگی ندارد",
+  /ptSponsored/.test(appHtml) && /کمیسیون/.test(i18nJs)
+  && !/سود تضمینی|guaranteed profit/i.test(appHtml));
+check("شیت شریک در هر ۶ زبان ترجمه دارد",
+  ["fa", "en", "ru", "ar", "tr", "es"].every((l) => new RegExp(l + ":\\s*\\{[\\s\\S]*?ptTitle", "m").test(i18nJs)),
+  "ptTitle");
+check("کیت همکاری، فیلد اختیاری code و لینک مستقیم پروفایل را توضیح می‌دهد",
+  /"code": "TG20"/.test(kit) && /app\.html\?partner=<id>/.test(kit)
+  && /افشای کمیسیون/.test(kit));
+check("شیت شریک استایل اختصاصی دارد", /\.pt-body/.test(appCss) && /\.pt-why/.test(appCss));
+check("موتور هشدار داخل اپ واقعی است و نمادها از رادار می‌آیند",
+  /evaluateInAppAlerts/.test(appJs) && /marketState\.(top_extremes|majors)/.test(appJs)
+  && /CA_MAX\s*=\s*5/.test(appJs));
+check("هشدار داخل اپ فقط با دادهٔ زنده شلیک می‌شود (مقدار خالی = بدون هشدار)",
+  /caCurrentValue/.test(appJs) && /== null[\s\S]{0,80}return/.test(appJs));
+
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
 

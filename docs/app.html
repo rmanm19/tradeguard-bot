@@ -337,19 +337,26 @@
       <div class="list-head"><span data-i18n="alertsHead">هشدارهای لحظه‌ای</span><span class="live-tag"><span class="live-dot"></span> <span data-i18n="alertsNew">زنده آن‌چین</span></span></div>
 
       <div class="custom-alert-box">
-        <div class="ca-title" data-i18n="caTitle">🔔 ساخت آلارم شخصی قیمت و فاندینگ (ویژه شما)</div>
+        <div class="ca-title" data-i18n="caTitle">🔔 هشدار شخصی قیمت و فاندینگ</div>
         <div class="ca-row">
-          <select id="caSym">
-            <option value="BTC">$BTC</option>
-            <option value="ETH">$ETH</option>
-            <option value="SOL">$SOL</option>
-            <option value="SUI">$SUI</option>
-            <option value="XAUUSD">XAUUSD</option>
+          <select id="caSym" aria-label="symbol"></select>
+          <select id="caMetric" aria-label="metric">
+            <option value="funding" data-i18n="caMetricFunding">فاندینگ ۸ساعته</option>
+            <option value="price" data-i18n="caMetricPrice">قیمت</option>
           </select>
-          <input id="caVal" type="text" placeholder="82000 / 0.15%" />
-          <button id="caAddBtn" class="ca-btn" type="button" data-i18n="caBtn">+ ثبت آلارم</button>
+          <select id="caOp" aria-label="direction">
+            <option value="above" data-i18n="caOpAbove">بالاتر از</option>
+            <option value="below" data-i18n="caOpBelow">پایین‌تر از</option>
+          </select>
+          <input id="caVal" type="number" inputmode="decimal" step="any" placeholder="0.05" />
+          <button id="caAddBtn" class="ca-btn" type="button" data-i18n="caBtn">+ ثبت هشدار</button>
         </div>
         <div id="caList" class="ca-list"></div>
+        <div id="caFired" class="ca-fired hidden">
+          <div class="ca-fired-head" data-i18n="caFiredHead">✅ فعال‌شده‌ها</div>
+          <div id="caFiredList" class="ca-fired-list"></div>
+        </div>
+        <div id="caNote" class="ca-note"></div>
       </div>
 
       <div class="feed" id="alertsFeed"></div>
@@ -520,6 +527,36 @@
       </div>
       <button id="startBtn" class="btn-block btn-stars" data-i18n="invOpenBotBtn">پرداخت امن در ربات</button>
       <div class="inv-note" data-i18n="invStepsNote">پرداخت داخل چت ربات و با تأیید تلگرام انجام می‌شود؛ بلافاصله بعد از پرداخت، ۳۰ روز پرو فعال و همین صفحه به‌روز می‌شود.</div>
+    </div>
+  </div>
+
+  <!-- Partner profile sheet (پروفایل شریک از partners.json) -->
+  <div id="partnerSheet" class="sheet hidden" aria-hidden="true">
+    <div class="sheet-top">
+      <button id="ptBack" class="sheet-back" data-i18n="ptBack">→ بستن</button>
+      <span class="sheet-title" data-i18n="ptTitle">پروفایل شریک</span>
+      <span class="sheet-spacer"></span>
+    </div>
+    <div class="pt-body">
+      <div class="pt-head">
+        <span id="ptEmoji" class="pt-emoji">🤝</span>
+        <div class="pt-id">
+          <b id="ptName"></b>
+          <small id="ptBadge" class="pt-badge"></small>
+        </div>
+      </div>
+      <p id="ptNote" class="pt-note"></p>
+      <div id="ptCodeRow" class="pt-code hidden">
+        <span data-i18n="ptCodeLabel">کد معرف</span>
+        <b id="ptCode"></b>
+      </div>
+      <div class="pt-why">
+        <b data-i18n="ptWhyTitle">چرا این کارت اینجاست؟</b>
+        <p data-i18n="ptWhyText"></p>
+      </div>
+      <p id="ptDisclosure" class="pt-disclosure"></p>
+      <button id="ptCta" class="btn-block btn-primary" type="button" data-i18n="ptCta">رفتن به سایت شریک</button>
+      <p class="pt-small" data-i18n="ptSponsored"></p>
     </div>
   </div>
 
