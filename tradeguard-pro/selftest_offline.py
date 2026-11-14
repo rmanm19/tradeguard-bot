@@ -471,7 +471,9 @@ check("پست فوری کانال ارسال شد", bool(_chan_posts), str(_chan
 check("پست کانال ۳ فرصت برتر دارد",
       bool(_chan_posts) and (_chan_posts[-1][1].count("$") >= 3 or "🥇" in _chan_posts[-1][1]),
       _chan_posts[-1][1][:60] if _chan_posts else "")
-check("پست کانال دو دکمهٔ مینی‌اپ و دعوت دارد", len(_kb_btns) == 2, str(_kb_btns))
+check("پست کانال دکمهٔ مینی‌اپ و دعوت دارد", len(_kb_btns) >= 2, str(_kb_btns))
+check("پست کانال دکمهٔ «ارسال به دوست» دارد (رشد واقعی = فوروارد)",
+      any(u.startswith("https://t.me/share/url") for u in _kb_btns), str(_kb_btns[:4]))
 SENT.clear()
 bot.handle_message(msg("/channelpin"))
 _chan_posts = [pp for pp in _posts if pp[0] == "@testchannel"]
@@ -565,7 +567,10 @@ check("دو پست آموزشی پشت‌سرهم تکراری نیستند", _e
 check("پست آموزشی دکمهٔ مینی‌اپ دارد", "t.me/" in _ekb["inline_keyboard"][0][0]["url"])
 _f1, _fkb = bot.build_feature_post()
 check("پست معرفی قابلیت ساخته می‌شود", len(_f1) > 150, _f1[:60])
-check("پست قابلیت، دکمهٔ دعوت هم دارد", len(_fkb["inline_keyboard"]) == 2)
+check("پست قابلیت، دکمهٔ دعوت هم دارد", len(_fkb["inline_keyboard"]) >= 2)
+check("پست آموزشی هم فورواردشدنی است (دکمهٔ share روی همهٔ پست‌ها)",
+      any(b.get("url", "").startswith("https://t.me/share/url")
+          for row in _fkb["inline_keyboard"] for b in row))
 _all_channel_text = " ".join(t + " " + b for t, b in bot.CHANNEL_EDU_POSTS + bot.CHANNEL_FEATURE_POSTS)
 check("هیچ پست کانال وعدهٔ سود تضمینی ندارد",
       "تضمین" not in _all_channel_text and "سود قطعی" not in _all_channel_text)
@@ -1327,6 +1332,143 @@ _posts.clear()
 bot.handle_message(msg("/biz report", uid=USER))
 check("دستور /biz report در چت گزارش می‌دهد",
       bool(_posts) and "گزارش ماهانه" in _posts[-1][1], (_posts[-1][1][:60] if _posts else ""))
+
+print("\n۹٫۲۰) رشد واقعی کانال: /share، جمع‌بندی هفتگی، صفحه‌های SEO")
+import tempfile as _tmp
+import pathlib as _pl
+
+# ── /share: متن‌های آماده + لینک اختصاصی، بدون عدد ساختگی ──────────────
+_posts.clear()
+bot.handle_message(msg("/share", uid=USER))
+_share_txt = _posts[-1][1] if _posts else ""
+check("/share متن آمادهٔ دعوت می‌دهد (۶ زبانه)",
+      bool(_share_txt) and ("کپی" in _share_txt or "Copy" in _share_txt), _share_txt[:80])
+check("/share لینک اختصاصی ref_<id> کاربر را دارد",
+      f"ref_{USER}" in _share_txt, _share_txt[:120])
+check("/share دکمهٔ «ارسال به دوست» تلگرام را هم می‌گذارد",
+      "t.me/share/url" in str(_posts[-1][2] if _posts else {}),
+      str(_posts[-1][2] if _posts else "")[:80])
+_share_ref = bot.invite_link(USER)
+_share_btn = bot.growth_share_button(_share_txt, "en")
+check("لینک share با کدگذاری درست ساخته می‌شود (بدون فاصله/خط جدید خام)",
+      _share_btn["url"].startswith("https://t.me/share/url?url=")
+      and " " not in _share_btn["url"] and "\n" not in _share_btn["url"],
+      _share_btn["url"][:80])
+check("دکمهٔ share در هر ۶ زبان برچسب دارد",
+      all(bot.tr(l, "share_btn") and bot.tr(l, "share_btn") != "share_btn"
+          for l in ("fa", "en", "ru", "ar", "tr", "es")))
+
+# ── آمار واقعی دعوت: فقط ۷ روز گذشته، فقط referred_by ─────────────────
+import sqlite3 as _sq
+import time as _time
+_now = int(_time.time())
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("INSERT OR REPLACE INTO users (user_id, username, lang, referred_by, referrals_count, "
+               "free_trial_claimed, pro_until, created_at, source) VALUES (?,?,?,?,?,?,?,?,?)",
+               (990111, "", "fa", USER, 0, 0, 0, _now - 3600, "test"))
+    _c.execute("INSERT OR REPLACE INTO users (user_id, username, lang, referred_by, referrals_count, "
+               "free_trial_claimed, pro_until, created_at, source) VALUES (?,?,?,?,?,?,?,?,?)",
+               (990112, "", "fa", USER, 0, 0, 0, _now - 30 * 86400, "test"))
+    _c.execute("UPDATE users SET referrals_count = referrals_count + 2 WHERE user_id = ?", (USER,))
+_stats_w = bot.weekly_invite_stats(_now)
+# مبنا: تعداد واقعی موجود؛ تست فقط «افزایش ۱» و «نشمردن ردیف ۳۰ روزه» را می‌سنجد
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c0:
+    _baseline = int(_c0.execute(
+        "SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL AND created_at >= ?",
+        (_now - 7 * 86400,)).fetchone()[0] or 0)
+check("آمار هفتگی فقط دعوت‌های ۷ روز اخیر را می‌شمارد (ردیف ۳۰ روزه شمرده نشد)",
+      int(_stats_w["new_referrals"]) == _baseline and _baseline >= 1,
+      f"{_stats_w['new_referrals']} vs {_baseline}")
+
+_recap = bot.build_invite_recap_post("fa", _now)
+check("جمع‌بندی هفتگی ساخته می‌شود و عدد واقعی دارد",
+      bool(_recap) and "۱" in _recap[0] and "گزارش هفتگی" in _recap[0], (_recap[0][:100] if _recap else ""))
+check("جمع‌بندی هفتگی نام را ماسک می‌کند (آیدی عددی لو نمی‌رود)",
+      bool(_recap) and str(USER) not in _recap[0], (_recap[0][-80:] if _recap else ""))
+check("جمع‌بندی هفتگی دکمهٔ دعوت و فوروارد دارد",
+      bool(_recap) and len(_recap[1]["inline_keyboard"]) == 3
+      and any(b.get("url", "").startswith("https://t.me/share/url")
+              for row in _recap[1]["inline_keyboard"] for b in row))
+bot.set_setting("invite_recap_week", "")
+_old_fa_ch, _old_en_ch = bot.PUBLIC_CHANNEL_ID, bot.PUBLIC_CHANNEL_EN
+bot.PUBLIC_CHANNEL_ID, bot.PUBLIC_CHANNEL_EN = "@testchannel", ""
+SENT.clear()
+_posted_recap = bot.post_weekly_invite_recap(_now)
+check("جمع‌بندی هفتگی در کانال ارسال می‌شود", bool(_posted_recap), str(_posted_recap))
+SENT.clear()
+check("ارسال دوباره در همان هفته انجام نمی‌شود (idempotent)",
+      bot.post_weekly_invite_recap(_now) == [] and not SENT)
+bot.PUBLIC_CHANNEL_ID, bot.PUBLIC_CHANNEL_EN = _old_fa_ch, _old_en_ch
+_real_stats = bot.weekly_invite_stats
+bot.weekly_invite_stats = lambda now=None: {"new_referrals": 0, "users_total": 0, "top": []}
+check("وقتی هیچ دعوتی نیست، هیچ پستی ساخته نمی‌شود (بدون عدد ساختگی)",
+      bot.build_invite_recap_post("fa", _now) is None)
+bot.weekly_invite_stats = _real_stats
+
+# ── صفحه‌های SEO هر نماد از همان فید ──────────────────────────────────
+_feed = {"generated_at": "2026-11-10T09:30:00Z", "live": True,
+         "fear_greed": {"value": 13, "label": "Extreme Fear"},
+         "funding": [
+             {"symbol": "WIF", "funding_pct_8h": -0.0369, "apr_pct": -40.4, "oi_usd_m": 2.33},
+             {"symbol": "BTC", "funding_pct_8h": 0.01, "apr_pct": 10.9, "oi_usd_m": 2518.27,
+              "mark_price": 64000.0},
+         ]}
+with _tmp.TemporaryDirectory() as _d:
+    _written = bot._write_symbol_pages(_feed, out_dir=_pl.Path(_d))
+    _names = sorted(x.name for x in _written)
+    check("برای هر نماد یک صفحهٔ عمومی ساخته می‌شود",
+          {"wif.html", "btc.html", "sitemap.xml", "robots.txt"} <= set(_names), str(_names))
+    _page = (_pl.Path(_d) / "s" / "wif.html").read_text(encoding="utf-8")
+    check("صفحهٔ نماد همان عدد فید را نشان می‌دهد (بدون گرد کردن ساختگی)",
+          "-0.0369" in _page and "WIF" in _page)
+    check("صفحهٔ نماد canonical و og و JSON-LD دارد",
+          "rel=\"canonical\"" in _page and "og:title" in _page and "application/ld+json" in _page)
+    check("صفحهٔ نماد CTA کانال و ربات دارد",
+          "t.me/tradeguard1" in _page and f"t.me/{bot.BOT_USERNAME}?start=sym_wif" in _page)
+    check("صفحهٔ نماد «سیگنال/وعدهٔ سود نیست» را می‌گوید",
+          "سیگنال" in _page and "وعدهٔ سود" in _page)
+    _sitemap = (_pl.Path(_d) / "sitemap.xml").read_text(encoding="utf-8")
+    check("sitemap همهٔ صفحه‌های نماد را لیست می‌کند",
+          "/s/wif.html" in _sitemap and "/s/btc.html" in _sitemap and "2026-11-10" in _sitemap)
+    _robots = (_pl.Path(_d) / "robots.txt").read_text(encoding="utf-8")
+    check("robots.txt به sitemap اشاره می‌کند", "Sitemap:" in _robots and "sitemap.xml" in _robots)
+    # تزریق: نماد مخرب نباید HTML را بشکند
+    _bad = {"generated_at": "2026-11-10T09:30:00Z", "live": True,
+            "fear_greed": {"value": 50, "label": "Neutral"},
+            "funding": [{"symbol": "<script>x</script>", "funding_pct_8h": 0.001,
+                         "apr_pct": 1.1, "oi_usd_m": 1.0}]}
+    bot._write_symbol_pages(_bad, out_dir=_pl.Path(_d))
+    _badfiles = list((_pl.Path(_d) / "s").glob("*.html"))
+    _badhtml = "".join(f.read_text(encoding="utf-8") for f in _badfiles)
+    check("نماد مخرب escape/sanitize می‌شود (بدون تزریق اسکریپت)",
+          "<script>x</script>" not in _badhtml and "&lt;script&gt;" in _badhtml)
+with _tmp.TemporaryDirectory() as _d2:
+    check("وقتی فید زنده نیست، هیچ صفحه‌ای نوشته نمی‌شود",
+          bot._write_symbol_pages({"live": False, "funding": []}, out_dir=_pl.Path(_d2)) == []
+          and not (_pl.Path(_d2) / "s").exists())
+
+# ── publish_public_feed هم صفحه‌ها را می‌سازد و در همان کامیت می‌گذارد ───
+_old_feed_dir = bot.PUBLIC_FEED_DIR
+_old_push = bot.PRO_STATUS_PUSH
+_real_feed = bot.fetch_live_funding_and_oi
+_real_fng = bot.fetch_fear_greed
+try:
+    with _tmp.TemporaryDirectory() as _d3:
+        bot.PUBLIC_FEED_DIR = _pl.Path(_d3) / "docs" / "api"
+        bot.PRO_STATUS_PUSH = False
+        bot.fetch_live_funding_and_oi = lambda: [
+            {"sym": "SOL", "rate_pct": -0.0139, "oi_m": 298.7, "magnet": "", "daily_500": 0.0}]
+        bot.fetch_fear_greed = lambda: (55, "Neutral")
+        _pub = bot.publish_public_feed(force=True)
+        check("انتشار فید، صفحه‌های نماد را هم می‌نویسد",
+              bool(_pub) and ((_pl.Path(_d3) / "docs" / "s" / "sol.html").exists())
+              and (_pl.Path(_d3) / "docs" / "sitemap.xml").exists(),
+              str(sorted(x.name for x in (_pl.Path(_d3) / "docs").glob("**/*"))[:6]))
+finally:
+    bot.PUBLIC_FEED_DIR = _old_feed_dir
+    bot.PRO_STATUS_PUSH = _old_push
+    bot.fetch_live_funding_and_oi = _real_feed
+    bot.fetch_fear_greed = _real_fng
 
 print("\n" + "─" * 46)
 if FAILS:
