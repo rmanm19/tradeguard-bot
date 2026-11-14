@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T12:15:03Z",
+  "generated_at": "2026-11-14T12:40:31Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -11,66 +11,57 @@
   "funding": [
     {
       "symbol": "DOGE",
-      "funding_pct_8h": -0.0228,
-      "apr_pct": 25.0,
-      "oi_usd_m": 38.22,
-      "mark_price": null
+      "funding_pct_8h": -0.0232,
+      "apr_pct": -25.4,
+      "oi_usd_m": 38.29
     },
     {
       "symbol": "WIF",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 2.84,
-      "mark_price": null
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0058,
-      "apr_pct": 6.3,
-      "oi_usd_m": 310.6,
-      "mark_price": null
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": 0.0052,
-      "apr_pct": 5.6,
-      "oi_usd_m": 20.61,
-      "mark_price": null
-    },
-    {
-      "symbol": "ETH",
-      "funding_pct_8h": -0.0049,
-      "apr_pct": 5.4,
-      "oi_usd_m": 1330.12,
-      "mark_price": null
-    },
-    {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.0039,
-      "apr_pct": 4.3,
-      "oi_usd_m": 2561.67,
-      "mark_price": null
+      "oi_usd_m": 2.83
     },
     {
       "symbol": "XRP",
-      "funding_pct_8h": -0.0019,
-      "apr_pct": 2.1,
-      "oi_usd_m": 87.77,
-      "mark_price": null
+      "funding_pct_8h": -0.0072,
+      "apr_pct": -7.8,
+      "oi_usd_m": 87.94
+    },
+    {
+      "symbol": "ETH",
+      "funding_pct_8h": -0.0063,
+      "apr_pct": -6.9,
+      "oi_usd_m": 1331.07
+    },
+    {
+      "symbol": "SOL",
+      "funding_pct_8h": -0.004,
+      "apr_pct": -4.4,
+      "oi_usd_m": 310.58
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": 0.0039,
+      "apr_pct": 4.3,
+      "oi_usd_m": 20.6
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": 0.0038,
+      "apr_pct": 4.2,
+      "oi_usd_m": 2568.74
     },
     {
       "symbol": "HYPE",
-      "funding_pct_8h": -0.001,
-      "apr_pct": 1.1,
-      "oi_usd_m": 1462.41,
-      "mark_price": null
+      "funding_pct_8h": 0.0019,
+      "apr_pct": 2.0,
+      "oi_usd_m": 1457.31
     },
     {
       "symbol": "TON",
       "funding_pct_8h": 0.0,
       "apr_pct": 0.0,
-      "oi_usd_m": 0.0,
-      "mark_price": null
+      "oi_usd_m": 0.0
     }
   ],
   "docs": "https://github.com/rmanm19/tradeguard-bot/blob/main/docs/api/index.html"
