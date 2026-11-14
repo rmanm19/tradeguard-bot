@@ -1099,6 +1099,13 @@ check("فید عمومی، فاندینگ و OI واقعی را می‌دهد",
       and _radar["funding"][0]["oi_usd_m"] == 3420.5, str(_radar["funding"][:1]))
 check("سالانه‌سازی فاندینگ درست است (۰٫۰۱۲٪ × ۳ × ۳۶۵ ≈ ۱۳٫۱٪)",
       abs(_radar["funding"][0]["apr_pct"] - 13.1) < 0.2, str(_radar["funding"][0]["apr_pct"]))
+check("علامت APR حفظ می‌شود (فاندینگ منفی = APR منفی)",
+      _radar["funding"][1]["apr_pct"] < 0, str(_radar["funding"][1]["apr_pct"]))
+_noprice = bot.build_public_feed([{"sym": "XRP", "rate_pct": 0.02, "oi_m": 50.0}])
+check("قیمت فقط وقتی موجود است منتشر می‌شود (به‌جای null حذف می‌شود)",
+      _radar["funding"][0].get("mark_price") == 80330.0
+      and "mark_price" not in (_noprice or {"funding": [{}]})["funding"][0],
+      str((_noprice or {}).get("funding")))
 check("فید عمومی هیچ توکن یا آیدی شخصی ندارد",
       "BOT_TOKEN" not in _radar_path.read_text(encoding="utf-8")
       and "user_id" not in _radar_path.read_text(encoding="utf-8"),

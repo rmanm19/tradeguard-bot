@@ -80,7 +80,7 @@
     <span class="badge">ENDPOINTS</span>
     <table>
       <tr><th>File</th><th>What you get</th></tr>
-      <tr><td><code>api/radar.json</code></td><td>Funding %, annualised APR, open interest in USD millions, mark price per symbol + Fear &amp; Greed</td></tr>
+      <tr><td><code>api/radar.json</code></td><td>Funding % per 8h, signed annualised APR, open interest in USD millions, optional mark price + Fear &amp; Greed</td></tr>
       <tr><td><code>api/stats.json</code></td><td>Aggregated counters only: total users, channel-join rewards, active PRO. <b>No personal data.</b></td></tr>
     </table>
     <div class="muted" style="margin-top:10px">
@@ -102,7 +102,7 @@
     {
       "symbol": "DOGE",
       "funding_pct_8h": -0.027,
-      "apr_pct": 29.6,
+      "apr_pct": -29.6,
       "oi_usd_m": 38.0,
       "mark_price": 0.19
     }
@@ -134,6 +134,13 @@ text = "\\n".join(
   for x in top)
 # send `text` via your bot API</pre>
     </div>
+  </div>
+
+  <div class="card muted" style="font-size:12.5px">
+    <b>Field notes:</b> <code>apr_pct</code> keeps the sign of the funding rate — negative means shorts pay longs
+    (a short-side carry, not a “negative yield”). <code>mark_price</code> is <b>omitted</b> when the source does
+    not provide it rather than being sent as <code>null</code>. <code>oi_usd_m</code> is <code>0</code> for
+    fallback sources that publish funding only.
   </div>
 
   <h2>Rules of the road</h2>
