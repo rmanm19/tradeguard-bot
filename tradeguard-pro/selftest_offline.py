@@ -1103,6 +1103,11 @@ check("فید عمومی هیچ توکن یا آیدی شخصی ندارد",
       "BOT_TOKEN" not in _radar_path.read_text(encoding="utf-8")
       and "user_id" not in _radar_path.read_text(encoding="utf-8"),
       "بررسی محتوا")
+check("مسیر نسبی PUBLIC_FEED_DIR نسبت به ریشهٔ ریپو حل می‌شود (باگ کش‌شدهٔ CI)",
+      bot.resolve_repo_path("docs/api", Path("/x")) == bot.REPO_ROOT / "docs" / "api"
+      and bot.resolve_repo_path("", Path("/x")) == Path("/x")
+      and bot.resolve_repo_path("/tmp/z", Path("/x")) == Path("/tmp/z"),
+      str(bot.resolve_repo_path("docs/api", Path("/x"))))
 check("آیدی عددی کانال هرگز در فید عمومی نمی‌رود",
       bot._public_channel_handle("-1001234567") == ""
       and bot._public_channel_handle("@tradeguard1") == "@tradeguard1")

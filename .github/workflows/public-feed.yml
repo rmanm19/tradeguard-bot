@@ -94,25 +94,10 @@ jobs:
       - name: خلاصه در گزارش اجرا
         if: always()
         run: |
-          {
-            echo "## 📡 فید دادهٔ عمومی"
-            echo ""
-            if [ -f docs/api/radar.json ]; then
-              python - <<'PY'
-              import json
-              d = json.load(open("docs/api/radar.json", encoding="utf-8"))
-              s = json.load(open("docs/api/stats.json", encoding="utf-8"))
-              print(f"- زمان: `{d['generated_at']}`")
-              print(f"- ترس و طمع: **{d['fear_greed']['value']}** ({d['fear_greed']['label']})")
-              print(f"- نمادها: {len(d['funding'])}")
-              print(f"- کاربر / پرو: {s['users_total']} / {s['active_pro']}")
-              print("")
-              print("| نماد | فاندینگ ۸س | APR | OI (M$) |")
-              print("|---|---|---|---|")
-              for x in d["funding"][:6]:
-                  print(f"| {x['symbol']} | {x['funding_pct_8h']:+.4f}% | {x['apr_pct']}% | {x['oi_usd_m']} |")
-              PY
-            else
-              echo "فایلی موجود نیست."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "## 📡 فید دادهٔ عمومی" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f docs/api/radar.json ]; then
+            python -c "import json;d=json.load(open('docs/api/radar.json',encoding='utf-8'));s=json.load(open('docs/api/stats.json',encoding='utf-8'));print('- زمان: \`%s\`' % d['generated_at']);print('- ترس و طمع: **%s** (%s)' % (d['fear_greed']['value'], d['fear_greed']['label']));print('- نمادها: %s' % len(d['funding']));print('- کاربر / پرو: %s / %s' % (s['users_total'], s['active_pro']));print('');print('| نماد | فاندینگ ۸س | APR | OI (M\$) |');print('|---|---|---|---|');[print('| %s | %+.4f%% | %s%% | %s |' % (x['symbol'], x['funding_pct_8h'], x['apr_pct'], x['oi_usd_m'])) for x in d['funding'][:6]]" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "فایلی موجود نیست (دادهٔ زنده نیامد — عمداً چیزی منتشر نشد)." >> "$GITHUB_STEP_SUMMARY"
+          fi
