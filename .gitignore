@@ -26,3 +26,6 @@ Thumbs.db
 tests/node_modules/
 tests/package-lock.json
 tests/artifacts/
+
+# ── اسکرین‌شات‌های بررسی دیزاین (محلی) ──
+tests/.shot/

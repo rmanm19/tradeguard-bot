@@ -1,0 +1,1223 @@
+/* ============================================================================
+   TradeGuard — space.css  (v1.0)  ·  «فضای دیپ‌اسپیس»
+   ----------------------------------------------------------------------------
+   لایهٔ طراحی جدید که روی styles.css + app.css سوار می‌شود و کل مینی‌اپ را
+   به یک هاب هولوگرافیک سه‌بعدی تبدیل می‌کند:
+     • آسمان زندهٔ نِبولا + ستاره‌ها (بدون canvas، فقط transform/opacity)
+     • شبکهٔ پرسپکتیو با نقطهٔ گریز (حس عمق سه‌بعدی)
+     • هستهٔ چرخان هولوگرافیک داخل کارت قهرمان
+     • کارت‌های شیشه‌ای با تیلت سه‌بعدی و بازتاب نور (فقط دسکتاپ)
+     • نوار تب شناور با اندیکاتور لغزنده
+     • موشن‌گرافیک: ورود پله‌ای، پالس اعداد، درخشش دکمه‌ها
+   همه‌چیز با prefers-reduced-motion و حالت روشن تلگرام سازگار است.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   ۰) توکن‌های فضایی
+   --------------------------------------------------------------------------- */
+:root {
+  --sp-void: #04060c;
+  --sp-deep: #070b14;
+  --sp-nebula: #7b5cff;
+  --sp-cyan: #22d3ee;
+  --sp-mint: #25d69a;
+  --sp-rose: #ff5c77;
+
+  --sp-glass: rgba(255, 255, 255, .045);
+  --sp-glass-2: rgba(255, 255, 255, .08);
+  --sp-edge: rgba(255, 255, 255, .09);
+  --sp-edge-2: rgba(255, 255, 255, .17);
+
+  --sp-radius: 20px;
+  --sp-radius-lg: 26px;
+
+  --sp-lift:
+    0 1px 0 rgba(255, 255, 255, .07) inset,
+    0 18px 38px -26px rgba(0, 0, 0, .95);
+  --sp-lift-hi:
+    0 1px 0 rgba(255, 255, 255, .12) inset,
+    0 26px 60px -30px rgba(37, 214, 154, .35),
+    0 22px 44px -26px rgba(0, 0, 0, .9);
+
+  --sp-ease: cubic-bezier(.22, .9, .24, 1);
+  --sp-y: 0px;                 /* پارالاکس عمودی صحنه */
+}
+
+/* ---------------------------------------------------------------------------
+   ۱) صحنهٔ پس‌زمینه (nebula + grid + stars + veil)
+   --------------------------------------------------------------------------- */
+#spaceScene {
+  position: absolute;
+  inset: -8% -6%;              /* overscan برای پارالاکس */
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+  will-change: transform;
+}
+
+/* سحابی‌ها: گرادیان نرم، بدون filter blur (ارزان روی موبایل) */
+#spaceScene .sp-neb {
+  position: absolute;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  opacity: .85;
+  transform: translate3d(0, 0, 0);
+}
+#spaceScene .sp-neb-a {
+  width: 108%;
+  top: -30%;
+  inset-inline-start: -34%;
+  background: radial-gradient(closest-side,
+    rgba(123, 92, 255, .42), rgba(123, 92, 255, .16) 46%, rgba(123, 92, 255, 0) 74%);
+  animation: spNebA 46s ease-in-out infinite alternate;
+}
+#spaceScene .sp-neb-b {
+  width: 96%;
+  top: 6%;
+  inset-inline-end: -40%;
+  background: radial-gradient(closest-side,
+    rgba(34, 211, 238, .30), rgba(34, 211, 238, .10) 48%, rgba(34, 211, 238, 0) 76%);
+  animation: spNebB 58s ease-in-out infinite alternate;
+}
+#spaceScene .sp-neb-c {
+  width: 86%;
+  bottom: -26%;
+  inset-inline-start: -18%;
+  background: radial-gradient(closest-side,
+    rgba(37, 214, 154, .26), rgba(37, 214, 154, .08) 50%, rgba(37, 214, 154, 0) 78%);
+  animation: spNebC 52s ease-in-out infinite alternate;
+}
+
+@keyframes spNebA {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to   { transform: translate3d(4%, 3%, 0) scale(1.12); }
+}
+@keyframes spNebB {
+  from { transform: translate3d(2%, 2%, 0) scale(1.08); }
+  to   { transform: translate3d(-4%, -2%, 0) scale(.96); }
+}
+@keyframes spNebC {
+  from { transform: translate3d(0, 2%, 0) scale(1); }
+  to   { transform: translate3d(3%, -3%, 0) scale(1.1); }
+}
+
+/* شبکهٔ پرسپکتیو: لایهٔ داخلی یک کاشی (۴۴px) به جلو می‌خزد ⇒ حرکت بی‌درز */
+#spaceScene .sp-grid {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 62%;
+  perspective: 300px;
+  perspective-origin: 50% 100%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, .85) 0%, rgba(0, 0, 0, .35) 42%, transparent 78%);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, .85) 0%, rgba(0, 0, 0, .35) 42%, transparent 78%);
+  opacity: .8;
+}
+/* خط افق: نقطهٔ گریز شبکه */
+#spaceScene .sp-grid::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, .55), transparent);
+  box-shadow: 0 0 26px 2px rgba(56, 189, 248, .30);
+}
+#spaceScene .sp-grid i {
+  position: absolute;
+  inset-inline: -50%;
+  top: -120%;
+  height: 300%;
+  transform-origin: 50% 100%;
+  transform: rotateX(66deg);
+  background-image:
+    linear-gradient(to right, rgba(56, 189, 248, .38) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, .30) 1px, transparent 1px);
+  background-size: 44px 44px;
+  animation: spGridRun 5.2s linear infinite;
+}
+@keyframes spGridRun {
+  from { transform: rotateX(66deg) translateY(0); }
+  to   { transform: rotateX(66deg) translateY(44px); }
+}
+
+/* ستاره‌ها: عناصر DOM کوچک با انیمیشن opacity/transform (بدون rAF) */
+#spaceScene .sp-stars {
+  position: absolute;
+  inset: 0;
+}
+#spaceScene .sp-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #dff4ff;
+  opacity: .5;
+  box-shadow: 0 0 6px rgba(190, 235, 255, .85);
+  animation: spTwinkle var(--sp-dur, 7s) ease-in-out var(--sp-delay, 0s) infinite alternate;
+}
+#spaceScene .sp-star.is-big {
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(160, 224, 255, .95), 0 0 22px rgba(123, 92, 255, .5);
+}
+@keyframes spTwinkle {
+  from { opacity: .16; transform: scale(.72); }
+  to   { opacity: .95; transform: scale(1.15); }
+}
+
+/* شهاب‌سنگ‌ها */
+#spaceScene .sp-shoot {
+  position: absolute;
+  top: var(--sp-top, 12%);
+  inset-inline-start: var(--sp-left, 10%);
+  width: 92px;
+  height: 1.5px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(190, 240, 255, .95));
+  opacity: 0;
+  transform: rotate(24deg);
+  animation: spShoot var(--sp-dur, 11s) linear var(--sp-delay, 3s) infinite;
+}
+@keyframes spShoot {
+  0%, 88%   { opacity: 0; transform: translate3d(0, 0, 0) rotate(24deg) scaleX(.3); }
+  90%       { opacity: .95; }
+  96%       { opacity: .5; }
+  100%      { opacity: 0; transform: translate3d(190px, 96px, 0) rotate(24deg) scaleX(1); }
+}
+
+/* پردهٔ عمق */
+#spaceScene .sp-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 70% at 50% -6%, rgba(34, 211, 238, .10), transparent 55%),
+    radial-gradient(130% 85% at 50% 6%, transparent 46%, rgba(2, 4, 9, .30) 78%, rgba(2, 4, 9, .62) 100%);
+}
+
+/* ---------------------------------------------------------------------------
+   ۲) پوستهٔ اپ
+   --------------------------------------------------------------------------- */
+#tgApp {
+  background:
+    radial-gradient(130% 92% at 50% -20%, #0c1734 0%, #070c18 46%, var(--sp-void) 100%);
+}
+
+#tgApp > .screen-body {
+  position: relative;
+  z-index: 1;
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+}
+
+/* نوار وضعیت اتصال هم باید بالای صحنه بماند */
+#tgApp > #tgConnBar {
+  position: relative;
+  z-index: 6;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/* ---------------------------------------------------------------------------
+   ۳) نوار بالا + هستهٔ هولوگرافیک نشان
+   --------------------------------------------------------------------------- */
+#tgApp .app-topbar {
+  background: linear-gradient(180deg, rgba(6, 9, 18, .94) 0%, rgba(6, 9, 18, .72) 62%, rgba(6, 9, 18, 0) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+
+#tgApp .app-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 13px;
+  color: #d9fff2;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(123, 92, 255, .55), transparent 62%),
+    radial-gradient(circle at 74% 82%, rgba(37, 214, 154, .55), transparent 66%),
+    rgba(8, 13, 22, .85);
+  border: 1px solid rgba(160, 240, 220, .28);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .4),
+    0 10px 26px -12px rgba(37, 214, 154, .85),
+    0 0 34px -14px rgba(123, 92, 255, .9);
+  transform: perspective(220px) rotateX(8deg) rotateY(-12deg);
+  transform-style: preserve-3d;
+  animation: spCoreFloat 7s ease-in-out infinite;
+}
+#tgApp .app-avatar::before,
+#tgApp .app-avatar::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(37, 214, 154, .38);
+  pointer-events: none;
+  animation: spOrbit 9s linear infinite;
+}
+#tgApp .app-avatar::after {
+  inset: -11px;
+  border-style: dashed;
+  border-color: rgba(123, 92, 255, .38);
+  animation-duration: 15s;
+  animation-direction: reverse;
+}
+@keyframes spOrbit {
+  from { transform: perspective(140px) rotateX(70deg) rotateZ(0deg); }
+  to   { transform: perspective(140px) rotateX(70deg) rotateZ(360deg); }
+}
+@keyframes spCoreFloat {
+  0%, 100% { transform: perspective(220px) rotateX(8deg) rotateY(-12deg) translateY(0); }
+  50%      { transform: perspective(220px) rotateX(-4deg) rotateY(10deg) translateY(-1.5px); }
+}
+
+#tgApp .app-name {
+  font-weight: 950;
+  letter-spacing: -.2px;
+  background: linear-gradient(96deg, #f2f9ff 0%, #b8f6e2 46%, #b9cdff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #eaf3ff;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  #tgApp .app-name { color: transparent; }
+  #tgApp .app-name span { color: #cfe3ff; }
+}
+
+#tgApp .app-sub {
+  color: rgba(150, 176, 210, .9);
+  letter-spacing: .1px;
+}
+
+#tgApp .app-lang-btn {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--sp-edge);
+  border-radius: 11px;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: border-color .2s, background .2s, transform .15s;
+}
+#tgApp .app-lang-btn:hover {
+  background: rgba(34, 211, 238, .14);
+  border-color: rgba(34, 211, 238, .45);
+  color: #fff;
+}
+#tgApp .app-lang-btn:active { transform: scale(.96); }
+
+#tgApp .app-lang-menu {
+  background: rgba(10, 16, 28, .96);
+  border: 1px solid var(--sp-edge-2);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9), 0 0 0 1px rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  animation: spMenuIn .22s var(--sp-ease) both;
+}
+@keyframes spMenuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+#tgApp .plan-chip {
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .055);
+  border: 1px solid var(--sp-edge);
+  color: #b9c8de;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+#tgApp .plan-chip.pro {
+  background: linear-gradient(140deg, var(--sp-mint), #12b284);
+  color: #04160f;
+  border-color: transparent;
+  box-shadow: 0 8px 20px -10px rgba(37, 214, 154, .95);
+}
+
+/* ---------------------------------------------------------------------------
+   ۴) سطوح شیشه‌ای مشترک
+   --------------------------------------------------------------------------- */
+#tgApp .card,
+#tgApp .plan-card,
+#tgApp .viral-card,
+#tgApp .custom-alert-box,
+#tgApp .rug-box,
+#tgApp .ai-copilot,
+#tgApp .whale-xray-box,
+#tgApp .fx-box,
+#tgApp .liq-map,
+#tgApp .ea-row,
+#tgApp .deal-card,
+#tgApp .deals-intro,
+#tgApp .mini-note {
+  position: relative;
+  background:
+    linear-gradient(158deg, rgba(255, 255, 255, .06) 0%, rgba(255, 255, 255, .018) 38%, rgba(255, 255, 255, 0) 68%),
+    linear-gradient(180deg, rgba(19, 28, 46, .88) 0%, rgba(9, 15, 26, .93) 100%);
+  border: 1px solid var(--sp-edge);
+  border-radius: var(--sp-radius);
+  box-shadow: var(--sp-lift);
+}
+
+/* ردیف‌ها و سلول‌های کوچک: شیشهٔ سبک با گردی کمتر */
+#tgApp .row,
+#tgApp .feed-item,
+#tgApp .stat-cell,
+#tgApp .jr-card {
+  position: relative;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, .05) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(18, 27, 44, .86) 0%, rgba(9, 15, 26, .92) 100%);
+  border: 1px solid var(--sp-edge);
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 12px 26px -22px rgba(0, 0, 0, .95);
+}
+
+/* خط نور بالای کارت (نشانهٔ لبهٔ شیشه) */
+#tgApp .card::before,
+#tgApp .plan-card::before,
+#tgApp .custom-alert-box::before,
+#tgApp .rug-box::before,
+#tgApp .ai-copilot::before,
+#tgApp .viral-card::before {
+  content: "";
+  position: absolute;
+  inset-inline: 14px;
+  top: 0;
+  height: 1px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, rgba(160, 220, 255, .55), transparent);
+  opacity: .55;
+  pointer-events: none;
+}
+
+/* تیلت سه‌بعدی (کلاس را space.js می‌گذارد) */
+#tgApp .card {
+  transform-style: preserve-3d;
+  transition: transform .35s var(--sp-ease), box-shadow .35s var(--sp-ease), border-color .25s;
+}
+#tgApp .card.is-tilting {
+  transform: perspective(900px) rotateX(var(--sp-rx, 0deg)) rotateY(var(--sp-ry, 0deg)) translateZ(0);
+  box-shadow: var(--sp-lift-hi);
+  border-color: rgba(255, 255, 255, .16);
+  transition-duration: .12s;
+  will-change: transform;
+}
+
+/* بازتاب نور دنبال‌کنندهٔ اشاره‌گر — تمام CSS، بدون عنصر اضافه در DOM
+   （کارت‌هایی که بعداً رندر می‌شوند هم همین استایل را می‌گیرند) */
+#tgApp .card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s;
+  background: radial-gradient(220px 220px at var(--sp-mx, 50%) var(--sp-my, 0%),
+    rgba(190, 240, 255, .16), rgba(190, 240, 255, .05) 42%, transparent 70%);
+}
+#tgApp .card.is-tilting::after { opacity: 1; }
+
+/* ---------------------------------------------------------------------------
+   ۵) کارت قهرمان (رادار فاندینگ) — هولوگرام سه‌بعدی
+   --------------------------------------------------------------------------- */
+#tgApp .opp-card {
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--sp-radius-lg);
+  border-color: rgba(37, 214, 154, .32);
+  background:
+    radial-gradient(115% 120% at 88% -10%, rgba(37, 214, 154, .22), transparent 58%),
+    radial-gradient(120% 130% at -10% 110%, rgba(123, 92, 255, .22), transparent 62%),
+    linear-gradient(180deg, rgba(15, 27, 40, .94) 0%, rgba(7, 13, 23, .96) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .12) inset,
+    0 30px 70px -34px rgba(37, 214, 154, .55),
+    0 22px 48px -28px rgba(0, 0, 0, .95);
+}
+
+/* هالهٔ چرخان */
+#tgApp .opp-card .sp-aurora {
+  position: absolute;
+  inset: -62%;
+  z-index: -1;
+  opacity: .45;
+  pointer-events: none;
+  background: conic-gradient(from 0deg,
+    transparent 0deg 208deg,
+    rgba(34, 211, 238, .55) 258deg,
+    rgba(37, 214, 154, .65) 292deg,
+    transparent 330deg 360deg);
+  animation: spSweep 18s linear infinite;
+}
+@keyframes spSweep { to { transform: rotate(360deg); } }
+
+/* حلقهٔ HUD گوشهٔ کارت */
+#tgApp .opp-card .sp-hud {
+  position: absolute;
+  inset-inline-end: -58px;
+  top: -66px;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  border: 1px dashed rgba(37, 214, 154, .34);
+  box-shadow:
+    0 0 0 13px rgba(37, 214, 154, .05),
+    inset 0 0 42px rgba(37, 214, 154, .16);
+  pointer-events: none;
+  animation: spSpin 44s linear infinite;
+}
+#tgApp .opp-card .sp-hud::before {
+  content: "";
+  position: absolute;
+  inset: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 211, 238, .3);
+}
+#tgApp .opp-card .sp-hud::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--sp-mint);
+  box-shadow: 0 0 14px rgba(37, 214, 154, .95);
+}
+@keyframes spSpin { to { transform: rotate(360deg); } }
+
+/* هستهٔ سه‌بعدی (سه حلقهٔ چرخان) */
+#tgApp .opp-card .sp-core {
+  position: absolute;
+  inset-inline-start: 50%;
+  top: 54%;
+  width: 260px;
+  height: 260px;
+  margin-top: -130px;
+  margin-inline-start: -130px;   /* RTL/LTR-safe centering */
+  z-index: -1;
+  opacity: .3;
+  pointer-events: none;
+  perspective: 520px;
+  mix-blend-mode: screen;
+}
+#tgApp .opp-card .sp-core i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 211, 238, .55);
+  box-shadow: 0 0 24px rgba(34, 211, 238, .22) inset;
+}
+#tgApp .opp-card .sp-core i:nth-child(1) { animation: spRingA 13s linear infinite; }
+#tgApp .opp-card .sp-core i:nth-child(2) {
+  border-color: rgba(37, 214, 154, .5);
+  animation: spRingB 17s linear infinite;
+}
+#tgApp .opp-card .sp-core i:nth-child(3) {
+  border-color: rgba(123, 92, 255, .55);
+  animation: spRingC 21s linear infinite;
+}
+@keyframes spRingA {
+  from { transform: rotateX(72deg) rotateZ(0); }
+  to   { transform: rotateX(72deg) rotateZ(360deg); }
+}
+@keyframes spRingB {
+  from { transform: rotateY(68deg) rotateZ(0); }
+  to   { transform: rotateY(68deg) rotateZ(-360deg); }
+}
+@keyframes spRingC {
+  from { transform: rotateX(34deg) rotateY(46deg) rotateZ(0); }
+  to   { transform: rotateX(34deg) rotateY(46deg) rotateZ(360deg); }
+}
+
+#tgApp .opp-head {
+  color: #a8f5db;
+  letter-spacing: .1px;
+}
+#tgApp .opp-num {
+  background: linear-gradient(160deg, rgba(37, 214, 154, .24), rgba(37, 214, 154, .06));
+  border: 1px solid rgba(37, 214, 154, .38);
+  border-radius: 15px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .18) inset,
+    0 14px 30px -16px rgba(37, 214, 154, .9);
+}
+#tgApp .opp-num span {
+  text-shadow: 0 0 22px rgba(37, 214, 154, .55);
+  font-variant-numeric: tabular-nums;
+}
+#tgApp .opp-foot {
+  background: rgba(34, 211, 238, .07);
+  border: 1px dashed rgba(34, 211, 238, .32);
+  border-radius: 12px;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* ---------------------------------------------------------------------------
+   ۶) چیپ‌ها، سگمنت‌ها، دکمه‌ها
+   --------------------------------------------------------------------------- */
+#tgApp .seg-btn,
+#tgApp .inst-btn,
+#tgApp .rm-btn,
+#tgApp .cap-btn,
+#tgApp .fp-btn,
+#tgApp .plan-opt {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid var(--sp-edge);
+  transition: background .2s, border-color .2s, transform .14s, box-shadow .2s;
+}
+#tgApp .seg-btn:active,
+#tgApp .inst-btn:active,
+#tgApp .rm-btn:active,
+#tgApp .cap-btn:active,
+#tgApp .fp-btn:active { transform: scale(.96); }
+
+#tgApp .seg-btn.is-on,
+#tgApp .inst-btn.is-on,
+#tgApp .cap-btn.is-on {
+  background: linear-gradient(160deg, rgba(37, 214, 154, .26), rgba(37, 214, 154, .10));
+  border-color: rgba(37, 214, 154, .55);
+  color: #c9fff0;
+  box-shadow: 0 10px 24px -16px rgba(37, 214, 154, .95), 0 1px 0 rgba(255, 255, 255, .14) inset;
+}
+#tgApp .rm-btn.is-on {
+  background: linear-gradient(160deg, rgba(34, 211, 238, .28), rgba(76, 141, 255, .12));
+  border-color: rgba(34, 211, 238, .55);
+  color: #eafaff;
+  box-shadow: 0 10px 24px -16px rgba(34, 211, 238, .95), 0 1px 0 rgba(255, 255, 255, .14) inset;
+}
+#tgApp .fp-btn.is-on {
+  background: linear-gradient(160deg, rgba(123, 92, 255, .30), rgba(76, 141, 255, .12));
+  border-color: rgba(123, 92, 255, .55);
+  color: #eae4ff;
+}
+#tgApp .radar-switch,
+#tgApp .firm-presets,
+#tgApp .inst-seg {
+  border-radius: 14px;
+}
+
+/* دکمه‌های تمام‌عرض: درخشش عبوری */
+#tgApp .btn-block {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 15px;
+  border: 1px solid var(--sp-edge-2);
+  letter-spacing: .1px;
+  transition: transform .16s var(--sp-ease), box-shadow .25s, filter .2s;
+}
+#tgApp .btn-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg,
+    transparent 30%, rgba(255, 255, 255, .35) 48%, transparent 62%);
+  transform: translateX(-120%);
+  animation: spSheen 6.5s ease-in-out 1.6s infinite;
+  pointer-events: none;
+}
+@keyframes spSheen {
+  0%        { transform: translateX(-120%); }
+  18%, 100% { transform: translateX(120%); }
+}
+#tgApp .btn-block:hover { transform: translateY(-2px); }
+#tgApp .btn-block:active { transform: translateY(0) scale(.985); }
+
+#tgApp .btn-primary,
+#tgApp .btn-guard-on {
+  background: linear-gradient(140deg, #2fe3a6, #12b284);
+  color: #032017;
+  border-color: transparent;
+  box-shadow: 0 14px 34px -18px rgba(37, 214, 154, .95);
+}
+#tgApp .btn-stars {
+  background: linear-gradient(140deg, #ffd778, #f0a53a);
+  color: #23160a;
+  border-color: transparent;
+  box-shadow: 0 16px 38px -18px rgba(255, 201, 77, .9);
+}
+#tgApp .btn-guard-off,
+#tgApp .btn-ghost-dark {
+  background: rgba(76, 141, 255, .10);
+  border-color: rgba(76, 141, 255, .42);
+  color: #cfe0ff;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* ---------------------------------------------------------------------------
+   ۷) فیلدها و اسلایدرها
+   --------------------------------------------------------------------------- */
+#tgApp .wx-input,
+#tgApp .rug-input,
+#tgApp .cs-field input,
+#tgApp .ca-row input,
+#tgApp .jr-field input,
+#tgApp .field input[type="text"],
+#tgApp .field input[type="number"] {
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid var(--sp-edge);
+  border-radius: 11px;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+/* فیلدهای ژورنال: کنتراست بالاتر روی شیشه */
+#tgApp .jr-field input {
+  color: #eaf6ff;
+  background: rgba(5, 11, 20, .60);
+  border-color: rgba(120, 200, 180, .22);
+}
+#tgApp .jr-field input::placeholder { color: rgba(190, 210, 230, .45); }
+#tgApp .wx-input:focus,
+#tgApp .rug-input:focus,
+#tgApp .cs-field input:focus,
+#tgApp .ca-row input:focus,
+#tgApp .jr-field input:focus {
+  outline: none;
+  border-color: rgba(37, 214, 154, .6);
+  background: rgba(37, 214, 154, .06);
+  box-shadow: 0 0 0 3px rgba(37, 214, 154, .13);
+}
+
+#tgApp input[type="range"] {
+  height: 6px;
+  border-radius: 99px;
+  /* رنگ بخش پرشده از --fill می‌آید (app.js)؛ پس همان متغیر حفظ می‌شود */
+  background: linear-gradient(90deg,
+    #2fe3a6 0%, #22d3ee var(--fill, 50%), rgba(255, 255, 255, .10) var(--fill, 50%));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .05) inset, 0 0 18px -8px rgba(37, 214, 154, .7);
+}
+#tgApp input[type="range"]::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(37, 214, 154, .16), 0 4px 12px rgba(0, 0, 0, .6);
+}
+
+/* نوارهای پیشرفت: جریان نور */
+#tgApp .usage-bar i,
+#tgApp .wd-fill {
+  background-image: linear-gradient(90deg, currentColor 0%, #fff 45%, currentColor 100%);
+  background-size: 220% 100%;
+  animation: spFlow 3.4s linear infinite;
+}
+#tgApp .usage-bar i { color: #ff5c77; }
+#tgApp .wd-fill { color: #25d69a; }
+@keyframes spFlow {
+  from { background-position: 120% 0; }
+  to   { background-position: -120% 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   ۸) نوار تب شناور + اندیکاتور لغزنده
+   --------------------------------------------------------------------------- */
+#tgApp .tabbar {
+  position: absolute;                 /* داخل قاب اپ، نه کل ویوپورت */
+  left: 0;
+  right: 0;
+  margin-inline: 10px;
+  transform: none;
+  bottom: calc(9px + env(safe-area-inset-bottom, 0px));
+  width: auto;
+  max-width: none;
+  padding: 6px;
+  gap: 2px;
+  /* ۶ تب عادی + تب ادمین در حالت مدیر ⇒ تعداد ستون‌ها خودکار */
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-top: 1px solid rgba(255, 255, 255, .09);
+  background: linear-gradient(180deg, rgba(22, 30, 46, .80) 0%, rgba(8, 12, 20, .92) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .09) inset,
+    0 20px 46px -18px rgba(0, 0, 0, .95),
+    0 0 40px -22px rgba(37, 214, 154, .8);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+#tgApp .tab-glow.is-ready { opacity: 1; }
+#tgApp .tab-glow {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: var(--sp-tab-w, 60px);
+  border-radius: 16px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;                        /* تا جای دقیق تب محاسبه شود دیده نمی‌شود */
+  transition: transform .42s var(--sp-ease), width .3s var(--sp-ease), opacity .3s;
+  transform: translate3d(var(--sp-tab-x, 0px), 0, 0);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(37, 214, 154, .30), rgba(37, 214, 154, .05) 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .18) inset,
+    0 8px 22px -14px rgba(37, 214, 154, .95);
+  border: 1px solid rgba(37, 214, 154, .28);
+}
+#tgApp .tab-btn {
+  position: relative;
+  z-index: 1;
+  border-radius: 16px;
+  padding: 7px 1px 6px;
+  font-size: 9.5px;
+  color: #7f92b3;
+  transition: color .25s, transform .16s;
+}
+#tgApp .tab-btn svg { width: 19px; height: 19px; }
+#tgApp .tab-btn.is-on {
+  background: transparent;
+  color: #b6ffe8;
+  text-shadow: 0 0 16px rgba(37, 214, 154, .55);
+}
+#tgApp .tab-btn.is-on svg {
+  filter: drop-shadow(0 0 9px rgba(37, 214, 154, .85));
+  animation: spIconPop .45s var(--sp-ease) both;
+}
+@keyframes spIconPop {
+  from { transform: translateY(2px) scale(.86); }
+  60%  { transform: translateY(-1px) scale(1.08); }
+  to   { transform: none; }
+}
+#tgApp .tab-btn.is-on::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--sp-mint);
+  box-shadow: 0 0 10px rgba(37, 214, 154, .95);
+}
+#tgApp .tab-badge {
+  box-shadow: 0 0 0 2px rgba(9, 13, 20, .95), 0 0 14px rgba(255, 92, 119, .8);
+  animation: spBadgePulse 2.6s ease-in-out infinite;
+}
+@keyframes spBadgePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+
+/* ---------------------------------------------------------------------------
+   ۹) ورود پله‌ای محتوا (موشن‌گرافیک هر تب)
+   --------------------------------------------------------------------------- */
+#tgApp .tab-pane.is-active > * {
+  animation: spRise .52s var(--sp-ease) backwards;
+}
+#tgApp .tab-pane.is-active > *:nth-child(1) { animation-delay: .01s; }
+#tgApp .tab-pane.is-active > *:nth-child(2) { animation-delay: .05s; }
+#tgApp .tab-pane.is-active > *:nth-child(3) { animation-delay: .09s; }
+#tgApp .tab-pane.is-active > *:nth-child(4) { animation-delay: .13s; }
+#tgApp .tab-pane.is-active > *:nth-child(5) { animation-delay: .17s; }
+#tgApp .tab-pane.is-active > *:nth-child(6) { animation-delay: .21s; }
+#tgApp .tab-pane.is-active > *:nth-child(n+7) { animation-delay: .25s; }
+@keyframes spRise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* پالس اعداد هنگام به‌روزرسانی داده */
+#tgApp .sp-pop {
+  animation: spPop .62s var(--sp-ease) both;
+}
+@keyframes spPop {
+  0%   { opacity: .55; transform: scale(.94); filter: brightness(1.7); }
+  55%  { opacity: 1; transform: scale(1.03); filter: brightness(1.25); }
+  100% { transform: none; filter: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   ۱۰) اسپلش و آنبوردینگ
+   --------------------------------------------------------------------------- */
+#tgSplash {
+  background:
+    radial-gradient(80% 60% at 50% 38%, rgba(37, 214, 154, .14), transparent 62%),
+    radial-gradient(70% 50% at 50% 70%, rgba(123, 92, 255, .16), transparent 66%),
+    linear-gradient(180deg, #070d18 0%, #04060c 100%);
+  overflow: hidden;
+}
+#tgSplash::before,
+#tgSplash::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 190px;
+  height: 190px;
+  margin: -95px 0 0 -95px;
+  border-radius: 50%;
+  border: 1px solid rgba(37, 214, 154, .22);
+  animation: spOrbit 12s linear infinite;
+}
+#tgSplash::after {
+  width: 260px;
+  height: 260px;
+  margin: -130px 0 0 -130px;
+  border-style: dashed;
+  border-color: rgba(123, 92, 255, .22);
+  animation-duration: 22s;
+  animation-direction: reverse;
+}
+
+#tgSplash .tgspin {
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg, rgba(37, 214, 154, 0) 0deg, rgba(37, 214, 154, .15) 120deg, #25d69a 340deg, rgba(37, 214, 154, 0) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  box-shadow: 0 0 40px -6px rgba(37, 214, 154, .55);
+  animation: tgspin .95s linear infinite;
+}
+#tgSplash .splash-t {
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  background: linear-gradient(96deg, #d9fff2, #9fd8ff 60%, #c7b8ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #d9fff2;
+  animation: spWord 2.6s ease-in-out infinite;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  #tgSplash .splash-t { color: transparent; }
+}
+@keyframes spWord {
+  0%, 100% { opacity: .72; letter-spacing: 5px; }
+  50%      { opacity: 1; letter-spacing: 7px; }
+}
+
+/* آنبوردینگ: کارت شیشه‌ای سه‌بعدی */
+#onboard .ob-card {
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(37, 214, 154, .16), transparent 60%),
+    linear-gradient(180deg, rgba(20, 29, 44, .97) 0%, rgba(10, 16, 27, .98) 100%);
+  border: 1px solid var(--sp-edge-2);
+  border-radius: var(--sp-radius-lg);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .12) inset,
+    0 40px 90px -30px rgba(0, 0, 0, .95),
+    0 0 70px -40px rgba(37, 214, 154, .85);
+  transform: perspective(1200px) rotateX(2deg);
+  animation: spObIn .5s var(--sp-ease) both;
+}
+@keyframes spObIn {
+  from { opacity: 0; transform: perspective(1200px) rotateX(10deg) translateY(18px) scale(.97); }
+  to   { opacity: 1; transform: perspective(1200px) rotateX(2deg); }
+}
+#onboard .ob-slide:not(.hidden) {
+  animation: spObSlide .42s var(--sp-ease) both;
+}
+@keyframes spObSlide {
+  from { opacity: 0; transform: translateX(18px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+#onboard .ob-emoji {
+  filter: drop-shadow(0 10px 24px rgba(37, 214, 154, .45));
+  animation: spEmojiFloat 4.6s ease-in-out infinite;
+}
+@keyframes spEmojiFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-6px) rotate(2deg); }
+}
+#onboard .ob-dots i {
+  transition: width .3s var(--sp-ease), background .3s;
+}
+#onboard .ob-dots i.is-on {
+  background: linear-gradient(90deg, var(--sp-mint), var(--sp-cyan));
+  box-shadow: 0 0 12px rgba(37, 214, 154, .8);
+}
+
+/* ---------------------------------------------------------------------------
+   ۱۱) شیت‌ها (فاکتور/پارتنر) و کشیدن-به-روزرسانی
+   --------------------------------------------------------------------------- */
+#tgApp .sheet {
+  z-index: 60;                       /* شیت بالای نوار تب باز می‌شود */
+  background:
+    radial-gradient(100% 40% at 50% 0%, rgba(37, 214, 154, .10), transparent 60%),
+    linear-gradient(180deg, #0a1220 0%, #05080f 100%);
+  box-shadow: 0 -30px 80px -30px rgba(0, 0, 0, .95);
+  animation: spSheetUp .38s var(--sp-ease);
+}
+@keyframes spSheetUp {
+  from { opacity: 0; transform: translateY(26px) scale(.995); }
+  to   { opacity: 1; transform: none; }
+}
+#tgApp .sheet-top {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), transparent);
+  border-bottom: 1px solid var(--sp-edge);
+}
+#tgApp .ptr-bar {
+  color: #8fb3d9;
+  transition: height .25s var(--sp-ease), opacity .25s;
+}
+
+/* ---------------------------------------------------------------------------
+   ۱۲) حالت روشن تلگرام
+   --------------------------------------------------------------------------- */
+body.tg-light {
+  --sp-edge: rgba(15, 40, 70, .12);
+  --sp-edge-2: rgba(15, 40, 70, .2);
+  --sp-glass: rgba(255, 255, 255, .65);
+  --sp-void: #eef3fa;
+}
+body.tg-light #tgApp {
+  background: radial-gradient(130% 90% at 50% -20%, #ffffff 0%, #eef4fb 52%, #e6edf7 100%);
+}
+body.tg-light #spaceScene { opacity: .28; }
+body.tg-light #spaceScene .sp-veil {
+  background: radial-gradient(130% 80% at 50% 4%, transparent 42%, rgba(238, 243, 250, .75) 100%);
+}
+body.tg-light #spaceScene .sp-star { background: #7ba7d0; opacity: .35; box-shadow: none; }
+body.tg-light #tgApp .app-topbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .6) 60%, transparent);
+}
+body.tg-light #tgApp .card,
+body.tg-light #tgApp .plan-card,
+body.tg-light #tgApp .viral-card,
+body.tg-light #tgApp .custom-alert-box,
+body.tg-light #tgApp .rug-box,
+body.tg-light #tgApp .ai-copilot,
+body.tg-light #tgApp .fx-box,
+body.tg-light #tgApp .liq-map,
+body.tg-light #tgApp .ea-row,
+body.tg-light #tgApp .deal-card,
+body.tg-light #tgApp .feed-item,
+body.tg-light #tgApp .row,
+body.tg-light #tgApp .jr-card {
+  background: linear-gradient(160deg, #ffffff 0%, #f4f8fe 100%);
+  border-color: rgba(15, 40, 70, .10);
+  box-shadow: 0 10px 28px -20px rgba(15, 40, 70, .5);
+}
+body.tg-light #tgApp .opp-card {
+  background:
+    radial-gradient(115% 120% at 88% -10%, rgba(37, 214, 154, .18), transparent 58%),
+    linear-gradient(180deg, #ffffff 0%, #f1f8fb 100%);
+}
+body.tg-light #tgApp .tabbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(240, 246, 254, .96));
+  border-color: rgba(15, 40, 70, .10);
+  box-shadow: 0 18px 40px -20px rgba(15, 40, 70, .45);
+}
+body.tg-light #tgApp .tab-btn { color: #5d7595; }
+body.tg-light #tgApp .tab-btn.is-on { color: #0a8f68; }
+body.tg-light #tgApp .opp-card .sp-core { opacity: .12; }
+body.tg-light #tgApp .opp-card .sp-aurora { opacity: .12; }
+body.tg-light #spaceScene .sp-grid {
+  opacity: .5;
+  --sp-grid-line: rgba(15, 60, 110, .28);
+}
+body.tg-light #spaceScene .sp-grid i {
+  background-image:
+    linear-gradient(to right, rgba(15, 60, 110, .22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 60, 110, .16) 1px, transparent 1px);
+}
+body.tg-light #spaceScene .sp-grid::before {
+  background: linear-gradient(90deg, transparent, rgba(15, 60, 110, .35), transparent);
+  box-shadow: none;
+}
+body.tg-light #tgSplash {
+  background: radial-gradient(80% 60% at 50% 38%, rgba(37, 214, 154, .18), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+}
+body.tg-light #tgSplash .splash-t { background: none; -webkit-background-clip: initial; background-clip: initial; color: #0b2239; }
+body.tg-light .onboard { background: rgba(238, 243, 250, .86); }
+body.tg-light #onboard .ob-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8fe 100%);
+  border-color: rgba(15, 40, 70, .12);
+  box-shadow: 0 30px 70px -30px rgba(15, 40, 70, .45);
+}
+
+/* --- خوانایی حالت روشن: متن‌هایی که در styles.css رنگ ثابت روشن دارند --- */
+body.tg-light #tgApp .app-name {
+  background: linear-gradient(96deg, #0b2239 0%, #0a7f63 55%, #1c3f8f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+body.tg-light #tgApp .app-sub,
+body.tg-light #tgApp .mini-note,
+body.tg-light #tgApp .usage-hint,
+body.tg-light #tgApp .ea-sub,
+body.tg-light #tgApp .deal-sub,
+body.tg-light #tgApp .row-sym small,
+body.tg-light #tgApp .stat-k { color: #556a83; }
+body.tg-light #tgApp .opp-head { color: #0a8f68; }
+/* عنوان‌های ثابت‌رنگ در styles.css */
+body.tg-light #tgApp .rug-title,
+body.tg-light #tgApp .wx-title,
+body.tg-light #tgApp .ca-title,
+body.tg-light #tgApp .cs-head,
+body.tg-light #tgApp .vc-head,
+body.tg-light #tgApp .ns-head,
+body.tg-light #tgApp .aic-top,
+body.tg-light #tgApp .liq-head,
+body.tg-light #tgApp .fx-head,
+body.tg-light #tgApp .deals-intro,
+body.tg-light #tgApp .plan-badge { color: #1d3349; }
+body.tg-light #tgApp .aic-title { color: #1b4a9c; }
+body.tg-light #tgApp .streak-chip {
+  color: #6b4c00;
+  background: rgba(255, 201, 77, .22);
+  border-color: rgba(160, 115, 15, .38);
+}
+body.tg-light #tgApp .streak-chip b { color: #4a3400; }
+body.tg-light #tgApp .rug-title b,
+body.tg-light #tgApp .opp-foot b { color: #0a6ea8; }
+body.tg-light #tgApp .opp-desc { color: #4b6178; }
+body.tg-light #tgApp .opp-foot { background: rgba(34, 211, 238, .10); border-color: rgba(15, 90, 140, .28); color: #24405c; }
+body.tg-light #tgApp .opp-foot b { color: #0a6ea8; }
+body.tg-light #tgApp .opp-num { background: linear-gradient(160deg, rgba(37, 214, 154, .22), rgba(37, 214, 154, .06)); }
+body.tg-light #tgApp .opp-num small { color: #0a7f63; }
+body.tg-light #tgApp .list-head { color: #1d3349; }
+body.tg-light #tgApp .live-tag { color: #556a83; }
+body.tg-light #tgApp .radar-switch {
+  background: rgba(255, 255, 255, .75);
+  border-color: rgba(15, 40, 70, .10);
+  box-shadow: 0 8px 24px -20px rgba(15, 40, 70, .5);
+}
+body.tg-light #tgApp .rm-btn { color: #4b6178; background: rgba(255, 255, 255, .7); border-color: rgba(15, 40, 70, .10); }
+body.tg-light #tgApp .rm-btn.is-on { color: #0b5f7a; background: linear-gradient(160deg, rgba(34, 211, 238, .28), rgba(76, 141, 255, .14)); }
+body.tg-light #tgApp .seg-btn,
+body.tg-light #tgApp .inst-btn,
+body.tg-light #tgApp .fp-btn,
+body.tg-light #tgApp .cap-btn { color: #2c4460; }
+body.tg-light #tgApp .seg-btn.is-on,
+body.tg-light #tgApp .inst-btn.is-on,
+body.tg-light #tgApp .cap-btn.is-on { color: #075e45; }
+body.tg-light #tgApp .fp-btn.is-on { color: #3b2e91; }
+body.tg-light #tgApp .stat-v { color: #0f2740; }
+body.tg-light #tgApp .row-sym b,
+body.tg-light #tgApp .deal-name,
+body.tg-light #tgApp .ea-name,
+body.tg-light #tgApp .jr-sym { color: #0f2740; }
+body.tg-light #tgApp .feed-item,
+body.tg-light #tgApp .deals-intro,
+body.tg-light #tgApp .mini-note {
+  background: linear-gradient(160deg, #ffffff 0%, #f3f8fe 100%);
+  border-color: rgba(15, 40, 70, .10);
+  box-shadow: 0 10px 26px -22px rgba(15, 40, 70, .45);
+}
+body.tg-light #tgApp .ai-copilot,
+body.tg-light #tgApp .rug-box,
+body.tg-light #tgApp .custom-alert-box,
+body.tg-light #tgApp .whale-xray-box,
+body.tg-light #tgApp .fx-box,
+body.tg-light #tgApp .liq-map,
+body.tg-light #tgApp .ea-row,
+body.tg-light #tgApp .viral-card,
+body.tg-light #tgApp .plan-card { color: #1d3349; }
+body.tg-light #tgApp .btn-guard-off,
+body.tg-light #tgApp .btn-ghost-dark {
+  background: rgba(76, 141, 255, .12);
+  border-color: rgba(40, 90, 190, .35);
+  color: #1b4a9c;
+}
+body.tg-light #tgApp .jr-field input,
+body.tg-light #tgApp .cs-field input,
+body.tg-light #tgApp .ca-row input,
+body.tg-light #tgApp .wx-input,
+body.tg-light #tgApp .rug-input {
+  background: #ffffff;
+  border-color: rgba(15, 40, 70, .16);
+  color: #0f2740;
+}
+body.tg-light #tgApp .jr-field input::placeholder,
+body.tg-light #tgApp .wx-input::placeholder,
+body.tg-light #tgApp .rug-input::placeholder { color: #8496ab; }
+body.tg-light #tgApp .jr-calc .jr-cell { background: #f4f8fd; border-color: rgba(15, 40, 70, .10); }
+body.tg-light #tgApp .jr-list-head { color: #1d3349; }
+body.tg-light #tgApp .jr-mini-btn {
+  background: rgba(15, 40, 70, .05);
+  border-color: rgba(15, 40, 70, .16);
+  color: #24364e;
+}
+body.tg-light #tgApp .jr-calc .jr-cell span { color: #556a83; }
+body.tg-light #tgApp .sheet { background: linear-gradient(180deg, #ffffff 0%, #f2f7fd 100%); }
+body.tg-light #tgApp .sheet-title { color: #0f2740; }
+body.tg-light #tgApp .tab-glow {
+  background: radial-gradient(120% 140% at 50% 0%, rgba(37, 214, 154, .42), rgba(37, 214, 154, .12) 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(240, 252, 247, .72));
+  border-color: rgba(16, 150, 110, .40);
+  box-shadow: 0 1px 0 #fff inset, 0 8px 20px -14px rgba(16, 150, 110, .8);
+}
+body.tg-light #tgApp .tab-btn.is-on { text-shadow: none; }
+
+/* ---------------------------------------------------------------------------
+   ۱۳) دسکتاپ / مرورگر
+   --------------------------------------------------------------------------- */
+@media (min-width: 620px) {
+  body.tg-app {
+    background:
+      radial-gradient(900px 620px at 50% -10%, #0d1b3a 0%, #050810 62%, #03050a 100%);
+  }
+  #tgApp {
+    max-width: 480px;
+    border-radius: 26px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, .07),
+      0 40px 120px -40px rgba(37, 214, 154, .28),
+      0 30px 90px -20px rgba(0, 0, 0, .85);
+    margin: 12px 0;
+    height: min(940px, calc(100vh - 24px));
+  }
+  body.tg-app { align-items: center; }
+}
+
+/* ---------------------------------------------------------------------------
+   ۱۴) دسترس‌پذیری + کاهش حرکت
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  #spaceScene .sp-neb,
+  #spaceScene .sp-grid i,
+  #spaceScene .sp-star,
+  #spaceScene .sp-shoot,
+  #tgApp .app-avatar,
+  #tgApp .app-avatar::before,
+  #tgApp .app-avatar::after,
+  #tgApp .opp-card .sp-aurora,
+  #tgApp .opp-card .sp-hud,
+  #tgApp .opp-card .sp-core i,
+  #tgApp .btn-block::after,
+  #tgApp .usage-bar i,
+  #tgApp .wd-fill,
+  #tgApp .tab-badge,
+  #tgSplash::before,
+  #tgSplash::after,
+  #tgSplash .tgspin,
+  #tgSplash .splash-t,
+  #onboard .ob-card,
+  #onboard .ob-slide,
+  #onboard .ob-emoji,
+  #tgApp .tab-pane.is-active > *,
+  #tgApp .sp-pop,
+  #tgApp .tab-btn.is-on svg {
+    animation: none !important;
+  }
+  #tgApp .card,
+  #tgApp .card.is-tilting {
+    transform: none !important;
+    transition: none;
+  }
+  #spaceScene .sp-shoot { display: none; }
+  #tgApp .tab-glow { transition: none; }
+}
+
+/* موبایل‌های ضعیف‌تر: صحنهٔ سبک‌تر */
+@media (max-width: 380px) {
+  #spaceScene .sp-grid { opacity: .38; }
+  #tgApp .opp-card .sp-core { display: none; }
+}
