@@ -1010,6 +1010,26 @@ check("غیرادمین به /adkit دسترسی ندارد",
       bool(_posts) and "فقط ادمین" in _posts[-1][1], str(_posts[-1:])[:100])
 bot.ADMIN_USER_ID = ""
 
+print("\n۹٫۱۳) هم‌خوانی متن پروفایل کانال با اسکریپت تنظیم پروفایل")
+import channel_profile as _cp  # noqa: E402
+
+check("متن توضیحات انگلیسی ربات و اسکریپت یکی است",
+      _cp.TEXTS["en"]["desc"] == bot.CHANNEL_DESCRIPTION_EN, _cp.TEXTS["en"]["desc"][:60])
+check("متن توضیحات فارسی ربات و اسکریپت یکی است",
+      _cp.TEXTS["fa"]["desc"] == bot.CHANNEL_DESCRIPTION, _cp.TEXTS["fa"]["desc"][:60])
+check("عنوان پیشنهادی کانال زیر سقف ۱۲۸ کاراکتر است",
+      all(len(t["title"]) <= 128 for t in _cp.TEXTS.values()), str(len(_cp.TEXTS["en"]["title"])))
+check("متن خوش‌آمد انگلیسی هیچ حرف فارسی ندارد",
+      not _fa_re.search(_cp.TEXTS["en"]["welcome"]), _cp.TEXTS["en"]["welcome"][:60])
+import os as _os2  # noqa: E402
+_saved_tok = _os2.environ.pop("BOT_TOKEN", None)
+_rc = _cp.main()
+if _saved_tok is not None:
+    _os2.environ["BOT_TOKEN"] = _saved_tok
+check("اسکریپت پروفایل بدون توکن خطا می‌دهد و کرش نمی‌کند", _rc == 2, str(_rc))
+check("کد قفل‌شدن روی یوزرنیم در راهنما ذکر شده (Bot API نمی‌تواند عوض کند)",
+      "یوزرنیم" in _cp.__doc__, _cp.__doc__[:60])
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
