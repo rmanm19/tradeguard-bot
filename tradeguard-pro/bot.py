@@ -899,6 +899,8 @@ def save_pro_status(data: dict) -> bool:
 #  فید عمومی داده (برای توسعه‌دهنده‌ها، ربات‌های دیگر و شرکا)
 # ---------------------------------------------------------------------
 PUBLIC_FEED_DIR = Path(os.environ.get("PUBLIC_FEED_DIR") or (REPO_ROOT / "docs" / "api"))
+# حداقل فاصلهٔ دو انتشار (ثانیه) — پیش‌فرض ۳۰ دقیقه تا تاریخچهٔ گیت شلوغ نشود
+PUBLIC_FEED_MIN_INTERVAL = int(os.environ.get("PUBLIC_FEED_MIN_INTERVAL", "1800"))
 
 
 def public_feed_stats() -> Dict[str, int]:
@@ -918,6 +920,12 @@ def public_feed_stats() -> Dict[str, int]:
     except Exception as exc:
         logger.warning("آمار فید عمومی خوانده نشد: %s", exc)
     return out
+
+
+def _public_channel_handle(value: str) -> str:
+    """آیدی عددی هرگز منتشر نمی‌شود؛ فقط هندل عمومی یا رشتهٔ خالی."""
+    v = str(value or "").strip()
+    return v if v.startswith("@") else ""
 
 
 def build_public_feed(rates: List[Dict]) -> Optional[Dict]:
@@ -946,13 +954,28 @@ def build_public_feed(rates: List[Dict]) -> Optional[Dict]:
     }
 
 
-def publish_public_feed(rates: Optional[List[Dict]] = None) -> Optional[Dict]:
+def _feed_age_seconds() -> Optional[float]:
+    """چند ثانیه از نوشتن فید گذشته؟ (برای جلوگیری از کامیت‌های تکراری)"""
+    try:
+        data = json.loads((PUBLIC_FEED_DIR / "radar.json").read_text(encoding="utf-8"))
+        stamp = str(data.get("generated_at") or "")
+        dt = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds()
+    except Exception:
+        return None
+
+
+def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False) -> Optional[Dict]:
     """docs/api/radar.json + docs/api/stats.json را می‌نویسد و (در اجرای واقعی) پوش می‌کند.
 
     چرا؟ چون یک «فید دادهٔ عمومی و بدون کلید» هم برای تریدرها (مصرف در ابزار خودشان)
     و هم برای شرکا (بروکر/صرافی/ربات‌های دیگر) ارزش دارد و هزینهٔ زیرساختی ندارد.
     """
     try:
+        age = _feed_age_seconds()
+        if not force and age is not None and age < PUBLIC_FEED_MIN_INTERVAL:
+            # فید تازه است: نه می‌نویسیم نه کامیت می‌کنیم (جلوگیری از نویز در تاریخچه)
+            return json.loads((PUBLIC_FEED_DIR / "radar.json").read_text(encoding="utf-8"))
         live = rates if rates is not None else fetch_live_funding_and_oi()
         feed = build_public_feed(live or [])
         if not feed:
@@ -967,8 +990,9 @@ def publish_public_feed(rates: Optional[List[Dict]] = None) -> Optional[Dict]:
             "users_total": _st["users_total"],
             "join_rewards": _st["join_rewards"],
             "active_pro": _st["active_pro"],
-            "channel": PUBLIC_CHANNEL_ID or "",
-            "channel_en": PUBLIC_CHANNEL_EN or "",
+            # فقط یوزرنیم عمومی منتشر می‌شود؛ آیدی عددی کانال (‎-100…) هرگز.
+            "channel": _public_channel_handle(PUBLIC_CHANNEL_ID),
+            "channel_en": _public_channel_handle(PUBLIC_CHANNEL_EN),
             "note": "Aggregated counters only — no personal data is ever published.",
         }
         (PUBLIC_FEED_DIR / "radar.json").write_text(

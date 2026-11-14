@@ -1103,8 +1103,19 @@ check("فید عمومی هیچ توکن یا آیدی شخصی ندارد",
       "BOT_TOKEN" not in _radar_path.read_text(encoding="utf-8")
       and "user_id" not in _radar_path.read_text(encoding="utf-8"),
       "بررسی محتوا")
+check("آیدی عددی کانال هرگز در فید عمومی نمی‌رود",
+      bot._public_channel_handle("-1001234567") == ""
+      and bot._public_channel_handle("@tradeguard1") == "@tradeguard1")
 check("آمار فید فقط شمارنده‌های تجمیعی دارد",
       _stats["users_total"] >= 1 and "note" in _stats and _stats["languages"] == 6, str(_stats))
+_stamp1 = _json.loads(_radar_path.read_text(encoding="utf-8"))["generated_at"]
+bot.publish_public_feed(_fake_rates())
+_stamp2 = _json.loads(_radar_path.read_text(encoding="utf-8"))["generated_at"]
+check("انتشار زودهنگام دوباره نویسی نمی‌کند (ضد نویز کامیت)",
+      _stamp1 == _stamp2, f"{_stamp1} → {_stamp2}")
+check("انتشار اجباری (force) همیشه فید تازه می‌نویسد",
+      bot.publish_public_feed(_fake_rates(), force=True) is not None
+      and _json.loads(_radar_path.read_text(encoding="utf-8"))["funding"][0]["symbol"] == "BTC")
 check("تاریخ فید ISO و UTC است",
       _radar["generated_at"].endswith("Z") and "T" in _radar["generated_at"], _radar["generated_at"])
 bot.PRO_STATUS_PUSH = False
