@@ -388,6 +388,28 @@ check("کارت پیشنهادها دیگر از آرایهٔ هاردکد i18n 
 check("همهٔ آرایه‌های deals در ۶ زبان خالی‌اند",
   (i18nSrc.match(/deals:\s*\[\]/g) || []).length === 6,
   String((i18nSrc.match(/deals:\s*\[\]/g) || []).length));
+/* ── صفحهٔ فرود تلگرام (join.html) ─────────────────────────────
+   چرا: این تنها صفحه‌ای است که در بیو/دایرکتوری به آن لینک می‌دهیم؛ اگر
+   عددی هاردکد داشته باشد یا در نبودِ داده چیزی بسازد، همان ادعا را نشان
+   داده‌ایم. پس: هیچ قیمت ثابت، هیچ عدد کاربر، و کد رهگیری.
+*/
+const joinHtml = read("join.html");
+check("صفحهٔ فرود join.html وجود دارد و RTL/موبایل‌فرست است",
+  /dir="rtl"/.test(joinHtml) && /name="viewport"/.test(joinHtml) && /lang="fa"/.test(joinHtml));
+check("صفحهٔ فرود کد منبع lp_fa و پاس‌دادن ?src= را دارد",
+  /var src = "lp_fa"/.test(joinHtml) && /URLSearchParams\(location\.search\)\.get\("src"\)/.test(joinHtml));
+check("صفحهٔ فرود لینک ربات را با کد رهگیری می‌سازد",
+  /function botUrl\(code\)/.test(joinHtml) && /botUrl\(src\)/.test(joinHtml));
+check("صفحهٔ فرود هیچ قیمت هاردکد ندارد (همه از api/plans.json)",
+  !/۳۰۰\s*⭐|300\s*⭐/.test(joinHtml) && /api\/plans\.json/.test(joinHtml));
+check("صفحهٔ فرود دادهٔ زنده را از api/radar.json می‌خواند و در نبودِ داده چیزی نمی‌سازد",
+  /api\/radar\.json/.test(joinHtml) && /if \(!rows\.length\) return;/.test(joinHtml));
+check("صفحهٔ فرود تاریخ پایان رایگان را از فایل ربات می‌خواند",
+  /pro_users\.json/.test(joinHtml) && /freeUntil/.test(joinHtml));
+check("صفحهٔ فرود سلب مسئولیت دارد", /توصیهٔ سرمایه‌گذاری نیست/.test(joinHtml));
+check("صفحهٔ فرود ادعای عدد کاربر/درآمد ندارد",
+  !/هزار کاربر|۱۰۰٪|تضمین|۲٬۱۵۰|2,150/.test(joinHtml));
+
 check("کلید شمارش معکوس دورهٔ رایگان در ۶ زبان هست",
   LANGS.every((l) => /\{date\}/.test((I18N[l] || {}).freeUntilTpl || "")
     && /\{days\}/.test((I18N[l] || {}).freeUntilTpl || "")));

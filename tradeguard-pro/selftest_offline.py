@@ -573,11 +573,17 @@ _cats = [bot.next_channel_category() for _ in range(len(bot.CHANNEL_CYCLE))]
 check("چرخهٔ محتوا همهٔ دسته‌ها را می‌پوشاند", set(_cats) == {"radar", "edu", "feature"}, str(_cats))
 _wrap = bot.next_channel_category()
 check("چرخه پس از یک دور به ابتدا برمی‌گردد", _wrap == _cats[0], f"{_cats[0]} vs {_wrap}")
+_re_code = __import__("re").compile(r"start=(post_(?:edu|feature)\d+)")
 _e1, _ekb = bot.build_edu_post()
 _e2, _ = bot.build_edu_post()
 check("پست آموزشی ساخته می‌شود", "🎓" in _e1 and len(_e1) > 200, _e1[:60])
 check("دو پست آموزشی پشت‌سرهم تکراری نیستند", _e1 != _e2)
 check("پست آموزشی دکمهٔ مینی‌اپ دارد", "t.me/" in _ekb["inline_keyboard"][0][0]["url"])
+check("هر اسلاید آموزشی کد منبع اختصاصی خودش را دارد (post_edu1..N)",
+      _re_code.search(_ekb["inline_keyboard"][0][0]["url"]) is not None
+      and _re_code.search(_ekb["inline_keyboard"][0][0]["url"]).group(1) !=
+      _re_code.search(bot.build_edu_post()[1]["inline_keyboard"][0][0]["url"]).group(1),
+      _ekb["inline_keyboard"][0][0]["url"])
 _f1, _fkb = bot.build_feature_post()
 check("پست معرفی قابلیت ساخته می‌شود", len(_f1) > 150, _f1[:60])
 check("پست قابلیت، دکمهٔ دعوت هم دارد", len(_fkb["inline_keyboard"]) >= 2)
@@ -860,6 +866,15 @@ check("نرخ تبدیل عضویت حساب می‌شود",
 _ftxt = bot.funnel_text()
 check("متن قیف درصد تبدیل را نشان می‌دهد", "ad_campaign1" in _ftxt and "%" in _ftxt, _ftxt[:140])
 check("متن قیف جمع کل را می‌دهد", "جمع:" in _ftxt, _ftxt[-160:])
+# پول به تفکیک منبع: کدام پست/دعوت واقعاً فروخت؟
+_money_rows = {r["source"]: r for r in bot.funnel_rows()}
+_paid_src = next((r for r in _money_rows.values() if r.get("payments")), None)
+check("قیف، خرید و استارز هر منبع را از جدول پرداخت می‌خواند",
+      _paid_src is not None and _paid_src["stars"] > 0
+      and abs(_paid_src["usd"] - bot.stars_to_usd(_paid_src["stars"])) < 0.01,
+      str(_paid_src))
+check("متن قیف درآمد همان منبع را نشان می‌دهد",
+      "💰" in _ftxt and _paid_src["source"] in _ftxt, _ftxt[:220])
 _weekly = bot.weekly_growth_report()
 check("گزارش هفتگی ساخته می‌شود", "گزارش هفتگی رشد" in _weekly, _weekly[:80])
 check("گزارش هفتگی عدد عضویت کانال دارد", "عضویت کانال" in _weekly, _weekly[:160])
@@ -884,7 +899,10 @@ check("پست آموزشی انگلیسی هیچ حرف فارسی ندارد", 
 check("پست قابلیت انگلیسی فارسی ندارد", not _fa_re.search(_en_feat), _en_feat[:80])
 check("رادار انگلیسی هم بدون فارسی است", not _fa_re.search(_en_radar), _en_radar[:80])
 check("دکمهٔ انگلیسی به کد رهگیری خودش لینک دارد",
-      "post_edu_en" in _en_kb["inline_keyboard"][0][0]["url"], str(_en_kb)[:120])
+      "post_edu" in _en_kb["inline_keyboard"][0][0]["url"], str(_en_kb)[:120])
+check("کد منبع پست انگلیسی شمارهٔ اسلاید و _en دارد",
+      bool(__import__("re").search(r"start=post_edu\d+_en", _en_kb["inline_keyboard"][0][0]["url"])),
+      _en_kb["inline_keyboard"][0][0]["url"])
 
 _c1 = bot.next_channel_category("en")
 _c2 = bot.next_channel_category("en")
@@ -1461,6 +1479,7 @@ with _tmp.TemporaryDirectory() as _d:
     _sitemap = (_pl.Path(_d) / "sitemap.xml").read_text(encoding="utf-8")
     check("sitemap همهٔ صفحه‌های نماد را لیست می‌کند",
           "/s/wif.html" in _sitemap and "/s/btc.html" in _sitemap and "2026-11-10" in _sitemap)
+    check("sitemap صفحهٔ فرود تلگرام (join.html) را هم دارد", "/join.html" in _sitemap)
     _robots = (_pl.Path(_d) / "robots.txt").read_text(encoding="utf-8")
     check("robots.txt به sitemap اشاره می‌کند", "Sitemap:" in _robots and "sitemap.xml" in _robots)
     # تزریق: نماد مخرب نباید HTML را بشکند

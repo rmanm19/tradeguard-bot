@@ -35,6 +35,11 @@ let PLANS = { plans: [] };                         // محتوای api/plans.jso
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
 let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
 let PRO_FREE_UNTIL = 0;      // تاریخ پایان دورهٔ رایگان (۰ = بی‌پایان)
+let RADAR = { generated_at: "2026-11-14T19:00:00Z", live: true, funding: [
+  { symbol: "BTC", funding_pct_8h: 0.0125, apr_pct: 13.7 },
+  { symbol: "ETH", funding_pct_8h: 0.09, apr_pct: 98.6 },
+  { symbol: "SOL", funding_pct_8h: -0.04, apr_pct: -43.8 }
+] };
 
 function stubFetch(url, init) {
   const u = String(url);
@@ -67,6 +72,7 @@ function stubFetch(url, init) {
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
   if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, freeUntil: PRO_FREE_UNTIL, users: PRO_USERS });
+  if (u.includes("radar.json")) return json(RADAR);
   if (u.includes("partners.json")) return json(PARTNERS);
   if (u.includes("plans.json")) return json(PLANS);
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
@@ -1083,6 +1089,88 @@ await wait(120);
 check("نام شریک در صفحهٔ فرود امن escape می‌شود",
   L6.w.document.querySelectorAll("#main img").length === 0,
   L6.w.document.getElementById("main").innerHTML.slice(0, 120));
+
+
+/* ---------- ۱۰) صفحهٔ فرود تلگرام (join.html) ----------
+   این صفحه در بیو و دایرکتوری‌ها لینک می‌شود؛ تنها وظیفه‌اش این است که
+   کاربر را با کد رهگیری به ربات بفرستد و هیچ عدد ساختگی نشان ندهد.
+*/
+function bootJoin({ search = "", freeMode = false, freeUntil = 0, plans = null, radar = null } = {}) {
+  const errors = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
+  vc.on("error", (...a) => errors.push("console.error: " + a.join(" ")));
+  PRO_FREE_MODE = freeMode;
+  PRO_FREE_UNTIL = freeUntil;
+  PLANS = plans || { plans: [
+    { days: 30, stars: 300, usd_gross: 3.9 },
+    { days: 90, stars: 750, usd_gross: 9.75 },
+    { days: 365, stars: 2400, usd_gross: 31.2 }
+  ] };
+  RADAR = radar || { generated_at: "2026-11-14T19:00:00Z", live: true, funding: [
+    { symbol: "BTC", funding_pct_8h: 0.0125, apr_pct: 13.7 },
+    { symbol: "ETH", funding_pct_8h: 0.09, apr_pct: 98.6 },
+    { symbol: "SOL", funding_pct_8h: -0.04, apr_pct: -43.8 }
+  ] };
+  const html = read("join.html");
+  const dom = new JSDOM(html, {
+    runScripts: "outside-only", pretendToBeVisual: true, virtualConsole: vc,
+    url: "https://example.com/join.html" + search
+  });
+  const w = dom.window;
+  w.TG_CONFIG = { botUsername: "TradeGuard1_bot", channel: "@tradeguard1", repo: "x" };
+  w.fetch = (u, i) => stubFetch(u, i);
+  const inline = [...html.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .map((m) => m[1]).join("\n");
+  try { w.eval(inline); } catch (e) { errors.push("eval inline: " + e.message); }
+  w.addEventListener("error", (e) => errors.push("window.error: " + ((e.error && e.error.message) || e.message)));
+  w.addEventListener("unhandledrejection", (e) => errors.push("rejection: " + ((e.reason && e.reason.message) || e.reason)));
+  return { w, errors };
+}
+
+const J1 = bootJoin({ search: "?src=dir_test" });
+await wait(400);
+const j1 = J1.w.document;
+check("صفحهٔ فرود: کد ?src= به لینک ربات منتقل می‌شود",
+  /start=dir_test/.test(j1.querySelector("#ctaMain").getAttribute("href") || ""),
+  j1.querySelector("#ctaMain").getAttribute("href"));
+check("صفحهٔ فرود: لینک دعوت و آزمایش هم کد رهگیری دارند",
+  /start=invite/.test(j1.querySelector("#ctaInvite").getAttribute("href") || "")
+  && /start=trial/.test(j1.querySelector("#ctaTrial").getAttribute("href") || ""));
+check("صفحهٔ فرود: دادهٔ زندهٔ رادار نمایش داده می‌شود",
+  j1.querySelectorAll("#liveRows .row").length === 3
+  && /BTC/.test(j1.querySelector("#liveRows").textContent || ""),
+  j1.querySelector("#liveRows").textContent.slice(0, 60));
+check("صفحهٔ فرود: قیمت‌ها از plans.json می‌آید (۳ ردیف)",
+  j1.querySelectorAll("#planRows .plan").length === 3
+  && /۷۵۰/.test(j1.querySelector("#planRows").textContent || ""),
+  j1.querySelector("#planRows").textContent.slice(0, 60));
+check("صفحهٔ فرود: خطای جاوااسکریپت ندارد", J1.errors.length === 0, J1.errors.slice(0, 2).join(" | "));
+
+const J2 = bootJoin({ freeMode: true, freeUntil: Math.floor(Date.now() / 1000) + 5 * 86400 });
+await wait(400);
+const j2 = J2.w.document;
+check("صفحهٔ فرود: بدون کد، لینک پیش‌فرض lp_fa است",
+  /start=lp_fa/.test(j2.querySelector("#ctaMain").getAttribute("href") || ""),
+  j2.querySelector("#ctaMain").getAttribute("href"));
+check("صفحهٔ فرود: تاریخ پایان رایگان با شمارش معکوس دیده می‌شود",
+  j2.querySelector("#freeBar").classList.contains("show") && /[0-9۰-۹]/.test(j2.querySelector("#freeBar").textContent || ""),
+  j2.querySelector("#freeBar").textContent);
+
+const J3 = bootJoin({ freeMode: false });
+await wait(350);
+check("صفحهٔ فرود: بدون دورهٔ رایگان، نوار رایگان پنهان است",
+  !J3.w.document.querySelector("#freeBar").classList.contains("show"));
+
+const J4 = bootJoin({ radar: { generated_at: "2026-11-14T19:00:00Z", live: false, funding: [] } });
+await wait(350);
+const j4 = J4.w.document;
+check("صفحهٔ فرود: وقتی دادهٔ زنده نیست، بلوک بازار پنهان می‌ماند (بدون عدد ساختگی)",
+  j4.querySelector("#liveBox").hidden === true
+  && (j4.querySelector("#liveRows").textContent || "").trim() === "",
+  j4.querySelector("#liveRows").textContent);
+check("صفحهٔ فرود: با کد نامعتبر ?src= همان lp_fa می‌ماند",
+  /start=lp_fa/.test((bootJoin({ search: "?src=BAD CODE!" }).w.document.querySelector("#ctaMain").getAttribute("href") || "")));
 
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }

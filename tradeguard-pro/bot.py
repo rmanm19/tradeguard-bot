@@ -4727,6 +4727,7 @@ def _write_symbol_pages(feed: Optional[Dict] = None, out_dir: Optional[Path] = N
 
         # sitemap + robots
         urls = [f"{SITE_BASE_URL}/", f"{SITE_BASE_URL}/app.html",
+                f"{SITE_BASE_URL}/join.html",
                 f"{SITE_BASE_URL}/business.html", f"{SITE_BASE_URL}/api/index.html",
                 f"{SITE_BASE_URL}/press.html"]
         urls += [f"{SITE_BASE_URL}/s/{slug}.html" for _n, slug in names]
@@ -5713,17 +5714,39 @@ def funnel_rows() -> List[Dict]:
     except Exception as exc:
         logger.warning("خواندن قیف منبع ورود ناموفق: %s", exc)
         return []
+    # پول به تفکیک منبع: «کدام پست/کدام دعوت واقعاً فروخت؟»
+    money: Dict[str, Dict[str, int]] = {}
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            mrows = conn.execute(
+                """
+                SELECT COALESCE(NULLIF(source, ''), 'direct') AS src,
+                       COUNT(*) AS pays,
+                       SUM(CASE WHEN kind = 'stars' THEN stars_amount ELSE 0 END) AS stars
+                FROM payments
+                GROUP BY src
+                """
+            ).fetchall()
+        for src, pays, stars in mrows:
+            money[str(src)] = {"payments": int(pays or 0), "stars": int(stars or 0)}
+    except Exception as exc:
+        logger.warning("خواندن درآمد به تفکیک منبع ناموفق: %s", exc)
+
     out: List[Dict] = []
     for src, users, joined, pro in rows:
         users = int(users or 0)
         joined = int(joined or 0)
         pro = int(pro or 0)
+        m = money.get(str(src), {"payments": 0, "stars": 0})
         out.append({
             "source": str(src),
             "users": users,
             "joined": joined,
             "pro": pro,
             "join_rate": (joined / users * 100) if users else 0.0,
+            "payments": m["payments"],
+            "stars": m["stars"],
+            "usd": stars_to_usd(m["stars"]),
         })
     return out
 
@@ -5737,10 +5760,12 @@ def funnel_text(limit: int = 12) -> str:
     joined = sum(r["joined"] for r in rows)
     pro = sum(r["pro"] for r in rows)
     for r in rows[:limit]:
+        paid = (f" · 💰 *{fa_num(r.get('payments', 0))}* خرید"
+                f" ≈ ${r.get('usd', 0):,.2f}") if r.get("payments") else ""
         lines.append(
             f"• `{r['source']}` — *{fa_num(r['users'])}* کاربر"
             f" · عضویت کانال: {fa_num(r['joined'])} ({r['join_rate']:.0f}%)"
-            f" · پرو: {fa_num(r['pro'])}"
+            f" · پرو: {fa_num(r['pro'])}{paid}"
         )
     lines += [
         "",
@@ -5748,7 +5773,9 @@ def funnel_text(limit: int = 12) -> str:
         f" ({(joined / total * 100) if total else 0:.0f}%) · *{fa_num(pro)}* پرو",
         "",
         "برای هر کمپین یک کد بسازید: `https://t.me/" + BOT_USERNAME + "?start=ad_yourcode`",
-        "پست‌های کانال: `post_radar` / `post_edu` / `post_feature` · شرکا: `p_<id>`",
+        "پست‌های کانال: `post_radar` · `post_edu1..8` · `post_feature1..6`"
+        " · صفحهٔ فرود: `lp_fa` · دایرکتوری: `dir_<name>` · پیام مستقیم: `dm`"
+        " · شرکا: `p_<id>`",
     ]
     return "\n".join(lines)
 
@@ -6163,14 +6190,14 @@ def build_edu_post_en(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_edu_idx_en", len(CHANNEL_EDU_POSTS_EN)) if advance else 0
     title, body = CHANNEL_EDU_POSTS_EN[idx]
     text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE_EN}"
-    return text, _mini_app_kb_en("post_edu_en", text)
+    return text, _mini_app_kb_en(f"post_edu{idx + 1}_en", text)
 
 
 def build_feature_post_en(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_feature_idx_en", len(CHANNEL_FEATURE_POSTS_EN)) if advance else 0
     title, body = CHANNEL_FEATURE_POSTS_EN[idx]
     text = f"{title}\n\n{body}\n\n👇 Open inside Telegram:"
-    return text, _mini_app_kb_en("post_feature_en", text)
+    return text, _mini_app_kb_en(f"post_feature{idx + 1}_en", text)
 
 
 def validate_target(channel_id: str) -> Tuple[bool, str]:
@@ -6274,14 +6301,15 @@ def build_edu_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_edu_idx", len(CHANNEL_EDU_POSTS)) if advance else 0
     title, body = CHANNEL_EDU_POSTS[idx]
     text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE}"
-    return text, _mini_app_kb("post_edu", text)
+    # کد منبع مخصوصِ همان اسلاید (post_edu1..N) تا /sources بگوید کدام درس می‌فروشد
+    return text, _mini_app_kb(f"post_edu{idx + 1}", text)
 
 
 def build_feature_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_feature_idx", len(CHANNEL_FEATURE_POSTS)) if advance else 0
     title, body = CHANNEL_FEATURE_POSTS[idx]
     text = f"{title}\n\n{body}\n\n👇 داخل تلگرام، بدون نصب:"
-    return text, _mini_app_kb("post_feature", text)
+    return text, _mini_app_kb(f"post_feature{idx + 1}", text)
 
 
 def next_post_eta_en(now_ts: Optional[int] = None) -> str:
