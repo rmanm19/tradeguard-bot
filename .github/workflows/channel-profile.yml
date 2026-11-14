@@ -1,0 +1,102 @@
+name: Channel Profile
+
+# تنظیم/بازبینی پروفایل کانال از داخل GitHub — بدون نیاز به اجرای دستور در چت ربات.
+#
+#   • عنوان، توضیحات، عکس و پیام خوش‌آمد پین‌شده را ست می‌کند
+#   • کانال را از دیتابیس رمزگشایی‌شده (PUBLIC_CHANNEL_EN_ID / PUBLIC_CHANNEL_ID)
+#     پیدا می‌کند، یا از ورودی «channel» می‌گیرد
+#   • با apply=false فقط گزارش می‌دهد و هیچ تغییری نمی‌دهد
+#
+# نکتهٔ مهم: Bot API اجازهٔ تغییر «یوزرنیم» کانال را نمی‌دهد؛ آن را فقط مالک
+# می‌تواند در تلگرام عوض کند (Channel settings → Edit → Public link).
+
+on:
+  workflow_dispatch:
+    inputs:
+      lang:
+        description: "زبان پروفایل (en یا fa)"
+        required: true
+        default: "en"
+        type: choice
+        options: ["en", "fa"]
+      channel:
+        description: "آیدی/یوزرنیم کانال (خالی = از دیتابیس)"
+        required: false
+        default: ""
+        type: string
+      apply:
+        description: "اعمال تغییرات؟ (false = فقط گزارش)"
+        required: true
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+      force:
+        description: "حتی اگر از قبل ست شده، با مقدار استاندارد جایگزین کن؟"
+        required: true
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: channel-profile
+  cancel-in-progress: false
+
+jobs:
+  profile:
+    name: 🌍 پروفایل کانال
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: دریافت کد
+        uses: actions/checkout@v4
+
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: بازیابی دیتابیس رمزنگاری‌شده
+        uses: actions/cache/restore@v4
+        with:
+          path: tradeguard-pro/.dbcache
+          key: tgdb-${{ github.run_id }}
+          restore-keys: |
+            tgdb-
+
+      - name: رمزگشایی دیتابیس (برای پیدا کردن کانال)
+        working-directory: tradeguard-pro
+        env:
+          TG_DB_KEY: ${{ secrets.TG_DB_KEY }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          set +e
+          if [ -f .dbcache/tradeguard.db.enc ]; then
+            python db_crypt.py decrypt .dbcache/tradeguard.db.enc tradeguard.db \
+              && echo "✅ دیتابیس رمزگشایی شد" \
+              || echo "::warning title=رمزگشایی ناموفق::کلید عوض شده یا کش خالی است؛ از ورودی channel استفاده کن."
+          else
+            echo "::notice::کش دیتابیس خالی بود — کانال باید با ورودی channel داده شود."
+          fi
+
+      - name: تنظیم پروفایل کانال
+        working-directory: tradeguard-pro
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          LANG: ${{ inputs.lang }}
+          CHANNEL: ${{ inputs.channel }}
+          APPLY: ${{ inputs.apply }}
+          FORCE: ${{ inputs.force }}
+          MINI_APP_URL: ${{ secrets.MINI_APP_URL }}
+        run: |
+          set +e
+          if [ "$APPLY" = "true" ]; then A=1; else A=0; fi
+          if [ "$FORCE" = "true" ]; then F=1; else F=0; fi
+          APPLY=$A FORCE=$F python -u channel_profile.py
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "::error title=پروفایل کامل نشد::کد خروج $code — متن خطا در پیام‌های بالا/پایین همین مرحله است."
+          fi
+          exit "$code"
