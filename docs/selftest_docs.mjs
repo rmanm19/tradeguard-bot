@@ -475,6 +475,47 @@ check("موشن‌گرافیک اعداد زنده و ورود پله‌ای ک�
   /MutationObserver/.test(SPACE_JS) && /sp-pop/.test(SPACE_CSS)
   && /\.tab-pane\.is-active > \*\s*\{/.test(SPACE_CSS));
 
+/* ---------- لایهٔ طراحی «فضای فرود» (landing.css / landing.js روی index.html) ---------- */
+const LANDING_CSS = read("landing.css");
+const LANDING_JS = read("landing.js");
+const landHtml = read("index.html");
+check("لندینگ: لایهٔ فرود بعد از styles.css و اسکریپت قبل از بستهٔ body بارگذاری می‌شود",
+  landHtml.indexOf('href="landing.css"') > landHtml.indexOf('href="styles.css"')
+  && /styles\.css\"[\s\S]{0,200}landing\.css/.test(landHtml)
+  && landHtml.lastIndexOf('<script src="landing.js"></script>') > landHtml.indexOf("<main")
+  && landHtml.lastIndexOf('<script src="landing.js"></script>') < landHtml.lastIndexOf("</body>"));
+check("لندینگ: آسمان ستاره‌دار/سحابی و شبکهٔ افق بدون تصویر ساخته می‌شوند",
+  /body::before\s*\{/.test(LANDING_CSS) && /body::after\s*\{/.test(LANDING_CSS)
+  && /\.hero::after\s*\{/.test(LANDING_CSS) && /@keyframes lpGrid/.test(LANDING_CSS)
+  && /rotateX\(64deg\)/.test(LANDING_CSS) && !/url\(\s*['\"]?https?:/i.test(LANDING_CSS));
+check("لندینگ: هدر شیشه‌ای، تیتر گرادیانی و دکمهٔ درخشان تعریف شده‌اند",
+  /\.site-header\s*\{/.test(LANDING_CSS) && /backdrop-filter/.test(LANDING_CSS)
+  && /-webkit-background-clip:\s*text/.test(LANDING_CSS) && /\.hero h1 em\s*\{/.test(LANDING_CSS)
+  && /\.btn::after\s*\{/.test(LANDING_CSS));
+check("لندینگ: گوشیِ دمو تیلت سه‌بعدی و شناوری دارد و روی موبایل تخت می‌شود",
+  /rotateY\(-9deg\) rotateX\(4deg\)/.test(LANDING_CSS) && /@keyframes lpPhoneFloat/.test(LANDING_CSS)
+  && /max-width:\s*1020px[\s\S]{0,400}?\.phone\s*\{\s*transform:\s*none/.test(LANDING_CSS)
+  && /\.tab-glow|body \.phone-screen \.tabbar|\.phone-screen \.tab-btn\.is-on/.test(LANDING_CSS));
+check("لندینگ: هیچ لبهٔ سرریزی نوار افقی نمی‌سازد (برش روی main، نه ریشه)",
+  /main#top\s*\{\s*overflow-x:\s*clip/.test(LANDING_CSS)
+  && !/^html\s*\{[^}]*overflow-x:\s*(clip|hidden)/m.test(LANDING_CSS)
+  && /\.hero::after\s*\{[\s\S]{0,120}?width:\s*100vw/.test(LANDING_CSS));
+check("لندینگ: هدر در موبایل دو ردیفه می‌شود و از کادر بیرون نمی‌زند",
+  /max-width:\s*640px[\s\S]{0,900}?\.nav\s*\{[\s\S]{0,200}?flex-wrap:\s*wrap/.test(LANDING_CSS)
+  && /\.lang-bar\s*\{\s*order:\s*3;\s*width:\s*100%/.test(LANDING_CSS));
+check("لندینگ: ورود پله‌ای با IntersectionObserver و بدون وابستگی بیرونی",
+  /IntersectionObserver/.test(LANDING_JS) && /"lp-in"/.test(LANDING_JS) && /"lp-reveal"/.test(LANDING_JS)
+  && !/https?:\/\//.test(LANDING_JS) && !/\bimport\s/.test(LANDING_JS)
+  && /\(function \(\)/.test(LANDING_JS));
+check("لندینگ: تیلت فقط با اشاره‌گر دقیق و روی دسکتاپ فعال می‌شود",
+  /hover: hover\) and \(pointer: fine/.test(LANDING_JS) && /min-width:\s*1021px/.test(LANDING_JS));
+check("لندینگ: کاهش حرکت همهٔ انیمیشن‌ها را خاموش می‌کند",
+  /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]{0,900}?animation:\s*none\s*!important/.test(LANDING_CSS)
+  && /prefers-reduced-motion/.test(LANDING_JS));
+check("لندینگ: CSS متوازن است و کلیدهای i18n صفحهٔ فرود دست‌نخورده مانده‌اند",
+  (LANDING_CSS.match(/\{/g) || []).length === (LANDING_CSS.match(/\}/g) || []).length
+  && (landHtml.match(/data-i18n=/g) || []).length >= 20);
+
 const revenue = readRepo("REVENUE_FA.md");
 check("پلی‌بوک درآمد وجود دارد و موتورهای واقعی را نام می‌برد",
   revenue.length > 2500 && /\/income/.test(revenue) && /\/trial/.test(revenue)
