@@ -949,6 +949,53 @@ check("غیرادمین نمی‌تواند کانال انگلیسی را عو�
 bot.PUBLIC_CHANNEL_EN = ""
 bot.PUBLIC_CHANNEL_ID = ""
 
+print("\n۹٫۱۲) جدول دعوت‌کننده‌ها + برنامهٔ کانال انگلیسی")
+import sqlite3 as _sql3  # noqa: E402
+
+_con = _sql3.connect(bot.DB_PATH)
+_con.execute("UPDATE users SET referrals_count = 3, username = 'topguy' WHERE user_id = ?", (USER,))
+_con.execute("UPDATE users SET referrals_count = 1, username = '' WHERE user_id = ?", (BUYER,))
+_con.commit()
+_con.close()
+
+_rows = bot.referral_leaderboard()
+check("جدول دعوت فقط شمارش واقعی دیتابیس را می‌خواند",
+      bool(_rows) and _rows[0][0] == USER and _rows[0][1] == 3 and _rows[0][2] == "topguy", str(_rows[:2]))
+check("کسی که دعوت ندارد در جدول نمی‌آید",
+      all(r[1] > 0 for r in _rows) and len(_rows) == 2, str(_rows))
+_posts.clear()
+bot.handle_message(msg("/top", uid=BUYER))
+_t = _posts[-1][1] if _posts else ""
+check("/top یوزرنیم نفر اول را نشان می‌دهد", "@topguy" in _t, _t[:120])
+_board_rows = [ln for ln in _t.splitlines() if "دعوت" in ln and "کاربر" in ln]
+check("/top آیدی بدون یوزرنیم را ماسک می‌کند",
+      bool(_board_rows) and "کاربر ••" in _board_rows[0] and str(BUYER) not in _board_rows[0],
+      str(_board_rows)[:160])
+check("/top رتبه و لینک دعوت خود کاربر را می‌دهد",
+      "جای تو" in _t and "start=ref_" in _t, _t[-180:])
+_en_board = bot.leaderboard_text(BUYER, "en")
+check("/top برای زبان غیرفارسی انگلیسی جواب می‌دهد",
+      "Invite leaderboard" in _en_board and not _fa_re.search(_en_board), _en_board[:120])
+
+_posts.clear()
+bot.ADMIN_USER_ID = str(USER)
+bot.handle_message(msg("/channelplan en"))
+_plan_en = _posts[-1][1] if _posts else ""
+check("برنامهٔ کانال انگلیسی تیتر انگلیسی دارد",
+      "English channel" in _plan_en and not _fa_re.search(_plan_en), _plan_en[:120])
+check("برنامهٔ کانال انگلیسی وقتی کانال نیست، صادقانه می‌گوید",
+      "not set" in _plan_en, _plan_en[-120:])
+_posts.clear()
+bot.handle_message(msg("/channelplan"))
+_plan_fa = _posts[-1][1] if _posts else ""
+check("برنامهٔ کانال فارسی سر جایش است",
+      "برنامهٔ پست‌های بعدی" in _plan_fa, _plan_fa[:100])
+check("برنامهٔ فارسی به نسخهٔ انگلیسی اشاره می‌کند",
+      "/channelplan en" in _plan_fa, _plan_fa[-160:])
+check("زمان پست بعدی نسخهٔ انگلیسی، انگلیسی است",
+      not _fa_re.search(bot.next_post_eta_en()), bot.next_post_eta_en())
+bot.ADMIN_USER_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
