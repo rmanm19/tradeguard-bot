@@ -1228,6 +1228,106 @@ bot.handle_message(msg("/rr", lang="en", uid=BUYER + 2468))
 check("/rr برای کاربر انگلیسی، راهنمای انگلیسی می‌دهد",
       "Position size" in (_posts[-1][1] if _posts else ""), (_posts[-1][1][:60] if _posts else ""))
 
+print("\n۹٫۱۸) هشدارهای شخصی (/alert) — ذخیره، فهرست و بررسی واقعی")
+bot.ADMIN_USER_ID = str(USER)
+_check_uid = 78001000
+with bot._db_lock, __import__("sqlite3").connect(bot.DB_PATH) as _c:
+    _c.execute("DELETE FROM price_alerts WHERE user_id IN (?, ?)", (_check_uid, USER))
+check("تحلیل قانون هشدار درست است (BTC funding above 0.05)",
+      bot.parse_alert_rule("BTC funding above 0.05") == ("BTC", "funding", "above", 0.05))
+check("معادل فارسی هم پذیرفته می‌شود (طلای قیمت پایین‌تر از)",
+      bot.parse_alert_rule("ETH price پایین‌تر 2800") == ("ETH", "price", "below", 2800.0),
+      str(bot.parse_alert_rule("ETH price پایین‌تر 2800")))
+check("قانون ناقص/بی‌معنی رد می‌شود",
+      bot.parse_alert_rule("BTC funding") is None
+      and bot.parse_alert_rule("BTC funding above abc") is None
+      and bot.parse_alert_rule("BTC weird above 1") is None
+      and bot.parse_alert_rule("BTC funding above 99") is None)
+_added = bot.handle_alert_command("/alert BTC funding above 0.05", _check_uid, "fa")
+check("ثبت هشدار پیام تأیید می‌دهد و قاعده را نشان می‌دهد",
+      "ثبت شد" in _added and "BTC" in _added and "0.05" in _added, _added[:90])
+_rules = bot.user_alerts(_check_uid)
+check("هشدار در دیتابیس ذخیره شده و فعال است",
+      len(_rules) == 1 and _rules[0]["metric"] == "funding" and _rules[0]["active"] == 1, str(_rules))
+_list_txt = bot.handle_alert_command("/alert", _check_uid, "fa")
+check("فهرست هشدارها شماره و وضعیت را نشان می‌دهد",
+      f"#{_rules[0]['id']}" in _list_txt and "🟢" in _list_txt, _list_txt[:120])
+check("خاموش/روشن کردن هشدار کار می‌کند",
+      "خاموش" in bot.handle_alert_command(f"/alert off {_rules[0]['id']}", _check_uid, "fa")
+      and bot.user_alerts(_check_uid)[0]["active"] == 0
+      and "روشن" in bot.handle_alert_command(f"/alert on {_rules[0]['id']}", _check_uid, "fa")
+      and bot.user_alerts(_check_uid)[0]["active"] == 1)
+check("هشدار کاربر دیگر قابل دستکاری نیست",
+      "پیدا نشد" in bot.handle_alert_command(f"/alert off {_rules[0]['id']}", _check_uid + 1, "fa")
+      and bot.user_alerts(_check_uid)[0]["active"] == 1)
+# بررسی واقعی: فاندینگ ۰٫۰۸ بالای ۰٫۰۵ است → باید پیام برود
+_posts.clear()
+_fired = bot.evaluate_user_alerts(rates=[{"sym": "BTC", "rate_pct": 0.08, "price": 60000}], now=1_800_000_000)
+check("وقتی شرط برقرار است پیام هشدار ارسال می‌شود", len(_fired) == 1 and _posts, str(_fired))
+check("متن هشدار مقدار فعلی و شرط را دارد",
+      "0.0800" in (_posts[-1][1] if _posts else "") and "0.05" in (_posts[-1][1] if _posts else ""),
+      (_posts[-1][1][:90] if _posts else ""))
+_posts.clear()
+_fired2 = bot.evaluate_user_alerts(rates=[{"sym": "BTC", "rate_pct": 0.09, "price": 60000}], now=1_800_000_000 + 600)
+check("در بازهٔ خنک‌شدن (۶ ساعت) پیام تکراری نمی‌رود", _fired2 == [] and not _posts, str(_fired2))
+_posts.clear()
+_fired3 = bot.evaluate_user_alerts(rates=[{"sym": "BTC", "rate_pct": 0.09, "price": 60000}],
+                                   now=1_800_000_000 + bot.ALERT_COOLDOWN_SEC + 10)
+check("بعد از ۶ ساعت دوباره می‌شود هشدار داد", len(_fired3) == 1 and _posts, str(_fired3))
+_posts.clear()
+_fired4 = bot.evaluate_user_alerts(rates=[{"sym": "BTC", "rate_pct": 0.01, "price": 60000}], now=1_900_000_000)
+check("وقتی شرط برقرار نیست هیچ پیامی نمی‌رود", _fired4 == [] and not _posts, str(_fired4))
+_posts.clear()
+_fired5 = bot.evaluate_user_alerts(rates=[{"sym": "ETH", "rate_pct": 9.0, "price": 2800}], now=1_900_000_000)
+check("هشدار فقط روی نماد خودش بررسی می‌شود (بدون داده → بی‌صدا)", _fired5 == [] and not _posts)
+_posts.clear()
+bot.add_user_alert(_check_uid, "XRP", "price", "below", 0.5)
+_fired6 = bot.evaluate_user_alerts(rates=[{"sym": "XRP", "rate_pct": 0.0, "price": 0}], now=1_900_000_000)
+check("بدون قیمت واقعی، هشدار قیمت هرگز شلیک نمی‌کند (ضد عدد جعلی)", _fired6 == [] and not _posts)
+for _i in range(5):
+    bot.add_user_alert(_check_uid, f"SYM{_i}", "price", "above", 1)
+check("سقف ۵ هشدار برای هر کاربر اعمال می‌شود",
+      len(bot.user_alerts(_check_uid)) == 5
+      and "سقف" in bot.handle_alert_command("/alert DOGE price above 1", _check_uid, "fa"),
+      str(len(bot.user_alerts(_check_uid))))
+check("حذف هشدار کار می‌کند",
+      "حذف" in bot.handle_alert_command(f"/alert del {_rules[0]['id']}", _check_uid, "fa")
+      and len(bot.user_alerts(_check_uid)) == 4)
+_posts.clear()
+bot.handle_message(msg("/alert SOL funding below -0.02", uid=_check_uid))
+check("دستور /alert از طریق ربات پاسخ می‌دهد",
+      bool(_posts) and "ثبت شد" in _posts[-1][1], (_posts[-1][1][:70] if _posts else ""))
+_posts.clear()
+bot.handle_message(msg("/alert", lang="en", uid=BUYER + 8642))
+check("راهنمای /alert برای کاربر تازه (انگلیسی) می‌آید",
+      bool(_posts) and "Personal alert" in _posts[-1][1], (_posts[-1][1][:60] if _posts else ""))
+check("متن‌های /alert در هر ۶ زبان کامل است",
+      all(set(bot.BOT_STRINGS_ALERT["fa"]) <= set(bot.BOT_STRINGS_ALERT[l]) for l in ("en", "ru", "ar", "tr", "es")))
+
+print("\n۹٫۱۹) گزارش ماهانهٔ شرکا (اسنپ‌شات + تغییر)")
+bot.set_setting("partner_snapshot_2026-09", __import__("json").dumps(
+    {"okx": {"clicks": 4, "starts": 2, "joined": 1, "pro": 0}}))
+_month_txt = bot.monthly_partner_report("2026-11")
+check("گزارش ماهانه عددهای واقعی هر شریک را دارد",
+      "okx" in _month_txt and "کلیک" in _month_txt and "2026-11" in _month_txt, _month_txt[:120])
+check("تغییر نسبت به اسنپ‌شات قبلی محاسبه می‌شود (۳−۲=+۱ استارت)",
+      "تغییر" in _month_txt and "+" in _month_txt, [l for l in _month_txt.split("\n") if "تغییر" in l][:1])
+check("گزارش صادقانه می‌گوید دپوزیت/KYC در سمت بروکر است",
+      "KYC" in _month_txt and "بروکر" in _month_txt)
+check("اسنپ‌شات ماه جاری در settings ذخیره می‌شود",
+      bool(bot.get_setting("partner_snapshot_2026-11", "")), bot.get_setting("partner_snapshot_2026-11", "")[:40])
+bot.set_setting("partner_report_last_month", "")
+_posts.clear()
+_sent_month = bot.maybe_send_monthly_partner_report()
+check("گزارش ماهانه برای ادمین ارسال می‌شود", _sent_month and bool(_posts) and "گزارش ماهانه" in _posts[-1][1])
+_posts.clear()
+check("ارسال دوباره در همان ماه انجام نمی‌شود (idempotent)",
+      bot.maybe_send_monthly_partner_report() is False and not _posts)
+_posts.clear()
+bot.handle_message(msg("/biz report", uid=USER))
+check("دستور /biz report در چت گزارش می‌دهد",
+      bool(_posts) and "گزارش ماهانه" in _posts[-1][1], (_posts[-1][1][:60] if _posts else ""))
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

@@ -669,6 +669,186 @@ BOT_STRINGS_RR = {
         "rr_no_target": "• R/R: envía un objetivo para verlo.",
     },
 }
+# ---------------------------------------------------------------------
+#  هشدارهای شخصی (/alert) — ۶ زبان
+# ---------------------------------------------------------------------
+BOT_STRINGS_ALERT = {
+    "fa": {
+        "al_usage": (
+            "🔔 *هشدار شخصی*\n\n"
+            "`/alert BTC funding above 0.05` → وقتی فاندینگ ۸ ساعته از ۰٫۰۵٪ بالا زد\n"
+            "`/alert ETH price below 2800` → وقتی قیمت زیر ۲۸۰۰ رفت\n\n"
+            "`/alert` → فهرست هشدارها\n"
+            "`/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "هر ۱۰ دقیقه بررسی می‌شود و حداکثر هر ۶ ساعت یک‌بار پیام می‌دهی.\n"
+            "سقف ۵ هشدار برای هر کاربر."
+        ),
+        "al_added": "✅ ثبت شد — `{rule}`\n\nهر ۱۰ دقیقه بررسی می‌شود؛ اگر شرط برقرار شد همین‌جا پیام می‌دهم.",
+        "al_bad": "❌ نتوانستم بخوانم. مثال:\n`/alert BTC funding above 0.05`\n`/alert SOL price below 150`",
+        "al_full": "⚠️ سقف هشدارها (۵) پر است. اول یکی را حذف کن: `/alert del <id>`",
+        "al_none": "🔔 هنوز هشداری نداری.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *هشدارهای تو*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (خاموش)",
+        "al_notfound": "❓ هشداری با این شماره پیدا نشد.",
+        "al_off": "⛔ هشدار `#{id}` خاموش شد.",
+        "al_on": "🟢 هشدار `#{id}` روشن شد.",
+        "al_deleted": "🗑 هشدار `#{id}` حذف شد.",
+        "al_fired": (
+            "🔔 *هشدار فعال شد*\n\n"
+            "{sym} — {label}\n"
+            "مقدار فعلی: *{now}* (شرط: {cond})\n\n"
+            "_هر ۶ ساعت یک‌بار پیام می‌دهم تا اسپم نشود. `/alert off {id}` اگر نمی‌خواهی._"
+        ),
+    },
+    "en": {
+        "al_usage": (
+            "🔔 *Personal alert*\n\n"
+            "`/alert BTC funding above 0.05` → when 8h funding goes above 0.05%\n"
+            "`/alert ETH price below 2800` → when price drops under 2800\n\n"
+            "`/alert` → list alerts\n"
+            "`/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "Checked every 10 minutes; at most one message per rule every 6 hours.\n"
+            "Limit: 5 alerts per user."
+        ),
+        "al_added": "✅ Saved — `{rule}`\n\nChecked every 10 minutes; I'll message you here when it triggers.",
+        "al_bad": "❌ Couldn't parse that. Example:\n`/alert BTC funding above 0.05`\n`/alert SOL price below 150`",
+        "al_full": "⚠️ You already have 5 alerts. Remove one first: `/alert del <id>`",
+        "al_none": "🔔 No alerts yet.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *Your alerts*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (off)",
+        "al_notfound": "❓ No alert with that id.",
+        "al_off": "⛔ Alert `#{id}` is off.",
+        "al_on": "🟢 Alert `#{id}` is on.",
+        "al_deleted": "🗑 Alert `#{id}` deleted.",
+        "al_fired": (
+            "🔔 *Alert triggered*\n\n"
+            "{sym} — {label}\n"
+            "Now: *{now}* (rule: {cond})\n\n"
+            "_At most one message per 6 hours. `/alert off {id}` to stop._"
+        ),
+    },
+    "ru": {
+        "al_usage": (
+            "🔔 *Личное оповещение*\n\n"
+            "`/alert BTC funding above 0.05` — когда фандинг за 8 ч выше 0,05%\n"
+            "`/alert ETH price below 2800` — когда цена ниже 2800\n\n"
+            "`/alert` — список · `/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "Проверка каждые 10 минут, не чаще одного сообщения на правило в 6 часов.\n"
+            "Лимит: 5 оповещений."
+        ),
+        "al_added": "✅ Сохранено — `{rule}`\n\nПроверяю каждые 10 минут и напишу здесь, когда сработает.",
+        "al_bad": "❌ Не смог разобрать. Пример:\n`/alert BTC funding above 0.05`",
+        "al_full": "⚠️ Уже 5 оповещений. Сначала удалите: `/alert del <id>`",
+        "al_none": "🔔 Пока нет оповещений.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *Ваши оповещения*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (выкл)",
+        "al_notfound": "❓ Оповещение с таким номером не найдено.",
+        "al_off": "⛔ Оповещение `#{id}` выключено.",
+        "al_on": "🟢 Оповещение `#{id}` включено.",
+        "al_deleted": "🗑 Оповещение `#{id}` удалено.",
+        "al_fired": (
+            "🔔 *Оповещение сработало*\n\n"
+            "{sym} — {label}\n"
+            "Сейчас: *{now}* (правило: {cond})\n\n"
+            "_Не чаще одного сообщения в 6 часов. `/alert off {id}` чтобы выключить._"
+        ),
+    },
+    "ar": {
+        "al_usage": (
+            "🔔 *تنبيه شخصي*\n\n"
+            "`/alert BTC funding above 0.05` — عندما يتجاوز تمويل 8 ساعات 0.05%\n"
+            "`/alert ETH price below 2800` — عندما ينزل السعر تحت 2800\n\n"
+            "`/alert` للقائمة · `/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "يُفحص كل 10 دقائق، ورسالة واحدة كحد أقصى لكل قاعدة كل 6 ساعات.\n"
+            "الحد: 5 تنبيهات."
+        ),
+        "al_added": "✅ تم الحفظ — `{rule}`\n\nأفحصه كل 10 دقائق وسأراسلك هنا عند التحقق.",
+        "al_bad": "❌ لم أفهم الصيغة. مثال:\n`/alert BTC funding above 0.05`",
+        "al_full": "⚠️ لديك 5 تنبيهات. احذف واحداً أولاً: `/alert del <id>`",
+        "al_none": "🔔 لا تنبيهات بعد.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *تنبيهاتك*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (متوقف)",
+        "al_notfound": "❓ لا يوجد تنبيه بهذا الرقم.",
+        "al_off": "⛔ تم إيقاف التنبيه `#{id}`.",
+        "al_on": "🟢 تم تشغيل التنبيه `#{id}`.",
+        "al_deleted": "🗑 تم حذف التنبيه `#{id}`.",
+        "al_fired": (
+            "🔔 *تم تفعيل التنبيه*\n\n"
+            "{sym} — {label}\n"
+            "القيمة الآن: *{now}* (الشرط: {cond})\n\n"
+            "_رسالة واحدة كل 6 ساعات. `/alert off {id}` للإيقاف._"
+        ),
+    },
+    "tr": {
+        "al_usage": (
+            "🔔 *Kişisel alarm*\n\n"
+            "`/alert BTC funding above 0.05` → 8 saatlik funding %0,05 üstüne çıkınca\n"
+            "`/alert ETH price below 2800` → fiyat 2800 altına inince\n\n"
+            "`/alert` liste · `/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "10 dakikada bir kontrol edilir; kural başına 6 saatte en fazla bir mesaj.\n"
+            "Sınır: kullanıcı başına 5 alarm."
+        ),
+        "al_added": "✅ Kaydedildi — `{rule}`\n\n10 dakikada bir kontrol ediyorum, tetiklenince buradan yazacağım.",
+        "al_bad": "❌ Anlayamadım. Örnek:\n`/alert BTC funding above 0.05`",
+        "al_full": "⚠️ 5 alarmın dolu. Önce birini sil: `/alert del <id>`",
+        "al_none": "🔔 Henüz alarm yok.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *Alarmların*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (kapalı)",
+        "al_notfound": "❓ Bu numarada alarm yok.",
+        "al_off": "⛔ `#{id}` alarmı kapatıldı.",
+        "al_on": "🟢 `#{id}` alarmı açıldı.",
+        "al_deleted": "🗑 `#{id}` alarmı silindi.",
+        "al_fired": (
+            "🔔 *Alarm tetiklendi*\n\n"
+            "{sym} — {label}\n"
+            "Şu an: *{now}* (kural: {cond})\n\n"
+            "_6 saatte en fazla bir mesaj. Durdurmak için `/alert off {id}`._"
+        ),
+    },
+    "es": {
+        "al_usage": (
+            "🔔 *Alerta personal*\n\n"
+            "`/alert BTC funding above 0.05` → cuando el funding 8h supere 0,05%\n"
+            "`/alert ETH price below 2800` → cuando el precio baje de 2800\n\n"
+            "`/alert` lista · `/alert off <id>` · `/alert on <id>` · `/alert del <id>`\n\n"
+            "Se comprueba cada 10 minutos; como máximo un mensaje por regla cada 6 horas.\n"
+            "Límite: 5 alertas por usuario."
+        ),
+        "al_added": "✅ Guardada — `{rule}`\n\nLa reviso cada 10 minutos y te escribo aquí cuando se cumpla.",
+        "al_bad": "❌ No pude leer eso. Ejemplo:\n`/alert BTC funding above 0.05`",
+        "al_full": "⚠️ Ya tienes 5 alertas. Borra una primero: `/alert del <id>`",
+        "al_none": "🔔 Aún no hay alertas.\n\n`/alert BTC funding above 0.05`",
+        "al_head": "🔔 *Tus alertas*",
+        "al_row": "{n}. `#{id}` {sym} · {metric} {op} {val} {state}",
+        "al_state_on": "🟢",
+        "al_state_off": "⛔ (apagada)",
+        "al_notfound": "❓ No hay alerta con ese número.",
+        "al_off": "⛔ Alerta `#{id}` apagada.",
+        "al_on": "🟢 Alerta `#{id}` encendida.",
+        "al_deleted": "🗑 Alerta `#{id}` borrada.",
+        "al_fired": (
+            "🔔 *Alerta activada*\n\n"
+            "{sym} — {label}\n"
+            "Ahora: *{now}* (regla: {cond})\n\n"
+            "_Como máximo un mensaje cada 6 horas. `/alert off {id}` para parar._"
+        ),
+    },
+}
+for _lang, _extra in BOT_STRINGS_ALERT.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang].update(_extra)
+
+
 for _lang, _extra in BOT_STRINGS_RR.items():
     if _lang in BOT_STRINGS:
         BOT_STRINGS[_lang].update(_extra)
@@ -971,6 +1151,23 @@ def init_db() -> None:
                 user_id INTEGER PRIMARY KEY,
                 days INTEGER NOT NULL,
                 granted_at INTEGER NOT NULL
+            )
+            """
+        )
+
+        # هشدارهای شخصی کاربر (فاندینگ/قیمت) — در چرخهٔ ربات بررسی می‌شوند
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                sym TEXT NOT NULL,
+                metric TEXT NOT NULL,
+                op TEXT NOT NULL,
+                value REAL NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL,
+                last_fired INTEGER NOT NULL DEFAULT 0
             )
             """
         )
@@ -1666,6 +1863,7 @@ def sync_telegram_menus() -> None:
         {"command": "lang", "description": "🌐 Change Language (6 Languages)"},
         {"command": "lot", "description": "🧮 Prop Lot Calculator (XAUUSD/Forex/BTC)"},
         {"command": "rr", "description": "📐 Position size & R/R calculator"},
+        {"command": "alert", "description": "🔔 Personal funding/price alert (DM)"},
         {"command": "scan", "description": "🛡️ Token Anti-Rug & Honeypot Scanner"},
         {"command": "wallet", "description": "🐋 Hyperliquid Whale Wallet X-Ray"},
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
@@ -1682,6 +1880,7 @@ def sync_telegram_menus() -> None:
         {"command": "lang", "description": "🌐 تغییر زبان (۶ زبان دنیا)"},
         {"command": "lot", "description": "🧮 محاسبه حجم لات پراپ (طلا/فارکس/کریپتو)"},
         {"command": "rr", "description": "📐 محاسبه ریسک، حجم پوزیشن و R/R"},
+        {"command": "alert", "description": "🔔 هشدار شخصی فاندینگ/قیمت (پیام در تلگرام)"},
         {"command": "scan", "description": "🛡️ اسکن هانی‌پات و امنیت ارزها"},
         {"command": "wallet", "description": "🐋 ردیاب کیف پول نهنگ‌ها"},
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
@@ -2856,6 +3055,13 @@ def handle_message(msg: dict) -> None:
         tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
         return
 
+    if text.startswith("/alert"):
+        lang = get_user_lang(uid, tg_lang)
+        reply = handle_alert_command(text, uid, lang)
+        pro_now, _ = is_user_pro(uid)
+        tg_send_message(chat_id, reply, reply_markup=main_keyboard(pro_now, lang, is_admin_user=is_admin(uid)))
+        return
+
     if text.startswith("/rr"):
         lang = get_user_lang(uid, tg_lang)
         tg_send_message(chat_id, rr_text(text[3:], lang), reply_markup=main_keyboard(
@@ -2866,8 +3072,12 @@ def handle_message(msg: dict) -> None:
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
-        args = text.split(maxsplit=1)
+        args = text.split(maxsplit=2)
         code = args[1].strip().lower() if len(args) > 1 else ""
+        if code == "report":
+            month = args[2].strip() if len(args) > 2 else ""
+            tg_send_message(chat_id, monthly_partner_report(month or None), reply_markup=admin_back_keyboard())
+            return
         tg_send_message(chat_id, biz_report_text(code), reply_markup=admin_back_keyboard())
         return
 
@@ -3770,6 +3980,253 @@ def source_summary(limit: int = 10) -> List[Tuple[str, int]]:
 
 
 # ---------------------------------------------------------------------
+#  هشدارهای شخصی: ذخیره، فهرست، بررسی دوره‌ای (/alert)
+# ---------------------------------------------------------------------
+MAX_ALERTS_PER_USER = 5
+ALERT_COOLDOWN_SEC = 6 * 3600
+ALERT_METRICS = {"funding": "funding", "فاندینگ": "funding", "price": "price", "قیمت": "price"}
+ALERT_OPS_ABOVE = {"above", ">", "بالاتر", "بیشتر"}
+ALERT_OPS_BELOW = {"below", "<", "پایین‌تر", "کمتر"}
+
+_alert_rates_cache: Dict[str, object] = {"ts": 0.0, "rates": []}
+
+
+def normalize_alert_sym(raw: str) -> str:
+    sym = str(raw or "").strip().upper().replace("$", "")
+    return sym
+
+
+def parse_alert_rule(args: str) -> Optional[Tuple[str, str, str, float]]:
+    """`BTC funding above 0.05` → (sym, metric, op, value). ورودی نامعتبر → None."""
+    parts = [x for x in str(args or "").replace("،", " ").split() if x]
+    if len(parts) < 4:
+        return None
+    sym = normalize_alert_sym(parts[0])
+    metric = ALERT_METRICS.get(parts[1].strip().lower())
+    op_raw = parts[2].strip().lower()
+    op = "above" if op_raw in ALERT_OPS_ABOVE else ("below" if op_raw in ALERT_OPS_BELOW else "")
+    try:
+        value = float(str(parts[3]).replace("%", "").replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if not sym or not sym.isalnum() or len(sym) > 12 or not metric or not op:
+        return None
+    if metric == "funding" and abs(value) > 5:
+        return None          # درصد ۸ ساعتهٔ ۵٪ عملاً بی‌معنی است
+    if metric == "price" and value <= 0:
+        return None
+    return sym, metric, op, value
+
+
+def user_alerts(user_id: int, include_off: bool = True) -> List[Dict]:
+    q = "SELECT id, sym, metric, op, value, active, created_at, last_fired FROM price_alerts WHERE user_id = ?"
+    if not include_off:
+        q += " AND active = 1"
+    q += " ORDER BY id DESC"
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(q, (int(user_id),)).fetchall()
+    except Exception as exc:
+        logger.warning("خواندن هشدارها ناموفق: %s", exc)
+        return []
+    return [
+        {"id": int(r[0]), "sym": r[1], "metric": r[2], "op": r[3], "value": float(r[4]),
+         "active": int(r[5]), "created_at": int(r[6]), "last_fired": int(r[7])}
+        for r in rows
+    ]
+
+
+def add_user_alert(user_id: int, sym: str, metric: str, op: str, value: float) -> Optional[int]:
+    """هشدار تازه ثبت می‌کند؛ اگر سقف پر باشد None برمی‌گرداند."""
+    if len(user_alerts(user_id)) >= MAX_ALERTS_PER_USER:
+        return None
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            cur = conn.execute(
+                "INSERT INTO price_alerts (user_id, sym, metric, op, value, active, created_at, last_fired)"
+                " VALUES (?,?,?,?,?,1,?,0)",
+                (int(user_id), sym, metric, op, float(value), int(time.time())),
+            )
+            return int(cur.lastrowid)
+    except Exception as exc:
+        logger.warning("ثبت هشدار ناموفق: %s", exc)
+        return None
+
+
+def set_alert_active(user_id: int, alert_id: int, active: bool) -> bool:
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            cur = conn.execute(
+                "UPDATE price_alerts SET active = ? WHERE id = ? AND user_id = ?",
+                (1 if active else 0, int(alert_id), int(user_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as exc:
+        logger.warning("تغییر وضعیت هشدار ناموفق: %s", exc)
+        return False
+
+
+def delete_user_alert(user_id: int, alert_id: int) -> bool:
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            cur = conn.execute(
+                "DELETE FROM price_alerts WHERE id = ? AND user_id = ?", (int(alert_id), int(user_id))
+            )
+            return cur.rowcount > 0
+    except Exception as exc:
+        logger.warning("حذف هشدار ناموفق: %s", exc)
+        return False
+
+
+def _alert_rule_text(rule: Tuple[str, str, str, float], lang: str) -> str:
+    sym, metric, op, value = rule
+    metric_txt = "funding" if metric == "funding" else "price"
+    op_txt = ("above" if op == "above" else "below") if lang == "en" else ("بالاتر از" if op == "above" else "پایین‌تر از")
+    if metric == "funding":
+        val_txt = f"{value:g}%"
+    else:
+        val_txt = f"${value:,.0f}"
+    return f"{sym} {metric_txt} {op_txt} {val_txt}"
+
+
+def alerts_text(user_id: int, lang: str = "fa") -> str:
+    rules = user_alerts(user_id)
+    if not rules:
+        return tr(lang, "al_none")
+    lines = [tr(lang, "al_head"), ""]
+    for n, r in enumerate(rules, start=1):
+        state = tr(lang, "al_state_on") if r["active"] else tr(lang, "al_state_off")
+        val = f"{r['value']:g}%" if r["metric"] == "funding" else f"${r['value']:,.0f}"
+        lines.append(tr(lang, "al_row", n=n, id=r["id"], sym=r["sym"], metric=r["metric"],
+                        op=("above" if r["op"] == "above" else "below"), val=val, state=state))
+    lines += ["", "`/alert off <id>` · `/alert on <id>` · `/alert del <id>`"]
+    return "\n".join(lines)
+
+
+def handle_alert_command(text: str, user_id: int, lang: str = "fa") -> str:
+    """همهٔ حالت‌های `/alert ...` را به یک متن پاسخ تبدیل می‌کند."""
+    low_text = text.strip().lower()
+    if low_text.startswith("/alerts"):
+        args = text.strip()[len("/alerts"):].strip()
+    elif low_text.startswith("/alert"):
+        args = text.strip()[len("/alert"):].strip()
+    else:
+        args = text.strip()
+    low = args.lower()
+    if not args:
+        # کاربر تازه راهنما ببیند، کاربر دارای هشدار فهرستش را
+        return alerts_text(user_id, lang) if user_alerts(user_id) else tr(lang, "al_usage")
+    for prefix, action in (("del ", "del"), ("delete ", "del"), ("off ", "off"), ("on ", "on")):
+        if low.startswith(prefix):
+            arg = args[len(prefix):].strip().lstrip("#")
+            if not arg.isdigit():
+                return tr(lang, "al_notfound")
+            alert_id = int(arg)
+            if action == "del":
+                return tr(lang, "al_deleted", id=alert_id) if delete_user_alert(user_id, alert_id) else tr(lang, "al_notfound")
+            active = action == "on"
+            ok = set_alert_active(user_id, alert_id, active)
+            if not ok:
+                return tr(lang, "al_notfound")
+            return tr(lang, "al_on" if active else "al_off", id=alert_id)
+    rule = parse_alert_rule(args)
+    if not rule:
+        return tr(lang, "al_bad")
+    if len(user_alerts(user_id)) >= MAX_ALERTS_PER_USER:
+        return tr(lang, "al_full")
+    alert_id = add_user_alert(user_id, *rule)
+    if not alert_id:
+        return tr(lang, "al_full")
+    return tr(lang, "al_added", rule=_alert_rule_text(rule, lang))
+
+
+def live_metric_snapshot(max_age: int = 300) -> Dict[str, Dict[str, float]]:
+    """عکس لحظه‌ای از فاندینگ/قیمت برای بررسی هشدارها (کش ۵ دقیقه‌ای)."""
+    now = time.time()
+    cached = _alert_rates_cache.get("rates") or []
+    if cached and now - float(_alert_rates_cache.get("ts") or 0) < max_age:
+        rates = cached
+    else:
+        rates = fetch_live_funding_and_oi() or []
+        _alert_rates_cache["rates"] = rates
+        _alert_rates_cache["ts"] = now
+    out: Dict[str, Dict[str, float]] = {}
+    for r in rates:
+        sym = str(r.get("sym") or "").upper()
+        if not sym:
+            continue
+        out[sym] = {
+            "funding": float(r.get("rate_pct") or 0.0),
+            "price": float(r.get("price") or 0.0),
+        }
+    return out
+
+
+def evaluate_user_alerts(rates: Optional[List[Dict]] = None, now: Optional[float] = None) -> List[Dict]:
+    """هشدارهای فعال را بررسی می‌کند و برای شرط‌های برقرار، پیام می‌فرستد.
+
+    خروجی: فهرست رویدادهای ارسال‌شده (برای تست و لاگ). پیام حداکثر هر ۶ ساعت
+    برای هر قاعده ارسال می‌شود تا کاربر اسپم نگیرد.
+    """
+    now_ts = int(now if now is not None else time.time())
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT id, user_id, sym, metric, op, value, last_fired FROM price_alerts WHERE active = 1"
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("بررسی هشدارها ناموفق: %s", exc)
+        return []
+    if not rows:
+        return []
+    if rates is None:
+        snap: Dict[str, Dict[str, float]] = {}
+        for r in (fetch_live_funding_and_oi() or []):
+            sym = str(r.get("sym") or "").upper()
+            snap[sym] = {"funding": float(r.get("rate_pct") or 0.0), "price": float(r.get("price") or 0.0)}
+    else:
+        snap = {}
+        for r in rates:
+            sym = str(r.get("sym") or "").upper()
+            snap[sym] = {"funding": float(r.get("rate_pct") or 0.0), "price": float(r.get("price") or 0.0)}
+
+    fired: List[Dict] = []
+    for alert_id, user_id, sym, metric, op, value, last_fired in rows:
+        sym = str(sym).upper()
+        metric = str(metric)
+        if metric == "price":
+            current = float(snap.get(sym, {}).get("price") or 0.0)
+            if current <= 0:
+                continue          # بدون قیمت واقعی هرگز هشدار نمی‌دهیم
+            now_txt, cond_txt = f"${current:,.2f}", f"{'above' if op == 'above' else 'below'} ${float(value):,.0f}"
+        else:
+            if sym not in snap:
+                continue
+            current = float(snap[sym]["funding"])
+            now_txt, cond_txt = f"{current:+.4f}%/8h", f"{'above' if op == 'above' else 'below'} {float(value):g}%"
+        hit = (current > float(value)) if op == "above" else (current < float(value))
+        if not hit:
+            continue
+        if now_ts - int(last_fired or 0) < ALERT_COOLDOWN_SEC:
+            continue
+        lang = get_user_lang(int(user_id))
+        msg = tr(lang, "al_fired", sym=sym, label=("funding" if metric == "funding" else "price"),
+                 now=now_txt, cond=cond_txt, id=int(alert_id))
+        res = tg_send_message(int(user_id), msg)
+        if not res.get("ok"):
+            logger.info("ارسال هشدار به %s ناموفق: %s", user_id, str(res.get("description"))[:60])
+            continue
+        try:
+            with _db_lock, sqlite3.connect(DB_PATH) as conn:
+                conn.execute("UPDATE price_alerts SET last_fired = ? WHERE id = ?", (now_ts, int(alert_id)))
+        except Exception as exc:
+            logger.warning("به‌روزرسانی last_fired ناموفق: %s", exc)
+        fired.append({"id": int(alert_id), "user_id": int(user_id), "sym": sym, "metric": metric,
+                      "op": op, "value": float(value), "current": current})
+    return fired
+
+
+# ---------------------------------------------------------------------
 #  گزارش قیف برای شریک (بروکر / صرافی) — /biz
 # ---------------------------------------------------------------------
 PARTNER_SOURCE_PREFIX = "p_"
@@ -3880,9 +4337,116 @@ def biz_report_text(code: str = "") -> str:
         "۳) رویدادهای `kyc`، `ftd`، `deposit` را با همان `tg_id` + مبلغ به ما postback کنید.",
         "۴) ما تجمیع را در همین `/biz` و فید `api/stats.json` نشان می‌دهیم (بدون دادهٔ شخصی).",
         "",
+        "📅 گزارش ماهانه با تغییر نسبت به ماه قبل: `/biz report` (یا `/biz report 2026-11`)",
         "📄 صفحهٔ عمومی: `business.html` — مستندات فید: `api/index.html`",
     ]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------
+#  گزارش ماهانهٔ شرکا (اسنپ‌شات + تغییر نسبت به ماه قبل)
+# ---------------------------------------------------------------------
+def _month_key(ts: Optional[float] = None) -> str:
+    return datetime.fromtimestamp(float(ts if ts is not None else time.time()), tz=timezone.utc).strftime("%Y-%m")
+
+
+def partner_snapshot(month: str) -> Dict[str, Dict[str, int]]:
+    """وضعیت تجمیعی هر شریک را در یک ماه ثبت می‌کند (برای محاسبهٔ تغییر ماه بعد)."""
+    snap = {
+        r["partner"]: {
+            "clicks": int(r["clicks"]),
+            "starts": int(r["starts"]),
+            "joined": int(r["joined"]),
+            "pro": int(r["pro"]),
+        }
+        for r in partner_funnel_rows()
+    }
+    try:
+        set_setting(f"partner_snapshot_{month}", json.dumps(snap, ensure_ascii=False))
+    except Exception as exc:
+        logger.warning("ثبت اسنپ‌شات شرکا ناموفق: %s", exc)
+    return snap
+
+
+def previous_partner_snapshot(month: str) -> Optional[Dict[str, Dict[str, int]]]:
+    """آخرین اسنپ‌شات قبل از این ماه (اگر باشد)."""
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM settings WHERE key LIKE 'partner_snapshot_%' ORDER BY key DESC"
+            ).fetchall()
+    except Exception:
+        return None
+    for key, value in rows:
+        m = str(key).replace("partner_snapshot_", "")
+        if m < month:
+            try:
+                data = json.loads(value or "{}")
+                return data if isinstance(data, dict) else None
+            except Exception:
+                return None
+    return None
+
+
+def monthly_partner_report(month: Optional[str] = None) -> str:
+    """گزارش متنی ماهانهٔ شرکا؛ همهٔ اعداد از DB خودمان و بدون تخمین."""
+    month = (month or _month_key()).strip()
+    if len(month) == 7 and month[4] == "-" and month.replace("-", "").isdigit():
+        pass
+    else:
+        month = _month_key()
+    rows = partner_funnel_rows()
+    current = partner_snapshot(month)
+    prev = previous_partner_snapshot(month)
+    lines = [f"📊 *گزارش ماهانهٔ شرکا — {month}*", ""]
+    if not rows:
+        lines += ["هنوز هیچ منبع شریکی داده ندارد.", "", "لینک با کد بساز: `?start=p_<partner-id>`"]
+        return "\n".join(lines)
+    total = {"clicks": 0, "starts": 0, "joined": 0, "pro": 0}
+    for r in rows[:12]:
+        for k in total:
+            total[k] += int(r[k])
+        d = ""
+        if prev and r["partner"] in prev:
+            p = prev[r["partner"]]
+            ds = int(r["starts"]) - int(p.get("starts", 0))
+            dj = int(r["joined"]) - int(p.get("joined", 0))
+            d = f" · تغییر: {ds:+d} استارت / {dj:+d} عضویت"
+        elif prev is not None:
+            d = " · تازه این ماه"
+        lines.append(f"• `{r['partner']}`")
+        lines.append(
+            f"   👆 کلیک {r['clicks']} → استارت {r['starts']}"
+            + (f" ({r['click_to_start']:.0f}%)" if r["clicks"] else "")
+        )
+        lines.append(
+            f"   ✅ عضویت {r['joined']} ({r['join_rate']:.0f}%) · 💎 پرو {r['pro']} ({r['pro_rate']:.0f}%)" + d
+        )
+    lines += [
+        "",
+        f"*جمع:* کلیک {total['clicks']} · استارت {total['starts']} · عضویت {total['joined']} · پرو {total['pro']}",
+        "",
+        "_منبع: دیتابیس خود ربات. دپوزیت/KYC در سمت بروکر است و در این گزارش نیست._",
+        "_ارقام «تغییر» نسبت به آخرین اسنپ‌شات قبلی محاسبه می‌شود._",
+    ]
+    return "\n".join(lines)
+
+
+def maybe_send_monthly_partner_report() -> bool:
+    """اول هر ماه (UTC) گزارش ماه قبل را یک‌بار برای ادمین می‌فرستد."""
+    if not ADMIN_USER_ID:
+        return False
+    last = get_setting("partner_report_last_month", "")
+    current = _month_key()
+    if last == current:
+        return False
+    report = monthly_partner_report(current)
+    res = tg_send_message(ADMIN_USER_ID, report)
+    if not res.get("ok"):
+        logger.info("ارسال گزارش ماهانهٔ شرکا ناموفق: %s", str(res.get("description"))[:60])
+        return False
+    set_setting("partner_report_last_month", current)
+    return True
 
 
 def sources_text() -> str:
@@ -4682,6 +5246,8 @@ def auto_channel_loop() -> None:
             if PUBLIC_CHANNEL_ID:
                 validate_channel_target(silent=True)
             post_due_slots()
+            evaluate_user_alerts()
+            maybe_send_monthly_partner_report()
             publish_public_feed()
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)

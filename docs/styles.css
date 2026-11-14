@@ -1039,3 +1039,36 @@ section{scroll-margin-top:84px}
 .fx-empty{font-size:11px;color:#8ba3a3;text-align:center;padding:8px}
 
 .jr-head-btns{display:inline-flex;gap:6px}
+
+/* ── هشدارهای شخصی (درون‌اپ) ─────────────────────────────────────── */
+.ca-row{flex-wrap:wrap}
+.ca-row select{max-width:47%}
+.ca-cells{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ca-cells small{font-size:10px;color:#8ba3a3}
+.ca-chip.is-close{border-color:rgba(255,196,107,.45);background:rgba(255,196,107,.08)}
+.ca-chip .ca-act{background:transparent;border:1px solid rgba(120,200,180,.22);color:#9df0c8;
+  border-radius:8px;padding:3px 7px;font:inherit;font-size:10px}
+.ca-note{font-size:10px;color:#7f9797;line-height:1.65;margin-top:8px}
+.ca-fired{margin-top:10px;border-top:1px dashed rgba(255,255,255,.08);padding-top:8px}
+.ca-fired-head{font-size:10.5px;color:#8ba3a3;margin-bottom:4px}
+.ca-fired-list{display:flex;flex-direction:column;gap:3px}
+.ca-fired-row{font-size:10.5px;color:#cfe6e1;font-variant-numeric:tabular-nums;
+  display:flex;justify-content:space-between;gap:8px}
+.ca-fired-row time{color:#5E7397}
+
+/* ── پروفایل شریک ─────────────────────────────────────────────── */
+.pt-body{padding:16px 16px 26px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.pt-head{display:flex;align-items:center;gap:12px}
+.pt-emoji{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;font-size:26px;
+  background:linear-gradient(145deg,#0e2b2a,#0a1524);border:1px solid rgba(120,200,180,.22)}
+.pt-id b{display:block;font-size:17px}
+.pt-badge{font-size:10.5px;color:#06231d;background:#38e0b2;border-radius:999px;padding:2px 8px;font-weight:800}
+.pt-note{font-size:13px;color:#cfe6e1;margin:0;line-height:1.8}
+.pt-code{display:flex;align-items:center;gap:8px;font-size:12px;color:#9db3b3;
+  border:1px dashed rgba(120,200,180,.35);border-radius:12px;padding:9px 11px}
+.pt-code b{color:#8ff0d2;font-family:ui-monospace,Menlo,monospace;letter-spacing:.5px}
+.pt-why{border:1px solid rgba(120,200,180,.14);background:rgba(9,16,26,.6);border-radius:14px;padding:12px}
+.pt-why b{font-size:12px;color:#cfe6e1}
+.pt-why p{margin:6px 0 0;font-size:11.5px;color:#9db3b3;line-height:1.8}
+.pt-disclosure{font-size:10.5px;color:#7f9797;line-height:1.8;margin:0}
+.pt-small{font-size:10px;color:#5E7397;text-align:center;margin:0}
