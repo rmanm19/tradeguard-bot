@@ -1072,6 +1072,105 @@ bot.PUBLIC_CHANNEL_EN = ""
 bot.ADMIN_USER_ID = ""
 CHAT_STATE.update({"pinned_message": {"message_id": 42}, "description": "", "photo": None})
 
+print("\n۹٫۱۵) فید عمومی داده (برای توسعه‌دهنده‌ها و شرکا)")
+_feeds = []
+
+
+def _fake_rates(_n=0):
+    _feeds.append(1)
+    return [{"sym": "BTC", "rate_pct": 0.012, "oi_m": 3420.5, "price": 80330.0},
+            {"sym": "SOL", "rate_pct": -0.031, "oi_m": 890.2, "price": 178.4}]
+
+
+bot.PUBLIC_FEED_DIR = Path(tempfile.mkdtemp()) / "api"
+check("بدون دادهٔ زنده هیچ فیدی ساخته نمی‌شود (هیچ عدد ساختگی)",
+      bot.build_public_feed([]) is None and bot.build_public_feed(None) is None)
+_feed = bot.publish_public_feed(_fake_rates())
+_radar_path = bot.PUBLIC_FEED_DIR / "radar.json"
+_stats_path = bot.PUBLIC_FEED_DIR / "stats.json"
+check("فید radar.json و stats.json نوشته می‌شود",
+      _radar_path.exists() and _stats_path.exists(), str(bot.PUBLIC_FEED_DIR))
+_radar = _json.loads(_radar_path.read_text(encoding="utf-8"))
+_stats = _json.loads(_stats_path.read_text(encoding="utf-8"))
+check("فید عمومی نفس‌های لازم را دارد",
+      all(k in _radar for k in ("generated_at", "fear_greed", "funding", "disclaimer")), str(list(_radar)))
+check("فید عمومی، فاندینگ و OI واقعی را می‌دهد",
+      len(_radar["funding"]) == 2 and _radar["funding"][0]["symbol"] == "BTC"
+      and _radar["funding"][0]["oi_usd_m"] == 3420.5, str(_radar["funding"][:1]))
+check("سالانه‌سازی فاندینگ درست است (۰٫۰۱۲٪ × ۳ × ۳۶۵ ≈ ۱۳٫۱٪)",
+      abs(_radar["funding"][0]["apr_pct"] - 13.1) < 0.2, str(_radar["funding"][0]["apr_pct"]))
+check("فید عمومی هیچ توکن یا آیدی شخصی ندارد",
+      "BOT_TOKEN" not in _radar_path.read_text(encoding="utf-8")
+      and "user_id" not in _radar_path.read_text(encoding="utf-8"),
+      "بررسی محتوا")
+check("آمار فید فقط شمارنده‌های تجمیعی دارد",
+      _stats["users_total"] >= 1 and "note" in _stats and _stats["languages"] == 6, str(_stats))
+check("تاریخ فید ISO و UTC است",
+      _radar["generated_at"].endswith("Z") and "T" in _radar["generated_at"], _radar["generated_at"])
+bot.PRO_STATUS_PUSH = False
+check("بدون PRO_STATUS_PUSH هیچ پوشی انجام نمی‌شود",
+      bot.publish_public_feed(_fake_rates()) is not None)
+
+print("\n۹٫۱۶) گزارش قیف شرکا (/biz) برای بروکر و صرافی")
+_sqlf = __import__("sqlite3")
+_now = int(__import__("time").time())
+with bot._db_lock, _sqlf.connect(bot.DB_PATH) as _c:
+    _c.execute("DELETE FROM users WHERE source LIKE 'p_okx%'")
+    for _i, _src in enumerate(["p_okx", "p_okx_ab12", "p_okx_ab12", "p_bybit"]):
+        _uid = 77001000 + _i
+        _c.execute(
+            "INSERT OR REPLACE INTO users (user_id, username, lang, referred_by, referrals_count,"
+            " free_trial_claimed, pro_until, created_at, source) VALUES (?,?,?,?,?,?,?,?,?)",
+            (_uid, "u%d" % _i, "en", 0, 0, 0, _now + 86400 if _i == 0 else 0, _now, _src),
+        )
+    _c.execute("INSERT OR REPLACE INTO join_rewards (user_id, days, granted_at) VALUES (?,?,?)",
+               (77001000, 1, _now))
+    _c.execute("INSERT OR REPLACE INTO join_rewards (user_id, days, granted_at) VALUES (?,?,?)",
+               (77001001, 1, _now))
+bot.ADMIN_USER_ID = str(USER)
+bot.set_setting("partner_start_okx", "10")
+check("شناسهٔ شریک از کد منبع درست استخراج می‌شود (subid جدا می‌شود)",
+      bot._partner_id_from_source("p_okx_ab12") == "okx"
+      and bot._partner_id_from_source("p_bybit") == "bybit"
+      and bot._partner_id_from_source("direct") == "", "p_okx_ab12 → okx")
+_rows = bot.partner_funnel_rows()
+_okx = [r for r in _rows if r["partner"] == "okx"]
+check("ردیف‌های قیف فقط منابع شرکا را برمی‌گرداند (با شناسهٔ یکتا، بدون direct)",
+      _okx and {r["partner"] for r in _rows} == {"okx", "bybit"}, str([r["partner"] for r in _rows]))
+check("هر ردیف همهٔ کدهای subid خودش را نگه می‌دارد",
+      sorted([r for r in _rows if r["partner"] == "okx"][0]["sources"]) == ["p_okx", "p_okx_ab12"],
+      str([r for r in _rows if r["partner"] == "okx"][0]["sources"]))
+_starts = sum(r["starts"] for r in _okx)
+check("مجموع استارت‌های یک شریک با subidهایش جمع می‌شود", _starts == 3, str(_starts))
+check("کلیک‌های شریک از settings خوانده می‌شود", any(r["clicks"] == 10 for r in _okx), str(_okx[:1]))
+_txt = bot.biz_report_text("okx")
+check("گزارش /biz عددهای واقعی قیف را نشان می‌دهد (۳ استارت، ۲ عضویت)",
+      "`okx`" in _txt and "استارت: *3*" in _txt and "عضویت تأییدشدهٔ کانال: *2*" in _txt, _txt[:120])
+check("گزارش /biz subidها را زیر یک شریک جمع می‌کند",
+      "p_okx_ab12" in _txt and "p_okx`" in _txt, [l for l in _txt.split("\n") if "کدها" in l][:1])
+check("گزارش /biz نرخ کلیک‌به‌استارت را حساب می‌کند (۳ از ۱۰ = ۳۰٪)",
+      "30%" in _txt, [ln for ln in _txt.split("\n") if "کلیک" in ln][:1])
+check("گزارش /biz عضویت تأییدشده و پرو فعال را جدا می‌دهد",
+      "عضویت تأییدشدهٔ کانال" in _txt and "پرو فعال" in _txt)
+check("گزارش /biz صادقانه می‌گوید KYC و دپوزیت را نمی‌داند",
+      "KYC" in _txt and "postback" in _txt and "نمی‌داند" in _txt)
+check("شِمای رهگیری click-id در گزارش هست",
+      "p_<id>_<clickid>" in _txt and "tg_id" in _txt)
+check("برای کد ناشناس، گزارش به‌جای عدد جعلی راهنمای لینک می‌دهد",
+      "داده‌ای نیست" in bot.biz_report_text("p_none") and "start=p_<partner-id>" in bot.biz_report_text("p_none"))
+check("گزارش بدون آرگومان همهٔ شرکا را فهرست می‌کند",
+      "bybit" in bot.biz_report_text() and "okx" in bot.biz_report_text(), bot.biz_report_text()[:60])
+_posts.clear()
+bot.handle_message(msg("/biz", uid=USER))
+_biz_txt = _posts[-1][1] if _posts else ""
+check("/biz برای ادمین گزارش قیف می‌فرستد", "قیف شرکا" in _biz_txt, _biz_txt[:60])
+check("/biz اعداد واقعی همان شریک را در پیام می‌آورد",
+      "*3*" in _biz_txt and "30%" in _biz_txt, _biz_txt[:200])
+_posts.clear()
+bot.handle_message(msg("/biz", uid=BUYER))
+_biz_txt2 = _posts[-1][1] if _posts else ""
+check("/biz برای غیر ادمین مسدود است", "⛔" in _biz_txt2, _biz_txt2[:60])
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

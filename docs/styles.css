@@ -942,3 +942,30 @@ section{scroll-margin-top:84px}
 .partner-badge{font-size:10.5px;font-weight:800;color:#25D69A;
   background:rgba(37,214,154,.12);border:1px solid rgba(37,214,154,.3);border-radius:99px;padding:3px 8px;flex:none}
 .partners-note{margin:9px 2px 0;font-size:10.5px;line-height:1.8;color:#71809A}
+
+/* ── نقشهٔ لیکوئیدیشن (تخمینی) ───────────────────────────────────── */
+.liq-map{margin:14px 0 6px;padding:12px 12px 10px;border:1px solid rgba(120,200,180,.16);
+  border-radius:16px;background:linear-gradient(180deg,rgba(16,26,38,.9),rgba(10,18,28,.9))}
+.liq-head{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.liq-head>span:first-child{font-weight:800;font-size:13.5px;letter-spacing:-.2px}
+.liq-note{font-size:10.5px;line-height:1.55;color:#8ba3a3;opacity:.9}
+.liq-rows{display:grid;gap:8px}
+.liq-card{border:1px solid rgba(120,200,180,.10);border-radius:12px;padding:9px 10px;
+  background:rgba(9,16,26,.85)}
+.liq-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+.liq-top b{font-size:13px}
+.liq-spot{color:#cfe6e1;font-variant-numeric:tabular-nums}
+.liq-oi{color:#7f9797;font-size:11px}
+.liq-crowd{margin-inline-start:auto;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px}
+.liq-crowd.is-long{color:#ffb4a2;background:rgba(255,120,90,.12);border:1px solid rgba(255,120,90,.25)}
+.liq-crowd.is-short{color:#9df0c8;background:rgba(60,220,170,.12);border:1px solid rgba(60,220,170,.25)}
+.liq-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 4px;font-size:10px;color:#8ba3a3}
+.liq-grid-head-short{text-align:end}
+.liq-cells{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.liq-cell{display:flex;flex-direction:column;gap:2px;padding:6px 6px;border-radius:9px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);font-size:10.5px}
+.liq-cell b{color:#9db3b3;font-size:10px;font-weight:700}
+.liq-px{font-variant-numeric:tabular-nums;font-size:11.5px}
+.liq-px-long{color:#ffb4a2}
+.liq-px-short{color:#9df0c8}
+@media (max-width:380px){.liq-cells{grid-template-columns:repeat(2,1fr)}}

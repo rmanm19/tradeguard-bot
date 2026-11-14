@@ -476,6 +476,44 @@ check("بدون دورهٔ رایگان: کارت خرید برمی‌گردد",
 check("بدون کانال در config: دکمهٔ کانال پنهان است", hd.querySelector("#joinChannelBtn").classList.contains("hidden"));
 
 // ---------------------------------------------------------------
+// نقشهٔ لیکوئیدیشن (تخمینی) — دادهٔ زنده، محاسبهٔ شفاف
+// ---------------------------------------------------------------
+console.log("\n🕳 نقشهٔ لیکوئیدیشن\n");
+const LQ = boot({ userId: 555000111 });
+await wait(500);
+const ld2 = LQ.w.document;
+const lqBox = ld2.querySelector("#liqMap");
+check("نقشهٔ لیکوئیدیشن با دادهٔ زنده نمایش داده می‌شود",
+  lqBox && !lqBox.classList.contains("hidden"), lqBox ? lqBox.className : "missing");
+const lqCards = ld2.querySelectorAll("#liqRows .liq-card");
+check("برای هر ارز یک کارت لیکوئیدیشن ساخته می‌شود", lqCards.length >= 3, String(lqCards.length));
+check("هر کارت سه سطح اهرم (۱۰/۲۵/۵۰) دارد",
+  lqCards.length > 0 && lqCards[0].querySelectorAll(".liq-cell").length === 3,
+  lqCards.length ? String(lqCards[0].querySelectorAll(".liq-cell").length) : "—");
+check("متن روش محاسبه (تخمینی) نمایش داده می‌شود",
+  /تخمین/.test(String((ld2.querySelector("#liqNote") || {}).textContent || "")),
+  String((ld2.querySelector("#liqNote") || {}).textContent || "").slice(0, 60));
+check("سمت دارای ریسک (لانگ/شورت) بر اساس فاندینگ مشخص می‌شود",
+  ld2.querySelector(".liq-crowd.is-long, .liq-crowd.is-short") !== null);
+check("قیمت لیکوئید لانگ کمتر از شورت است (منطق درست)",
+  (() => {
+    const card = lqCards[0];
+    if (!card) return false;
+    const cells = card.querySelectorAll(".liq-cell");
+    const parse = (t) => Number(String(t).replace(/[^0-9.]/g, ""));
+    const first = cells[0];
+    const lo = parse(first.querySelector(".liq-px-long").textContent);
+    const sh = parse(first.querySelector(".liq-px-short").textContent);
+    return lo > 0 && sh > 0 && lo < sh;
+  })(), "long < short");
+const lqEnBtn = ld2.querySelector('#appLangMenu .app-lang-item[data-lang="en"]');
+if (lqEnBtn) lqEnBtn.dispatchEvent(new LQ.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("نقشه با تغییر زبان عنوان را عوض می‌کند",
+  /Liquidation map/.test(String((ld2.querySelector("#liqTitle") || {}).textContent || "")),
+  String((ld2.querySelector("#liqTitle") || {}).textContent || ""));
+
+// ---------------------------------------------------------------
 // صفحهٔ فرود اختصاصی هر شریک (docs/p.html?id=<id>)
 // ---------------------------------------------------------------
 console.log("\n🔗 صفحهٔ فرود شریک (p.html)\n");
