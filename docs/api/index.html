@@ -81,7 +81,8 @@
     <table>
       <tr><th>File</th><th>What you get</th></tr>
       <tr><td><code>api/radar.json</code></td><td>Funding % per 8h, signed annualised APR, open interest in USD millions, optional mark price + Fear &amp; Greed</td></tr>
-      <tr><td><code>api/stats.json</code></td><td>Aggregated counters only: total users, channel-join rewards, active PRO. <b>No personal data.</b></td></tr>
+      <tr><td><code>api/stats.json</code></td><td>Aggregated counters only: total users, channel-join rewards, active PRO, channel member count (omitted when Telegram does not answer). <b>No personal data.</b></td></tr>
+      <tr><td><code>api/plans.json</code></td><td>Current PRO prices exactly as the bot charges them (Telegram Stars), trial length and USD estimate. The mini-app reads this file; it is never hand-edited.</td></tr>
     </table>
     <div class="muted" style="margin-top:10px">
       Base URL: this site’s root. Example:

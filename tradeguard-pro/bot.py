@@ -2486,6 +2486,7 @@ def set_subscription_price(new_price: int) -> int:
     """
     global SUBSCRIPTION_STARS
     old = SUBSCRIPTION_STARS
+    forget_persisted_price()
     if new_price == old:
         return old
     SUBSCRIPTION_STARS = new_price
@@ -2507,14 +2508,50 @@ def set_subscription_price(new_price: int) -> int:
     return old
 
 
+# قیمت ذخیره‌شدهٔ ادمین؛ با کش کوتاه تا هر فراخوانی یک کوئری دیتابیس نشود.
+_price_cache: Dict[str, float] = {"ts": 0.0, "value": 0.0}
+
+
+def persisted_subscription_price() -> int:
+    """قیمت ۳۰ روزه‌ای که ادمین با `/price` ست کرده (۰ = ست نشده).
+
+    چرا لازم است: کرونِ فید و هر جریان تازه‌ای که ربات را import می‌کند،
+    `SUBSCRIPTION_STARS` را از env می‌خواند — نه از دیتابیس. بدون این تابع،
+    `api/plans.json` بعد از هر تغییر قیمت با قیمت پیش‌فرض بازنویسی می‌شد و
+    سایت عددی را نشان می‌داد که ربات آن را نمی‌گرفت.
+    """
+    now = time.time()
+    if now - float(_price_cache["ts"]) < 30:
+        return int(_price_cache["value"] or 0)
+    value = 0
+    try:
+        raw = str(get_setting("SUBSCRIPTION_STARS", "") or "").strip()
+        if raw.isdigit() and 0 < int(raw) < 10 ** 6:
+            value = int(raw)
+    except Exception:
+        value = 0
+    _price_cache.update({"ts": now, "value": float(value)})
+    return value
+
+
+def forget_persisted_price() -> None:
+    """کش قیمت را باطل می‌کند (بعد از هر تغییر قیمت)."""
+    _price_cache.update({"ts": 0.0, "value": 0.0})
+
+
 def plan_price(days: int = 30) -> int:
-    """قیمت هر پلن به استارز (۳۰/۹۰/۳۶۵ روز)."""
+    """قیمت هر پلن به استارز (۳۰/۹۰/۳۶۵ روز).
+
+    برای ۳۰ روز، قیمت ذخیره‌شدهٔ ادمین مقدّم است تا هر جریانی (ربات ۲۴/۷،
+    کرون فید، تست) همان عددی را ببیند که واقعاً از کاربر گرفته می‌شود.
+    """
     days = int(days or 30)
     if days >= 365:
         return SUBSCRIPTION_STARS_365
     if days >= 90:
         return SUBSCRIPTION_STARS_90
-    return SUBSCRIPTION_STARS
+    saved = persisted_subscription_price()
+    return saved or SUBSCRIPTION_STARS
 
 
 def plan_days_from_payload(payload: str) -> int:
@@ -2687,6 +2724,11 @@ def handle_message(msg: dict) -> None:
                     f"📅 اشتراک تا: `{exp_str}`\n"
                     f"🧾 کد پرداخت: `{charge_id[:22]}`",
                 )
+                # اولین استارز واقعی = لحظهٔ مهم؛ یک‌بار و با عدد واقعی
+                try:
+                    maybe_announce_first_income()
+                except Exception as exc:
+                    logger.warning("پیام اولین درآمد ارسال نشد: %s", exc)
         else:
             logger.info("پرداخت تکراری نادیده گرفته شد: %s", charge_id[:22])
 
@@ -5292,6 +5334,83 @@ def free_mode_countdown_line(lang: str = "fa") -> str:
             "مربی AI و فایل MT5/TradingView.")
 
 
+def maybe_notify_free_mode_ended(now: Optional[float] = None) -> bool:
+    """یک‌بار به ادمین بگو دورهٔ رایگان تمام شد (یعنی درآمد از همین لحظه ممکن است).
+
+    بدون این پیام، تاریخ پایان در سکوت می‌گذرد و ممکن است روزها فکر کنید
+    هنوز رایگان است. کلید `free_ended_notice` تضمین می‌کند فقط یک‌بار بیاید.
+    """
+    if FREE_MODE_UNTIL <= 0:
+        return False
+    ts = float(now if now is not None else time.time())
+    if ts < FREE_MODE_UNTIL:
+        return False
+    if _reminder_sent("free_ended_notice"):
+        return False
+    _mark_reminder("free_ended_notice")
+    if not ADMIN_USER_ID:
+        return False
+    when = _utc_date(FREE_MODE_UNTIL)
+    tg_send_message(
+        ADMIN_USER_ID,
+        "⏰ *دورهٔ رایگان تمام شد*\n\n"
+        f"تاریخ پایان: `{when}`\n"
+        "از این لحظه بخش حرفه‌ای فقط با اشتراک باز است (بدون تمدید خودکار).\n\n"
+        "قدم بعدی:\n"
+        "• `/income 7` — درآمد، نرخ تبدیل، منبع برتر\n"
+        "• `/sources` — کدام پست/دعوت کاربر و خرید آورده\n"
+        "• `/buy` — جدول پلن‌ها و فاکتور استارز",
+    )
+    logger.info("⏰ پیام پایان دورهٔ رایگان به ادمین ارسال شد")
+    return True
+
+
+def first_paid_payment() -> Optional[Dict[str, object]]:
+    """اولین پرداختِ واقعیِ استارز (نه هدیه) — پایهٔ پیام «اولین درآمد»."""
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT user_id, stars_amount, paid_at, source, days FROM payments "
+                "WHERE kind = 'stars' AND stars_amount > 0 ORDER BY paid_at ASC LIMIT 1"
+            ).fetchone()
+    except Exception as exc:
+        logger.warning("خواندن اولین پرداخت ناموفق: %s", exc)
+        return None
+    if not row:
+        return None
+    return {"user_id": int(row[0]), "stars": int(row[1] or 0), "paid_at": int(row[2] or 0),
+            "source": str(row[3] or ""), "days": int(row[4] or 0)}
+
+
+def maybe_announce_first_income() -> bool:
+    """یک‌بار: وقتی اولین استارز واقعی نشست، صادقانه به ادمین خبر بده.
+
+    «اولین درآمد» فقط وقتی می‌آید که در جدول پرداخت‌ها یک ردیف `stars` باشد؛
+    هدیه و دورهٔ آزمایشی هرگز این پیام را نمی‌سازند.
+    """
+    if _reminder_sent("first_income_notified"):
+        return False
+    pay = first_paid_payment()
+    if not pay or not ADMIN_USER_ID:
+        return False
+    _mark_reminder("first_income_notified")
+    stars_amt = int(pay["stars"])
+    src = str(pay["source"] or "").strip() or "direct"
+    tg_send_message(
+        ADMIN_USER_ID,
+        "🎯 *اولین درآمد واقعی ثبت شد*\n\n"
+        f"⭐ {stars_amt:,} Stars ≈ *${stars_to_usd(stars_amt):,.2f}* خالص\n"
+        f"📅 {int(pay['days'])} روز پرو · 👤 کاربر `{int(pay['user_id'])}`\n"
+        f"🔗 منبع ورود: `{src}`\n\n"
+        "این تنها عددی است که ارزش جشن دارد: یک انسان واقعی برای ابزارت پول داد.\n"
+        "همین را در `REVENUE_FA.md` با تاریخ ثبت کن و `/sources` را ببین تا "
+        "بفهمی کدام مسیر اول جواب داد؛ همان مسیر را تکرار کن.",
+    )
+    set_setting("first_income_at", str(int(pay["paid_at"] or time.time())))
+    logger.info("🎯 اولین درآمد واقعی: %s ⭐ از منبع %s", stars_amt, src)
+    return True
+
+
 def start_pro_trial(user_id: int) -> Tuple[bool, int, str]:
     """دورهٔ آزمایشی پرو، فقط یک‌بار برای هر کاربر.
 
@@ -6508,6 +6627,7 @@ def auto_channel_loop() -> None:
             post_due_slots()
             evaluate_user_alerts()
             maybe_send_renewal_reminders()
+            maybe_notify_free_mode_ended()
             maybe_send_monthly_partner_report()
             post_weekly_invite_recap()
             publish_public_feed()
