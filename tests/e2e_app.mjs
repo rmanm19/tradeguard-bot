@@ -514,6 +514,148 @@ check("نقشه با تغییر زبان عنوان را عوض می‌کند",
   String((ld2.querySelector("#liqTitle") || {}).textContent || ""));
 
 // ---------------------------------------------------------------
+// ژورنال تریدر: ریسک، حجم پوزیشن، R و آمار واقعی (فقط localStorage)
+// ---------------------------------------------------------------
+console.log("\n🧮 ژورنال تریدر\n");
+const JR = boot({ userId: 555000222 });
+await wait(500);
+const jd = JR.w.document;
+const jw = JR.w;
+const jClick = (sel) => {
+  const el = jd.querySelector(sel);
+  if (!el) return false;
+  el.dispatchEvent(new jw.MouseEvent("click", { bubbles: true }));
+  return true;
+};
+const jSet = (sel, v) => {
+  const el = jd.querySelector(sel);
+  if (!el) return false;
+  el.value = String(v);
+  el.dispatchEvent(new jw.Event("input", { bubbles: true }));
+  return true;
+};
+const jText = (sel) => String((jd.querySelector(sel) || {}).textContent || "");
+const jList = () => {
+  try { return JSON.parse(jw.localStorage.getItem("tg_journal_v1") || "[]"); } catch (e) { return []; }
+};
+
+check("تب ژورنال در نوار پایین هست", !!jd.querySelector('.tab-btn[data-tab="journal"]'));
+check("تب ژورنال باز می‌شود", jClick('.tab-btn[data-tab="journal"]')
+  && jd.querySelector('[data-pane="journal"]').classList.contains("is-active"));
+check("در شروع، ژورنال خالی است و راهنما نشان می‌دهد",
+  jList().length === 0 && jText("#jrList").length > 20, jText("#jrList").slice(0, 40));
+check("فرم خالی خطای فارسی می‌دهد (نه سکوت)",
+  /بالانس|ورود|حد ضرر/.test(jText("#jrCalc")), jText("#jrCalc").slice(0, 60));
+
+jSet("#jrBalance", 1000);
+jSet("#jrRiskPct", 1);
+jSet("#jrEntry", 64000);
+jSet("#jrStop", 62500);
+jSet("#jrTarget", 67500);
+await wait(30);
+const calcTxt = jText("#jrCalc");
+check("ریسک دلاری درست است (۱۰۰۰ دلار × ۱٪ = ۱۰ دلار)", calcTxt.includes("$10.00"), calcTxt.slice(0, 120));
+check("حجم پوزیشن از فاصلهٔ ورود تا حد ضرر حساب می‌شود (۱۰ ÷ ۱۵۰۰ ≈ ۰٫۰۰۶۶۷)",
+  /0\.0066/.test(calcTxt), calcTxt);
+check("نسبت R/R درست است (۳۵۰۰ ÷ ۱۵۰۰ ≈ ۲٫۳۳)", calcTxt.includes("1 : 2.33"), calcTxt);
+check("جهت معامله از محل حد ضرر تشخیص داده می‌شود (لانگ)", /لانگ/.test(calcTxt), calcTxt);
+
+jClick("#jrSaveBtn");
+await wait(40);
+check("معامله در localStorage ذخیره می‌شود (بدون سرور)", jList().length === 1, JSON.stringify(jList()).slice(0, 90));
+check("کارت معامله با R/R نمایش داده می‌شود", /R:R 1:2\.33/.test(jText("#jrList")), jText("#jrList").slice(0, 120));
+check("بعد از ذخیره، فرم قیمت‌ها پاک می‌شود (اشتباه سهوی)",
+  (jd.querySelector("#jrEntry") || {}).value === "" && (jd.querySelector("#jrStop") || {}).value === "");
+
+jClick('#jrList button[data-act="win"]');
+await wait(40);
+check("بستن معامله با «برد» عدد R را از R/R می‌سازد (۲٫۳۳R)",
+  jList()[0] && jList()[0].status === "win" && Math.abs(Number(jList()[0].r) - 2.3333) < 0.01,
+  JSON.stringify(jList()[0]).slice(0, 120));
+check("برچسب R روی کارت ظاهر می‌شود", /\+2\.33R/.test(jText("#jrList")), jText("#jrList").slice(0, 120));
+check("آمار: نرخ برد ۱۰۰٪ و انتظار +۲٫۳۳R",
+  jText("#jrStats").includes("100%") && /\+2\.33R/.test(jText("#jrStats")), jText("#jrStats").slice(0, 160));
+
+// ستاپ غلط: هدف زیر ورود در حالت لانگ
+jSet("#jrEntry", 100);
+jSet("#jrStop", 90);
+jSet("#jrTarget", 80);
+await wait(30);
+check("هدف در جهت اشتباه، خطای روشن می‌دهد",
+  /جهت اشتباه/.test(jText("#jrCalc")), jText("#jrCalc").slice(0, 80));
+jClick("#jrSaveBtn");
+await wait(30);
+check("ستاپ نامعتبر ذخیره نمی‌شود", jList().length === 1, String(jList().length));
+
+// ستاپ دوم: لانگ ۱۰۰ → ۹۰ با هدف ۱۳۰ (R/R=۳)
+jSet("#jrBalance", 1000);
+jSet("#jrRiskPct", 1);
+jSet("#jrEntry", 100);
+jSet("#jrStop", 90);
+jSet("#jrTarget", 130);
+await wait(30);
+jClick("#jrSaveBtn");
+await wait(40);
+check("ستاپ دوم ذخیره شد", jList().length === 2, String(jList().length));
+jClick('#jrList button[data-act="loss"]');
+await wait(40);
+check("معاملهٔ باخت همیشه −۱R ثبت می‌کند",
+  jList().filter((x) => x.status === "loss").every((x) => x.r === -1), JSON.stringify(jList()).slice(0, 140));
+check("انتظار با ترکیب برد و باخت درست است (۱٫۳۳ ÷ ۲ ≈ +۰٫۶۷R)",
+  /\+0\.67R/.test(jText("#jrStats")), jText("#jrStats").slice(0, 200));
+check("ضریب سود = مجموع برد ÷ مجموع باخت (۲٫۳۳)",
+  /2\.33/.test(jText("#jrStats")), jText("#jrStats").slice(0, 200));
+
+jClick("#jrExportBtn");
+await wait(60);
+check("خروجی JSON ژورنال دانلود می‌شود",
+  jw.__downloads.some((x) => x.name === "tradeguard-journal.json"), JSON.stringify(jw.__downloads).slice(0, 120));
+
+// بالانس/ریسک برای دفعهٔ بعد نگه داشته می‌شود
+const balEl = jd.querySelector("#jrBalance");
+balEl.dispatchEvent(new jw.Event("change", { bubbles: true }));
+await wait(40);
+let prefs = {};
+try { prefs = JSON.parse(jw.localStorage.getItem("tg_jr_prefs") || "{}"); } catch (e) {}
+check("بالانس و درصد ریسک برای بار بعد ذخیره می‌شوند",
+  String(prefs.balance) === "1000" && String(prefs.riskPct) === "1", JSON.stringify(prefs));
+
+const beforeDel = jList().length;
+jClick('#jrList button[data-act="del"]');
+await wait(40);
+check("حذف معامله از ژورنال کار می‌کند", jList().length === beforeDel - 1, String(jList().length));
+
+const jEnBtn = jd.querySelector('#appLangMenu .app-lang-item[data-lang="en"]');
+if (jEnBtn) jEnBtn.dispatchEvent(new jw.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("ژورنال هم ۶ زبانه است (عنوان و تب انگلیسی می‌شوند)",
+  /Risk, size & journal/.test(jText(".jr-title"))
+  && /Journal/.test(jText('.tab-btn[data-tab="journal"] span')),
+  jText(".jr-title"));
+check("ژورنال هیچ خطای جاوااسکریپت ندارد", JR.errors.length === 0, JR.errors.slice(0, 2).join(" | "));
+
+// پایداری بین اجراها: با دادهٔ ذخیره‌شده، ژورنال همان معامله را نشان می‌دهد
+const JR2 = boot({
+  userId: 555000222,
+  seedStorage: {
+    tg_journal_v1: JSON.stringify([
+      { id: "tseeded", sym: "ETH", dir: "short", entry: 3000, stop: 3100, target: 2700, units: 1, riskPct: 1, rr: 3, status: "win", opened: 1, closed: 2, r: 3 }
+    ])
+  }
+});
+await wait(300);
+const jd2 = JR2.w.document;
+jd2.querySelector('.tab-btn[data-tab="journal"]')?.dispatchEvent(new JR2.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("فرم جدید بالانس ذخیره‌شده را از قبل پر می‌کند",
+  String((jd2.querySelector("#jrBalance") || {}).value || "") === "" ||
+  String((jd2.querySelector("#jrBalance") || {}).value) === "1000", String((jd2.querySelector("#jrBalance") || {}).value));
+check("ژورنال بعد از بازکردن دوباره، معاملات قبلی را می‌خواند",
+  /ETH/.test(String((jd2.querySelector("#jrList") || {}).textContent || ""))
+  && /\+3\.00R/.test(String((jd2.querySelector("#jrStats") || {}).textContent || "")),
+  String((jd2.querySelector("#jrStats") || {}).textContent || "").slice(0, 80));
+
+// ---------------------------------------------------------------
 // صفحهٔ فرود اختصاصی هر شریک (docs/p.html?id=<id>)
 // ---------------------------------------------------------------
 console.log("\n🔗 صفحهٔ فرود شریک (p.html)\n");

@@ -148,6 +148,40 @@ check("صفحهٔ فرود با شناسهٔ ناشناس شریک جعلی نم
   /showFallback/.test(landing) && /notReady/.test(landing));
 check("صفحهٔ فرود ایندکس نمی‌شود و افشای کمیسیون دارد",
   /name="robots" content="noindex/.test(landing) && /کمیسیون/.test(landing));
+/* ── ۷٫۵) تب ژورنال تریدر (ریسک، حجم، R) ─────────────────────── */
+const jrJs = read("app.js");
+const jrCss = read("styles.css");
+check("تب ژورنال در HTML هست", /data-pane="journal"/.test(html) && /data-tab="journal"/.test(html));
+check("نوار تب‌ها ۶ ستون شده (بدون سرریز)", /grid-template-columns:repeat\(6,1fr\)/.test(jrCss));
+check("ژورنال فقط از localStorage استفاده می‌کند (بدون سرور/توکن)",
+  /tg_journal_v1/.test(jrJs) && !/fetch\([^)]*journal/i.test(jrJs));
+check("فرم ژورنال همهٔ ورودی‌های لازم را دارد",
+  ["jrBalance", "jrRiskPct", "jrEntry", "jrStop", "jrTarget"].every((id) => html.includes('id="' + id + '"')));
+check("محاسبهٔ حجم از فاصلهٔ حد ضرر انجام می‌شود (نه از اهرم دلبخواه)",
+  /riskAmt \/ perUnit/.test(jrJs) && /Math\.abs\(entry - stop\)/.test(jrJs));
+check("R هر معامله از R/R ذخیره‌شده ساخته می‌شود، نه از سود ادعایی",
+  /r: rr > 0 \? Number\(rr\.toFixed\(4\)\) : null/.test(jrJs));
+check("باخت همیشه −۱R ثبت می‌شود (تعریف استاندارد R)",
+  /status: "loss", closed: Date\(\).*?-1/.test(jrJs) || /r: -1/.test(jrJs));
+check("آمار ژورنال شامل نرخ برد، انتظار، ضریب سود و انضباط است",
+  ["jrStatWinRate", "jrStatExp", "jrStatPF", "jrStatDisc"].every((k) => jrJs.includes('d.' + k)));
+check("امتیاز انضباط تعریف صریح دارد (حد ضرر + ریسک ≤۱٪ + R/R ≥۱٫۵)",
+  /Number\(x\.riskPct\) <= 1 && Number\(x\.rr\) >= 1\.5/.test(jrJs));
+check("خروجی JSON با نام فایل مشخص و بازگشتی برای WebView قدیمی",
+  /tradeguard-journal\.json/.test(jrJs) && /data:application\/json/.test(jrJs));
+check("پیام حریم خصوصی ژورنال در رابط هست", /jrNote/.test(html));
+
+check("کلیدهای ژورنال در هر ۶ زبان کامل‌اند", (() => {
+  const i18nKeys = ["tabJournal", "jrTitle", "jrBalance", "jrRiskPct", "jrEntry", "jrStop", "jrTarget",
+    "jrSave", "jrReset", "jrNote", "jrListHead", "jrExport", "jrRiskAmount", "jrUnits", "jrNotional",
+    "jrRR", "jrReward", "jrDir", "jrLong", "jrShort", "jrErrFill", "jrErrBalance", "jrErrRisk",
+    "jrErrSameStop", "jrErrTarget", "jrSaved", "jrEmpty", "jrStatClosed", "jrStatWinRate", "jrStatExp",
+    "jrStatPF", "jrStatBest", "jrStatWorst", "jrStatDisc", "jrStatDiscHint", "jrOpen", "jrWin",
+    "jrLoss", "jrBE", "jrDelete", "jrExported", "jrExportFail", "jrPrivate"];
+  const src = read("i18n.js");
+  return i18nKeys.every((k) => (src.match(new RegExp('"' + k + '"', "g")) || []).length >= 6);
+})());
+
 /* ── ۸) صفحهٔ B2B و مستندات فید داده ──────────────────────────── */
 const biz = read("business.html");
 const apiDoc = read("api/index.html");
