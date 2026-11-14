@@ -1,0 +1,526 @@
+/* ============================================================================
+   TradeGuard — landing.css  (v1.0)  ·  «فضای فرود»
+   ----------------------------------------------------------------------------
+   همان زبان طراحی مینی‌اپ (space.css) روی صفحهٔ عمومی index.html:
+     • آسمان ستاره‌دار + سحابی + شبکهٔ افق (بدون JS، بدون تصویر)
+     • هدر شیشه‌ای چسبان، تیتر گرادیانی، چیپ‌ها و دکمه‌های درخشان
+     • گوشیِ دموی سه‌بعدی که همان ظاهر اپ واقعی را نشان می‌دهد
+     • کارت‌های شیشه‌ای با هاور سه‌بعدی و ورود پله‌ای با اسکرول
+   فقط ظاهر را عوض می‌کند؛ چیدمان و رسپانسیو همان styles.css می‌مانَد.
+   ============================================================================ */
+
+:root {
+  --lp-void: #04060c;
+  --lp-deep: #070b14;
+  --lp-nebula: #7b5cff;
+  --lp-cyan: #22d3ee;
+  --lp-mint: #25d69a;
+  --lp-edge: rgba(255, 255, 255, .09);
+  --lp-edge-2: rgba(255, 255, 255, .16);
+  --lp-glass: rgba(255, 255, 255, .045);
+  --lp-lift: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 22px 48px -30px rgba(0, 0, 0, .95);
+  --lp-ease: cubic-bezier(.22, .9, .24, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   ۱) آسمان: سحابی + ستاره + شبکهٔ افق
+   --------------------------------------------------------------------------- */
+body {
+  background:
+    radial-gradient(120% 62% at 50% -8%, #0d1a34 0%, #070c18 46%, var(--lp-void) 100%);
+  color: #dbe6f5;
+}
+
+/* هیچ لبهٔ تمام‌عرضی نوار اسکرول افقی نسازد (شبکهٔ افق تا لبهٔ صفحه می‌رود)
+   برش روی <main> است نه <html>، چون overflow روی ریشه هدر چسبان را از کار می‌اندازد */
+main#top { overflow-x: clip; }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side at 12% -6%, rgba(123, 92, 255, .30), transparent 72%),
+    radial-gradient(closest-side at 92% 4%, rgba(34, 211, 238, .22), transparent 70%),
+    radial-gradient(closest-side at 50% 108%, rgba(37, 214, 154, .18), transparent 68%);
+  animation: lpNeb 34s ease-in-out infinite alternate;
+}
+
+/* ستاره‌ها: سه لایهٔ radial-gradient با اندازه/سرعت متفاوت (پارالاکس سبک) */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -10% -10% 0 -10%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .55;
+  background-image:
+    radial-gradient(1.4px 1.4px at 22px 34px, rgba(255, 255, 255, .95), transparent 60%),
+    radial-gradient(1px 1px at 140px 90px, rgba(190, 235, 255, .85), transparent 60%),
+    radial-gradient(1.2px 1.2px at 70px 180px, rgba(255, 255, 255, .8), transparent 60%),
+    radial-gradient(1px 1px at 210px 40px, rgba(160, 224, 255, .7), transparent 60%);
+  background-size: 240px 240px, 320px 320px, 200px 200px, 380px 380px;
+  animation: lpStars 90s linear infinite, lpTwinkle 7s ease-in-out infinite alternate;
+}
+
+@keyframes lpNeb {
+  from { transform: translate3d(-1%, -1%, 0) scale(1); opacity: .9; }
+  to   { transform: translate3d(2%, 1%, 0) scale(1.08); opacity: 1; }
+}
+@keyframes lpStars {
+  from { background-position: 0 0, 0 0, 0 0, 0 0; }
+  to   { background-position: 240px 480px, -320px 320px, 200px -400px, 380px 760px; }
+}
+@keyframes lpTwinkle {
+  from { opacity: .42; }
+  to   { opacity: .72; }
+}
+
+/* همهٔ بخش‌ها بالای آسمان */
+.wrap,
+.site-footer { position: relative; z-index: 1; }
+
+/* شبکهٔ افقِ زیر هیرو (تمام‌عرض، ولی دقیقاً هم‌اندازهٔ ویوپورت) */
+.hero { position: relative; }
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  margin-left: -50vw;
+  width: 100vw;
+  bottom: 6px;
+  height: 230px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .42;
+  background-image:
+    linear-gradient(to right, rgba(56, 189, 248, .30) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, .24) 1px, transparent 1px);
+  background-size: 46px 46px;
+  transform: perspective(320px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, .9), transparent 76%);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, .9), transparent 76%);
+  animation: lpGrid 6s linear infinite;
+}
+@keyframes lpGrid {
+  from { transform: perspective(320px) rotateX(64deg) translateY(0); }
+  to   { transform: perspective(320px) rotateX(64deg) translateY(46px); }
+}
+
+/* ---------------------------------------------------------------------------
+   ۲) هدر
+   --------------------------------------------------------------------------- */
+.site-header {
+  background: linear-gradient(180deg, rgba(6, 10, 20, .92), rgba(6, 10, 20, .62));
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.brand-mark {
+  box-shadow:
+    0 0 0 1px rgba(37, 214, 154, .28),
+    0 12px 30px -14px rgba(37, 214, 154, .95);
+  animation: lpBrandFloat 7s ease-in-out infinite;
+}
+@keyframes lpBrandFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-3px) rotate(2deg); }
+}
+
+.brand-name {
+  background: linear-gradient(96deg, #f4fbff, #b6f7e4 52%, #c3d3ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .brand-name { color: transparent; }
+}
+
+.nav-links a {
+  position: relative;
+  padding: 4px 0;
+  transition: color .2s;
+}
+.nav-links a::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--lp-mint), transparent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform .3s var(--lp-ease);
+}
+.nav-links a:hover { color: #eafff9; }
+.nav-links a:hover::after { transform: scaleX(1); }
+
+/* ---------------------------------------------------------------------------
+   ۳) هیرو
+   --------------------------------------------------------------------------- */
+.eyebrow {
+  background: rgba(37, 214, 154, .10);
+  border: 1px solid rgba(37, 214, 154, .34);
+  color: #b6f7e4;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px -22px rgba(37, 214, 154, .95);
+}
+
+.hero h1 {
+  background: linear-gradient(180deg, #f7fcff 0%, #d7e6ff 62%, #b9cdf5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  letter-spacing: -1px;
+  text-wrap: balance;
+}
+.hero h1 em {
+  background: linear-gradient(96deg, #46ecb8 0%, #22d3ee 55%, #9d8bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #5ef0c4;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .hero h1 { color: transparent; }
+  .hero h1 em { color: transparent; }
+}
+
+.lead { color: #b9c8de; }
+.lead strong,
+.lead b { color: #f2f9ff; }
+
+.chip {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--lp-edge);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: border-color .2s, transform .16s, background .2s;
+}
+.chip:hover {
+  border-color: rgba(37, 214, 154, .45);
+  background: rgba(37, 214, 154, .08);
+  transform: translateY(-1px);
+}
+
+.btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 14px;
+  transition: transform .16s var(--lp-ease), box-shadow .25s, filter .2s;
+}
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, .38) 50%, transparent 64%);
+  transform: translateX(-130%);
+  animation: lpSheen 7s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+@keyframes lpSheen {
+  0%        { transform: translateX(-130%); }
+  16%, 100% { transform: translateX(130%); }
+}
+.btn-primary {
+  background: linear-gradient(140deg, #35e6a8, #12b284);
+  box-shadow: 0 16px 40px -20px rgba(37, 214, 154, .95);
+}
+.btn-ghost {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--lp-edge-2);
+  color: #e6f1ff;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.btn-ghost:hover {
+  border-color: rgba(34, 211, 238, .5);
+  background: rgba(34, 211, 238, .09);
+}
+.btn-tg { box-shadow: 0 16px 40px -20px rgba(42, 171, 238, .95); }
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0) scale(.985); }
+
+.hero-note {
+  border-inline-start: 2px solid rgba(37, 214, 154, .45);
+  padding-inline-start: 12px;
+  color: #93a8c4;
+}
+
+/* ---------------------------------------------------------------------------
+   ۴) گوشیِ دمو: عمق سه‌بعدی + همان ظاهر اپ جدید
+   --------------------------------------------------------------------------- */
+.hero-demo { perspective: 1400px; }
+
+.phone {
+  background: linear-gradient(160deg, #26334a, #101827);
+  border-radius: 54px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .10),
+    0 1px 0 rgba(255, 255, 255, .18) inset,
+    0 50px 110px -40px rgba(0, 0, 0, .95),
+    0 0 90px -40px rgba(37, 214, 154, .55);
+  transform: rotateY(-9deg) rotateX(4deg) translateZ(0);
+  transform-style: preserve-3d;
+  transition: transform .5s var(--lp-ease), box-shadow .5s;
+  animation: lpPhoneFloat 9s ease-in-out infinite;
+}
+.hero-demo:hover .phone,
+.phone:hover {
+  transform: rotateY(-3deg) rotateX(1.5deg) scale(1.012);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .14),
+    0 1px 0 rgba(255, 255, 255, .22) inset,
+    0 60px 130px -40px rgba(0, 0, 0, .95),
+    0 0 120px -40px rgba(37, 214, 154, .7);
+}
+@keyframes lpPhoneFloat {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -7px; }
+}
+.phone-glow {
+  background:
+    radial-gradient(circle, rgba(34, 211, 238, .34), rgba(37, 214, 154, .16) 52%, transparent 72%);
+  animation: lpGlowPulse 7s ease-in-out infinite;
+}
+@keyframes lpGlowPulse {
+  0%, 100% { opacity: .75; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+.phone-screen {
+  background:
+    radial-gradient(120% 70% at 50% -10%, #10203a 0%, #0a1120 46%, #070c16 100%);
+}
+.phone-screen::after {                      /* شیشهٔ گوشی */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(128deg, rgba(255, 255, 255, .10) 0%, rgba(255, 255, 255, .02) 26%, transparent 46%);
+}
+.phone-notch {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 6px 18px rgba(0, 0, 0, .6);
+}
+
+/* --- همان زبان طراحی اپ داخل دمو --- */
+.phone-screen .card,
+.phone-screen .ai-copilot,
+.phone-screen .rug-box,
+.phone-screen .custom-alert-box {
+  background:
+    linear-gradient(158deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(19, 28, 46, .9), rgba(9, 15, 26, .94));
+  border: 1px solid var(--lp-edge);
+  box-shadow: var(--lp-lift);
+}
+.phone-screen .opp-card {
+  overflow: hidden;
+  isolation: isolate;
+  border-color: rgba(37, 214, 154, .32);
+  background:
+    radial-gradient(115% 120% at 88% -10%, rgba(37, 214, 154, .22), transparent 58%),
+    radial-gradient(120% 130% at -10% 110%, rgba(123, 92, 255, .22), transparent 62%),
+    linear-gradient(180deg, rgba(15, 27, 40, .94), rgba(7, 13, 23, .96));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .12) inset,
+    0 26px 60px -34px rgba(37, 214, 154, .6);
+}
+.phone-screen .opp-num {
+  background: linear-gradient(160deg, rgba(37, 214, 154, .24), rgba(37, 214, 154, .06));
+  border-color: rgba(37, 214, 154, .38);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 14px 30px -18px rgba(37, 214, 154, .9);
+}
+.phone-screen .opp-num span { text-shadow: 0 0 20px rgba(37, 214, 154, .5); }
+.phone-screen .cap-btn.is-on,
+.phone-screen .seg-btn.is-on {
+  background: linear-gradient(160deg, rgba(37, 214, 154, .26), rgba(37, 214, 154, .10));
+  border-color: rgba(37, 214, 154, .55);
+  color: #c9fff0;
+  box-shadow: 0 10px 24px -18px rgba(37, 214, 154, .95);
+}
+.phone-screen .rm-btn.is-on {
+  background: linear-gradient(160deg, rgba(34, 211, 238, .28), rgba(76, 141, 255, .12));
+  border-color: rgba(34, 211, 238, .55);
+  color: #eafaff;
+}
+.phone-screen .tabbar {
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  padding: 6px;
+  width: auto;
+  max-width: none;
+  transform: none;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  background: linear-gradient(180deg, rgba(22, 30, 46, .86), rgba(8, 12, 20, .94));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .09) inset, 0 18px 40px -18px rgba(0, 0, 0, .95);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+.phone-screen .tab-btn.is-on {
+  background: radial-gradient(120% 140% at 50% 0%, rgba(37, 214, 154, .30), rgba(37, 214, 154, .05));
+  border-radius: 14px;
+  color: #b6ffe8;
+}
+.phone-screen .tab-btn.is-on svg { filter: drop-shadow(0 0 8px rgba(37, 214, 154, .85)); }
+
+/* ---------------------------------------------------------------------------
+   ۵) بخش‌ها: ویژگی‌ها، آمار، نقشه راه، شبیه‌ساز
+   --------------------------------------------------------------------------- */
+.sec-head h2 {
+  background: linear-gradient(180deg, #f6fbff, #c6d8f2 70%, #a9bfe4);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .sec-head h2 { color: transparent; }
+}
+
+.feat-card,
+.m-card,
+.road,
+.founder-sim {
+  background:
+    linear-gradient(158deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .012) 44%, rgba(255, 255, 255, 0));
+  background-color: rgba(12, 19, 33, .86);
+  border: 1px solid var(--lp-edge);
+  box-shadow: var(--lp-lift);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.feat-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform .3s var(--lp-ease), border-color .3s, box-shadow .3s;
+}
+.feat-card::before {
+  content: "";
+  position: absolute;
+  inset-inline: 16px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(180, 230, 255, .5), transparent);
+  opacity: .7;
+  pointer-events: none;
+}
+.feat-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(37, 214, 154, .38);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .95), 0 0 60px -40px rgba(37, 214, 154, .9);
+}
+.feat-card h3 { color: #f0f7ff; }
+.feat-card p { color: #a9bad4; }
+
+.feat-icon {
+  position: relative;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .14) inset, 0 14px 30px -18px currentColor;
+}
+.feat-tag {
+  background: rgba(37, 214, 154, .10);
+  border: 1px solid rgba(37, 214, 154, .32);
+  color: #a8f0d8;
+}
+
+.m-card {
+  transition: transform .28s var(--lp-ease), border-color .28s;
+}
+.m-card:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, .2); }
+.m-num {
+  background: linear-gradient(180deg, #ffffff, #cfe0fb 78%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-variant-numeric: tabular-nums;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .m-num { color: transparent; }
+  .hero-stat .m-num {
+    background: linear-gradient(180deg, #7dffd0, #25d69a 70%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}
+.m-lab { color: #a5b6d0; }
+
+.road { border-radius: 22px; }
+.road-n { box-shadow: 0 10px 24px -14px rgba(37, 214, 154, .95); }
+
+.founder-sim { border-radius: 22px; }
+
+/* ---------------------------------------------------------------------------
+   ۶) فوتر
+   --------------------------------------------------------------------------- */
+.site-footer {
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  background: linear-gradient(180deg, transparent, rgba(4, 6, 12, .55));
+}
+.foot-row { color: #8296b2; }
+.foot-row a { color: #b6d4f5; }
+
+/* ---------------------------------------------------------------------------
+   ۷) ورود پله‌ای با اسکرول (کلاس را landing.js می‌گذارد)
+   --------------------------------------------------------------------------- */
+.lp-reveal {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+}
+.lp-reveal.lp-in {
+  animation: lpRise .62s var(--lp-ease) both;
+  animation-delay: var(--lp-delay, 0s);
+}
+@keyframes lpRise {
+  from { opacity: 0; transform: translate3d(0, 20px, 0) scale(.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   ۸) رسپانسیو
+   --------------------------------------------------------------------------- */
+@media (max-width: 1020px) {
+  .hero-demo { perspective: none; }
+  .phone { transform: none; }
+  .hero::after { height: 220px; bottom: -40px; }
+}
+
+@media (max-width: 640px) {
+  body::after { opacity: .42; }
+  .hero h1 { letter-spacing: -.6px; }
+  .phone { border-radius: 46px; }
+  .hero-copy .eyebrow { align-self: flex-start; justify-self: start; max-width: 100%; }
+
+  /* هدر در دو ردیف تا هیچ‌چیز از کادر بیرون نزند (بدون اسکرول افقی) */
+  .nav {
+    flex-wrap: wrap; height: auto; min-height: 58px;
+    padding-block: 9px; column-gap: 10px; row-gap: 8px;
+  }
+  .brand { margin-inline-end: auto; }
+  .lang-bar { order: 3; width: 100%; justify-content: space-between; }
+  .lang-btn { flex: 1 1 0; padding: 5px 2px; text-align: center; }
+  .btn-tg { padding: 9px 13px; }
+  .phone-glow { width: 340px; height: 340px; }
+}
+
+/* ---------------------------------------------------------------------------
+   ۹) کاهش حرکت
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after,
+  .hero::after,
+  .brand-mark,
+  .btn::after,
+  .phone,
+  .phone-glow,
+  .lp-reveal.lp-in {
+    animation: none !important;
+  }
+  .lp-reveal { opacity: 1; transform: none; }
+}
