@@ -261,6 +261,23 @@ def main() -> int:
             check("بخش شبیه‌ساز درآمد هم هست", page2.locator("#simSection").count() == 1)
             page2.screenshot(path=str(OUT / "06-landing.png"), full_page=True)
 
+            # صفحهٔ فرود تلگرام (join.html): همان لینکی که در بیو/دایرکتوری می‌گذاریم
+            page3 = ctx2.new_page()
+            page3.on("pageerror", lambda e: console_errors.append("join pageerror: " + str(e)))
+            page3.goto(f"{base}/join.html?src=dir_ui", wait_until="domcontentloaded")
+            page3.wait_for_timeout(900)
+            cta = page3.get_attribute("#ctaMain", "href") or ""
+            check("join: کد ?src= به لینک ربات منتقل می‌شود", "start=dir_ui" in cta, cta)
+            check("join: بلوک دادهٔ زنده رندر می‌شود",
+                  page3.locator("#liveRows .row").count() >= 1,
+                  str(page3.locator("#liveRows .row").count()))
+            check("join: قیمت‌ها از plans.json می‌آید",
+                  page3.locator("#planRows .plan").count() >= 1,
+                  str(page3.locator("#planRows .plan").count()))
+            check("join: هیچ متن بیرون‌زده/سرریزی ندارد",
+                  page3.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"))
+            page3.screenshot(path=str(OUT / "07-join.png"), full_page=True)
+
             # درخواست‌های بیرونی عمداً خاموش‌اند؛ ERR_FAILED آن‌ها خطای اپ نیست
             noisy = ("favicon", "failed to load resource", "err_failed", "net::")
             real_errors = [e for e in console_errors if not any(n in e.lower() for n in noisy)]

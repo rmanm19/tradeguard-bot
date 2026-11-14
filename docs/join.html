@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TradeGuard — رادار زندهٔ بازار داخل تلگرام</title>
+  <meta name="description" content="رادار زندهٔ فاندینگ و Open Interest، هشدار شخصی و گارد دراودان پراپ — داخل تلگرام، بدون نصب و بدون ثبت‌نام. قیمت‌ها همان چیزی است که ربات دریافت می‌کند." />
+  <link rel="canonical" href="https://rmanm19.github.io/tradeguard-bot/join.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="TradeGuard — رادار زندهٔ بازار داخل تلگرام" />
+  <meta property="og:description" content="فاندینگ و OI زنده، هشدار شخصی، گارد دراودان پراپ و مربی AI — بدون نصب. آموزشی است، توصیهٔ سرمایه‌گذاری نیست." />
+  <meta property="og:url" content="https://rmanm19.github.io/tradeguard-bot/join.html" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    :root { color-scheme: dark; --mint:#38e0b2; --ink:#070d15; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; background: radial-gradient(120% 60% at 50% 0%, #0d1b26 0%, var(--ink) 60%);
+      color: #dbe9e6; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.9; font-size: 16px;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 22px 18px calc(28px + env(safe-area-inset-bottom)); }
+    .brand { display:flex; align-items:center; gap:8px; font-size: 13px; color:#8fb0ab; letter-spacing:.3px; }
+    .brand b { color:#dbe9e6; font-weight:800; }
+    .dot { width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 10px var(--mint); }
+    h1 { font-size: 25px; line-height:1.5; margin: 14px 0 8px; letter-spacing:.1px; }
+    h1 em { color: var(--mint); font-style: normal; }
+    .lede { color:#a8c4bf; font-size: 14.5px; margin: 0 0 16px; }
+    .free {
+      display:none; border:1px solid rgba(56,224,178,.45); background:rgba(56,224,178,.08);
+      border-radius: 14px; padding: 10px 12px; font-size: 13.5px; margin: 0 0 14px;
+    }
+    .free.show { display:block; }
+    .free b { color:#8ff0d2; }
+    .live { margin: 0 0 6px; }
+    .live h2 { font-size: 12.5px; color:#7f9797; font-weight:600; margin: 0 0 8px; letter-spacing:.4px; }
+    .rows { display:grid; gap:8px; }
+    .row {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      border:1px solid rgba(120,200,180,.18); background:rgba(9,16,26,.72);
+      border-radius: 12px; padding: 10px 12px; font-size: 14px;
+    }
+    .row b { color:#eaf7f3; }
+    .row .v { font-variant-numeric: tabular-nums; color:var(--mint); font-weight:700; }
+    .row .v.neg { color:#ff8f9c; }
+    .row small { color:#7f9797; font-size:11.5px; }
+    .stamp { font-size: 11.5px; color:#6f8888; margin: 8px 0 0; }
+    .cta { display:block; text-align:center; text-decoration:none; border-radius:14px;
+      padding: 14px 16px; font-weight: 800; font-size: 15.5px; margin: 18px 0 10px;
+      background: linear-gradient(135deg,#3ef0c0,#18a68b); color:#06231d;
+      box-shadow: 0 8px 24px rgba(56,224,178,.18); }
+    .cta small { display:block; font-weight:600; font-size:11.5px; opacity:.72; margin-top:2px; }
+    .ghost { display:flex; gap:8px; }
+    .ghost a { flex:1; text-align:center; text-decoration:none; font-size:13px; padding:11px 10px;
+      border:1px solid rgba(120,200,180,.3); border-radius:12px; color:#bfe4dc; }
+    h2.sec { font-size: 16px; margin: 28px 0 10px; color:#8ff0d2; }
+    ul { margin: 0; padding-inline-start: 18px; color:#b9d3ce; font-size:14px; }
+    li { margin: 6px 0; }
+    li b { color:#e8f6f2; }
+    .plans { display:grid; gap:8px; margin-top: 10px; }
+    .plan { display:flex; justify-content:space-between; align-items:center; gap:10px;
+      border:1px solid rgba(120,200,180,.18); border-radius:12px; padding:11px 12px; font-size:14px; }
+    .plan.hot { border-color: rgba(56,224,178,.5); background: rgba(56,224,178,.06); }
+    .plan .p { font-variant-numeric: tabular-nums; }
+    .plan .p b { color:#8ff0d2; }
+    .plan .p small { display:block; color:#7f9797; font-size:11.5px; }
+    .tag { font-size:11px; border-radius:999px; padding:2px 8px; background:rgba(56,224,178,.16); color:#8ff0d2; }
+    .note { font-size:12.5px; color:#8aa3a0; margin: 12px 0 0; }
+    footer { margin-top: 30px; padding-top: 14px; border-top:1px solid rgba(120,200,180,.14);
+      font-size:12px; color:#7f9797; }
+    footer a { color:#9fd8cc; }
+    .muted { color:#7f9797; }
+    @media (prefers-reduced-motion: no-preference) {
+      .cta { transition: transform .15s ease; }
+      .cta:active { transform: scale(.985); }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand"><span class="dot"></span> <b>TradeGuard</b> <span>· داخل تلگرام</span></div>
+
+    <h1>رادار زندهٔ بازار، <em>بدون نصب و بدون ثبت‌نام</em></h1>
+    <p class="lede">
+      فاندینگ، Open Interest و شاخص ترس و طمع را همان‌جایی که هستید می‌بینید؛
+      به‌همراه هشدار شخصی و ماشین‌حساب ریسک دراودان پراپ. همه‌چیز داخل تلگرام باز می‌شود.
+    </p>
+
+    <div class="free" id="freeBar"></div>
+
+    <section class="live" id="liveBox" hidden>
+      <h2>همین حالا در بازار</h2>
+      <div class="rows" id="liveRows"></div>
+      <p class="stamp" id="liveStamp"></p>
+    </section>
+
+    <a class="cta" id="ctaMain" href="#" rel="nofollow">
+      باز کردن در تلگرام
+      <small>رایگان باز می‌شود · بدون کارت بانکی</small>
+    </a>
+    <div class="ghost">
+      <a id="ctaTrial" href="#" rel="nofollow">🧪 ۳ روز پرو رایگان</a>
+      <a id="ctaInvite" href="#" rel="nofollow">🎁 ۳ دعوت = ۷ روز پرو</a>
+    </div>
+
+    <h2 class="sec">چه چیزی داخلش هست</h2>
+    <ul>
+      <li><b>رادار فاندینگ:</b> نرخ بهرهٔ ۸ساعته و معادل سالانه، روی دادهٔ زندهٔ بازار.</li>
+      <li><b>Open Interest و نقدینگی:</b> می‌بینید پول کجا نشسته، نه فقط قیمت کجا رفته.</li>
+      <li><b>هشدار شخصی:</b> برای فاندینگ یا قیمت یک نماد، یک‌بار تنظیم می‌کنید.</li>
+      <li><b>گارد دراودان پراپ:</b> حجم مجاز و حد ضرر را از سقف ضرر روزانه حساب می‌کند.</li>
+      <li><b>مربی AI:</b> وضعیت فعلی بازار را به زبان خودتان توضیح می‌دهد، نه سیگنال نمی‌دهد.</li>
+      <li><b>۶ زبان:</b> فارسی، انگلیسی، روسی، عربی، ترکی و اسپانیایی.</li>
+    </ul>
+
+    <h2 class="sec">قیمت (همان چیزی که ربات می‌گیرد)</h2>
+    <div class="plans" id="planRows" hidden></div>
+    <p class="note">
+      پرداخت با استارز تلگرام، یک‌باره و <b>بدون تمدید خودکار</b>. قیمت‌ها از خودِ ربات
+      می‌آید (<code>api/plans.json</code>)؛ اگر این صفحه باز نشد، قیمت معتبر همان است که
+      ربات در <code>/buy</code> نشان می‌دهد.
+    </p>
+
+    <h2 class="sec">چرا الآن باز است؟</h2>
+    <p class="lede">
+      در دورهٔ رشد، بخش حرفه‌ای برای آشنایی باز گذاشته شده است. تاریخ پایان — اگر
+      تعیین شده باشد — همان بالای همین صفحه نوشته می‌شود؛ هیچ تمدید خودکاری در کار نیست
+      و هیچ کاربری بدون اطلاع از پرداخت نمی‌ماند.
+    </p>
+
+    <footer>
+      <p>
+        داده‌ها زنده از بازار · آموزشی است، <b>توصیهٔ سرمایه‌گذاری نیست</b> · تصمیم و ریسک با خودتان است.
+      </p>
+      <p>
+        <a id="linkChannel" href="#" rel="nofollow">کانال</a> ·
+        <a href="./app.html">مینی‌اپ کامل</a> ·
+        <a href="./api/index.html">مستندات داده</a> ·
+        <a href="./press.html">کیت رسانه‌ای</a>
+      </p>
+    </footer>
+  </main>
+
+  <script src="./config.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    var cfg = window.TG_CONFIG || {};
+    var bot = String(cfg.botUsername || "TradeGuard1_bot");
+    var channel = String(cfg.channel || "").replace(/^@/, "");
+    var SRC_RE = /^[a-z0-9_]{2,24}$/;
+
+    /* کد منبع: از ?src= می‌آید (دایرکتوری/انجمن/پیام مستقیم) وگرنه lp_fa.
+       همان کدی است که در /sources دیده می‌شود، پس معلوم می‌شود کدام مسیر فروخت. */
+    var src = "lp_fa";
+    try {
+      var q = new URLSearchParams(location.search).get("src");
+      if (q && SRC_RE.test(String(q).toLowerCase())) src = String(q).toLowerCase();
+    } catch (e) {}
+
+    function botUrl(code) { return "https://t.me/" + bot + "?start=" + encodeURIComponent(code); }
+    function set(id, href) { var el = document.getElementById(id); if (el) el.setAttribute("href", href); }
+
+    set("ctaMain", botUrl(src));
+    set("ctaTrial", botUrl("trial"));
+    set("ctaInvite", botUrl("invite"));
+    if (channel) set("linkChannel", "https://t.me/" + channel);
+
+    function el(tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; }
+
+    /* ── قیمت‌ها: فقط از plans.json؛ اگر نیامد، هیچ عددی ساخته نمی‌شود ── */
+    fetch("./api/plans.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var plans = (d && Array.isArray(d.plans)) ? d.plans.filter(function (p) {
+          return p && Number(p.days) > 0 && Number(p.stars) > 0;
+        }) : [];
+        if (!plans.length) return;
+        var box = document.getElementById("planRows");
+        if (!box) return;
+        box.innerHTML = "";
+        plans.forEach(function (p) {
+          var row = el("div", "plan" + (Number(p.days) === 30 ? " hot" : ""));
+          var name = el("span");
+          name.textContent = p.days + " روزه";
+          if (Number(p.days) === 30) {
+            var tag = el("span", "tag");
+            tag.textContent = "کوتاه‌ترین";
+            tag.style.marginInlineStart = "6px";
+            name.appendChild(tag);
+          }
+          var price = el("span", "p");
+          var strong = el("b");
+          strong.textContent = Number(p.stars).toLocaleString("fa-IR") + " ⭐";
+          price.appendChild(strong);
+          if (Number(p.usd_gross) > 0) {
+            var small = el("small");
+            small.textContent = "≈ $" + Number(p.usd_gross).toFixed(2);
+            price.appendChild(small);
+          }
+          row.appendChild(name);
+          row.appendChild(price);
+          box.appendChild(row);
+        });
+        box.hidden = false;
+      })
+      .catch(function () {});
+
+    /* ── دورهٔ رایگان: تاریخ پایان از خود ربات ── */
+    fetch("./pro_users.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.freeMode) return;
+        var bar = document.getElementById("freeBar");
+        if (!bar) return;
+        var until = Number(d.freeUntil) || 0;
+        var txt = "🎁 همین حالا بخش حرفه‌ای باز است";
+        if (until) {
+          var when = new Date(until * 1000);
+          var days = Math.max(1, Math.ceil((when.getTime() - Date.now()) / 86400000));
+          txt = "🎁 رایگان تا <b>" + when.toLocaleDateString("fa-IR") + "</b> · " + days + " روز مانده";
+        }
+        bar.innerHTML = txt;
+        bar.classList.add("show");
+      })
+      .catch(function () {});
+
+    /* ── دادهٔ زنده: اگر نبود، بلوک پنهان می‌ماند (هیچ عدد ساختگی) ── */
+    fetch("./api/radar.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var rows = (d && Array.isArray(d.funding)) ? d.funding.slice(0, 3) : [];
+        if (!rows.length) return;
+        var box = document.getElementById("liveRows");
+        if (!box) return;
+        rows.forEach(function (r) {
+          var row = el("div", "row");
+          var left = el("span");
+          var sym = el("b");
+          sym.textContent = "$" + String(r.symbol || "").replace(/USDT$/i, "");
+          left.appendChild(sym);
+          var apr = Number(r.apr_pct);
+          if (isFinite(apr)) {
+            var s = el("small");
+            s.textContent = " APR " + (apr > 0 ? "+" : "") + apr.toFixed(1) + "%";
+            left.appendChild(s);
+          }
+          var val = el("span", "v" + (Number(r.funding_pct_8h) < 0 ? " neg" : ""));
+          var f = Number(r.funding_pct_8h);
+          val.textContent = (isFinite(f) ? (f > 0 ? "+" : "") + f.toFixed(4) : "—") + "% / ۸س";
+          row.appendChild(left);
+          row.appendChild(val);
+          box.appendChild(row);
+        });
+        var live = document.getElementById("liveBox");
+        if (live) live.hidden = false;
+        var stamp = document.getElementById("liveStamp");
+        if (stamp && d.generated_at) stamp.textContent = "آخرین به‌روزرسانی: " + d.generated_at;
+      })
+      .catch(function () {});
+  })();
+  </script>
+</body>
+</html>
