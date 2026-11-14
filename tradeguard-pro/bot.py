@@ -1426,8 +1426,10 @@ def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False)
             json.dumps(feed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (PUBLIC_FEED_DIR / "stats.json").write_text(
             json.dumps(stats, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        # صفحه‌های عمومی هر نماد + sitemap/robots (ورودی طبیعی از جست‌وجو)
+        page_paths = _write_symbol_pages(feed)
         rels: List[str] = []
-        for f in (PUBLIC_FEED_DIR / "radar.json", PUBLIC_FEED_DIR / "stats.json"):
+        for f in (PUBLIC_FEED_DIR / "radar.json", PUBLIC_FEED_DIR / "stats.json", *page_paths):
             try:
                 rels.append(str(f.relative_to(REPO_ROOT)))
             except ValueError:
@@ -1864,6 +1866,7 @@ def sync_telegram_menus() -> None:
         {"command": "lot", "description": "🧮 Prop Lot Calculator (XAUUSD/Forex/BTC)"},
         {"command": "rr", "description": "📐 Position size & R/R calculator"},
         {"command": "alert", "description": "🔔 Personal funding/price alert (DM)"},
+        {"command": "share", "description": "📤 Ready-to-send invite texts"},
         {"command": "scan", "description": "🛡️ Token Anti-Rug & Honeypot Scanner"},
         {"command": "wallet", "description": "🐋 Hyperliquid Whale Wallet X-Ray"},
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
@@ -1881,6 +1884,7 @@ def sync_telegram_menus() -> None:
         {"command": "lot", "description": "🧮 محاسبه حجم لات پراپ (طلا/فارکس/کریپتو)"},
         {"command": "rr", "description": "📐 محاسبه ریسک، حجم پوزیشن و R/R"},
         {"command": "alert", "description": "🔔 هشدار شخصی فاندینگ/قیمت (پیام در تلگرام)"},
+        {"command": "share", "description": "📤 متن آمادهٔ دعوت دوستان + لینک اختصاصی"},
         {"command": "scan", "description": "🛡️ اسکن هانی‌پات و امنیت ارزها"},
         {"command": "wallet", "description": "🐋 ردیاب کیف پول نهنگ‌ها"},
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
@@ -3055,6 +3059,16 @@ def handle_message(msg: dict) -> None:
         tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
         return
 
+    if text.startswith("/share") or text.startswith("/invite_share"):
+        lang = get_user_lang(uid, tg_lang)
+        pro_now, _ = is_user_pro(uid)
+        body = handle_share_command(uid, lang)
+        kb = dict(main_keyboard(pro_now, lang, is_admin_user=is_admin(uid)) or {})
+        # هم کیبورد اصلی بماند، هم دکمهٔ آمادهٔ «ارسال به دوست»
+        kb["inline_keyboard"] = [[growth_share_button(body, lang)]]
+        tg_send_message(chat_id, body, reply_markup=kb)
+        return
+
     if text.startswith("/alert"):
         lang = get_user_lang(uid, tg_lang)
         reply = handle_alert_command(text, uid, lang)
@@ -3846,6 +3860,444 @@ def partners_text() -> str:
     return "\n".join(lines)
 
 
+# =====================================================================
+#  رشد کانال: دکمهٔ «ارسال به دوست» + /share + جمع‌بندی هفتگی دعوت‌ها
+#
+#  چرا این‌ها؟ رشد واقعی کانال از فوروارد شدن پست‌های واقعی می‌آید، نه از
+#  ممبر فیک یا تبلیغ «تضمینی». هیچ عددی در این بخش ساختگی نیست:
+#  آمار از دیتابیس و از همان فید زندهٔ رادار می‌آید.
+# =====================================================================
+SITE_BASE_URL = (os.environ.get("SITE_BASE_URL") or "https://rmanm19.github.io/tradeguard-bot").rstrip("/")
+CHANNEL_SHARE_URL = "https://t.me/tradeguard1"  # پیش‌فرض؛ channel_url() در صورت وجود اولویت دارد
+
+BOT_STRINGS_GROWTH = {
+    "fa": {
+        "share_usage": (
+            "📤 *دعوت یک تریدر به TradeGuard*\n\n"
+            "یکی از متن‌های آماده را کپی کن و برای دوستت بفرست:\n\n"
+            "1️⃣ «رادار فاندینگ و OI زنده داره؛ هر ۳ ساعت فرصت‌های واقعی بازار رو می‌فرسته: {ch}»\n\n"
+            "2️⃣ «ماشین‌حساب حجم و ریسک پراپ: به‌جای حساب‌وکتاب دستی، در ۳ ثانیه حجم لات و R/R رو می‌ده: {ref}»\n\n"
+            "3️⃣ «هشدار شخصی فاندینگ/قیمت می‌سازه؛ رد شد، خودش پیام می‌ده — به‌جای نشستن پای چارت: {ref}»\n\n"
+            "🎁 با {target} دعوت تأییدشده ۷ روز پرو رایگان می‌گیری.\n"
+            "لینک اختصاصی تو:\n`{ref}`\n\n"
+            "📊 دعوت‌های تأییدشدهٔ تو: *{count}*"
+        ),
+        "share_btn": "📤 ارسال به دوست",
+        "recap_title": "🤝 *گزارش هفتگی دعوت‌ها*",
+        "recap_new": "• این هفته *{n}* نفر با لینک دعوت وارد شدند",
+        "recap_total": "• مجموع کاربران ربات: *{n}*",
+        "recap_top_head": "🏆 برترین دعوت‌کننده‌ها (مجموع تأییدشده):",
+        "recap_top_row": "{medal} {name} — *{n}* دعوت",
+        "recap_cta": "🎁 با ۳ دعوت تأییدشده، ۷ روز پرو رایگان بگیر: {ref}",
+        "recap_btn_invite": "🎁 لینک دعوت من",
+        "recap_btn_app": "🚀 باز کردن مینی‌اپ",
+        "recap_btn_share": "📤 معرفی به دوست",
+    },
+    "en": {
+        "share_usage": (
+            "📤 *Invite one trader to TradeGuard*\n\n"
+            "Copy any line below and send it to a friend:\n\n"
+            "1️⃣ «Live funding + OI radar, posting real market extremes every 3 hours: {ch}»\n\n"
+            "2️⃣ «Prop position-size & R/R calculator — lot size and R/R in 3 seconds: {ref}»\n\n"
+            "3️⃣ «Personal funding/price alerts — it pings you instead of you staring at the chart: {ref}»\n\n"
+            "🎁 {target} confirmed invites = 7 days of PRO, free.\n"
+            "Your personal link:\n`{ref}`\n\n"
+            "📊 Confirmed invites: *{count}*"
+        ),
+        "share_btn": "📤 Forward to a friend",
+        "recap_title": "🤝 *Weekly invite report*",
+        "recap_new": "• *{n}* traders joined through an invite link this week",
+        "recap_total": "• Total bot users: *{n}*",
+        "recap_top_head": "🏆 Top inviters (all-time confirmed):",
+        "recap_top_row": "{medal} {name} — *{n}* invites",
+        "recap_cta": "🎁 3 confirmed invites = 7 days of PRO, free: {ref}",
+        "recap_btn_invite": "🎁 My invite link",
+        "recap_btn_app": "🚀 Open the mini app",
+        "recap_btn_share": "📤 Tell a friend",
+    },
+    "ru": {
+        "share_usage": (
+            "📤 *Пригласите трейдера в TradeGuard*\n\n"
+            "Скопируйте любую строку и отправьте другу:\n\n"
+            "1️⃣ «Живой радар фандинга и OI — реальные экстремумы рынка каждые 3 часа: {ch}»\n\n"
+            "2️⃣ «Калькулятор объёма и R/R для проп-счёта — за 3 секунды: {ref}»\n\n"
+            "3️⃣ «Личные алерты по фандингу и цене — бот пишет вам первым: {ref}»\n\n"
+            "🎁 {target} подтверждённых приглашения = 7 дней PRO бесплатно.\n"
+            "Ваша ссылка:\n`{ref}`\n\n"
+            "📊 Подтверждённых приглашений: *{count}*"
+        ),
+        "share_btn": "📤 Отправить другу",
+        "recap_title": "🤝 *Недельный отчёт по приглашениям*",
+        "recap_new": "• За эту неделю по ссылке пришли *{n}* трейдеров",
+        "recap_total": "• Всего пользователей бота: *{n}*",
+        "recap_top_head": "🏆 Лучшие приглашающие (всего подтверждённых):",
+        "recap_top_row": "{medal} {name} — *{n}* приглашений",
+        "recap_cta": "🎁 3 подтверждённых приглашения = 7 дней PRO бесплатно: {ref}",
+        "recap_btn_invite": "🎁 Моя ссылка",
+        "recap_btn_app": "🚀 Открыть мини-приложение",
+        "recap_btn_share": "📤 Рассказать другу",
+    },
+    "ar": {
+        "share_usage": (
+            "📤 *ادعُ متداولاً إلى TradeGuard*\n\n"
+            "انسخ أحد النصوص وأرسله لصديق:\n\n"
+            "1️⃣ «رادار فاندينغ و OI حي، يرسل أطراف السوق الحقيقية كل ٣ ساعات: {ch}»\n\n"
+            "2️⃣ «حاسبة حجم المركز و R/R لحساب البروب — في ٣ ثوانٍ: {ref}»\n\n"
+            "3️⃣ «تنبيهات شخصية للفاندينغ والسعر — يرسل لك بدل متابعة الشارت: {ref}»\n\n"
+            "🎁 ‏{target} دعوات مؤكدة = ٧ أيام PRO مجاناً.\n"
+            "رابطك الخاص:\n`{ref}`\n\n"
+            "📊 الدعوات المؤكدة: *{count}*"
+        ),
+        "share_btn": "📤 أرسله لصديق",
+        "recap_title": "🤝 *تقرير الدعوات الأسبوعي*",
+        "recap_new": "• انضم *{n}* متداولاً عبر رابط دعوة هذا الأسبوع",
+        "recap_total": "• إجمالي مستخدمي البوت: *{n}*",
+        "recap_top_head": "🏆 أفضل الداعمين (إجمالي المؤكد):",
+        "recap_top_row": "{medal} {name} — *{n}* دعوة",
+        "recap_cta": "🎁 ‏٣ دعوات مؤكدة = ٧ أيام PRO مجاناً: {ref}",
+        "recap_btn_invite": "🎁 رابط دعوتي",
+        "recap_btn_app": "🚀 فتح التطبيق",
+        "recap_btn_share": "📤 أخبر صديقاً",
+    },
+    "tr": {
+        "share_usage": (
+            "📤 *Bir traderı TradeGuard'a davet et*\n\n"
+            "Aşağıdaki metinlerden birini kopyalayıp arkadaşına gönder:\n\n"
+            "1️⃣ «Canlı funding ve OI radarı; gerçek piyasa uçlarını 3 saatte bir paylaşıyor: {ch}»\n\n"
+            "2️⃣ «Prop pozisyon boyutu ve R/R hesaplayıcı — 3 saniyede: {ref}»\n\n"
+            "3️⃣ «Kişisel funding/fiyat alarmı — grafiğe bakmak yerine o sana yazar: {ref}»\n\n"
+            "🎁 {target} onaylı davet = 7 gün ücretsiz PRO.\n"
+            "Kişisel linkin:\n`{ref}`\n\n"
+            "📊 Onaylı davetlerin: *{count}*"
+        ),
+        "share_btn": "📤 Arkadaşına gönder",
+        "recap_title": "🤝 *Haftalık davet raporu*",
+        "recap_new": "• Bu hafta davet linkiyle *{n}* trader katıldı",
+        "recap_total": "• Toplam bot kullanıcısı: *{n}*",
+        "recap_top_head": "🏆 En çok davet edenler (toplam onaylı):",
+        "recap_top_row": "{medal} {name} — *{n}* davet",
+        "recap_cta": "🎁 3 onaylı davet = 7 gün ücretsiz PRO: {ref}",
+        "recap_btn_invite": "🎁 Davet linkim",
+        "recap_btn_app": "🚀 Mini uygulamayı aç",
+        "recap_btn_share": "📤 Arkadaşına söyle",
+    },
+    "es": {
+        "share_usage": (
+            "📤 *Invita a un trader a TradeGuard*\n\n"
+            "Copia cualquier texto y envíaselo a un amigo:\n\n"
+            "1️⃣ «Radar de funding y OI en vivo; publica los extremos reales cada 3 horas: {ch}»\n\n"
+            "2️⃣ «Calculadora de tamaño y R/R para cuentas prop — en 3 segundos: {ref}»\n\n"
+            "3️⃣ «Alertas personales de funding/precio — te avisa en vez de mirar el gráfico: {ref}»\n\n"
+            "🎁 {target} invitaciones confirmadas = 7 días de PRO gratis.\n"
+            "Tu enlace personal:\n`{ref}`\n\n"
+            "📊 Invitaciones confirmadas: *{count}*"
+        ),
+        "share_btn": "📤 Enviar a un amigo",
+        "recap_title": "🤝 *Informe semanal de invitaciones*",
+        "recap_new": "• *{n}* traders entraron con un enlace de invitación esta semana",
+        "recap_total": "• Usuarios totales del bot: *{n}*",
+        "recap_top_head": "🏆 Mejores invitadores (total confirmado):",
+        "recap_top_row": "{medal} {name} — *{n}* invitaciones",
+        "recap_cta": "🎁 3 invitaciones confirmadas = 7 días de PRO gratis: {ref}",
+        "recap_btn_invite": "🎁 Mi enlace",
+        "recap_btn_app": "🚀 Abrir la mini app",
+        "recap_btn_share": "📤 Contar a un amigo",
+    },
+}
+for _lang, _extra in BOT_STRINGS_GROWTH.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang].update(_extra)
+
+
+def share_url(text: str, url: Optional[str] = None) -> str:
+    """لینک رسمی Telegram برای «ارسال به دوست» با متن از پیش نوشته‌شده."""
+    import urllib.parse as _up
+    target = url or (channel_url() or CHANNEL_SHARE_URL)
+    return (
+        "https://t.me/share/url?url=" + _up.quote(target, safe="")
+        + "&text=" + _up.quote(str(text or "")[:900], safe="")
+    )
+
+
+def share_kb_row(text: str, url: Optional[str] = None, label: Optional[str] = None) -> dict:
+    """یک ردیف کیبورد برای فوروارد پست با قلاب متنی خودِ همان پست."""
+    hook = " ".join(str(text or "").split())[:180]
+    return {"text": label or BOT_STRINGS["fa"]["share_btn"], "url": share_url(hook, url)}
+
+
+def growth_share_button(text: str, lang: str = "fa") -> dict:
+    hook = " ".join(str(text or "").split())[:180]
+    label = tr(lang, "share_btn")
+    return {"text": label, "url": share_url(hook)}
+
+
+def handle_share_command(uid: int, lang: str = "fa") -> str:
+    """متن `/share`: سه پیام آمادهٔ کپی + لینک دعوت اختصاصی (بدون عدد ساختگی)."""
+    lang = lang if lang in BOT_STRINGS else "en"
+    count, _claimed = get_user_referral_stats(uid)
+    ref = invite_link(uid)
+    ch = channel_url() or CHANNEL_SHARE_URL
+    return tr(lang, "share_usage", ch=ch, ref=ref, target=FREE_PRO_INVITE_TARGET,
+              count=fa_num(count) if lang == "fa" else str(count))
+
+
+def weekly_invite_stats(now: Optional[int] = None) -> Dict[str, object]:
+    """آمار واقعی دعوت برای جمع‌بندی هفتگی (۷ روز گذشته)."""
+    now = int(now or time.time())
+    since = now - 7 * 24 * 3600
+    out: Dict[str, object] = {"new_referrals": 0, "users_total": 0, "top": []}
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            out["new_referrals"] = int(conn.execute(
+                "SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL AND created_at >= ?",
+                (since,),
+            ).fetchone()[0] or 0)
+            out["users_total"] = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+            rows = conn.execute(
+                "SELECT user_id, referrals_count, COALESCE(username, '') FROM users "
+                "WHERE referrals_count > 0 ORDER BY referrals_count DESC, created_at ASC LIMIT 3"
+            ).fetchall()
+        out["top"] = [(int(r[0]), int(r[1] or 0), str(r[2] or "")) for r in rows]
+    except Exception as exc:
+        logger.warning("آمار هفتگی دعوت خوانده نشد: %s", exc)
+    return out
+
+
+def build_invite_recap_post(lang: str = "fa", now: Optional[int] = None) -> Optional[Tuple[str, dict]]:
+    """پست هفتگی «دعوت‌ها» — اگر داده‌ای نباشد None (هیچ عددی ساخته نمی‌شود)."""
+    lang = "en" if lang == "en" else "fa"
+    stats = weekly_invite_stats(now)
+    new_ref = int(stats.get("new_referrals") or 0)
+    total = int(stats.get("users_total") or 0)
+    top = list(stats.get("top") or [])
+    if not new_ref and not top:
+        return None
+    medals = ("🥇", "🥈", "🥉")
+    lines = [tr(lang, "recap_title"), ""]
+    lines.append(tr(lang, "recap_new", n=fa_num(new_ref) if lang == "fa" else new_ref))
+    lines.append(tr(lang, "recap_total", n=fa_num(total) if lang == "fa" else total))
+    if top:
+        lines.append("")
+        lines.append(tr(lang, "recap_top_head"))
+        for i, (u_id, c, uname) in enumerate(top):
+            lines.append(tr(
+                lang, "recap_top_row",
+                medal=medals[i] if i < len(medals) else "•",
+                name=_mask_name(u_id, uname, lang),
+                n=fa_num(c) if lang == "fa" else c,
+            ))
+    lines.append("")
+    lines.append(tr(lang, "recap_cta", ref=f"https://t.me/{BOT_USERNAME}?start=invite"))
+    kb = {"inline_keyboard": [
+        [{"text": tr(lang, "recap_btn_invite"), "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+        [growth_share_button(" ".join(lines), lang)],
+        [{"text": tr(lang, "recap_btn_app"), "url": f"https://t.me/{BOT_USERNAME}?start=post_recap"}],
+    ]}
+    return "\n".join(lines), kb
+
+
+def post_weekly_invite_recap(now: Optional[int] = None) -> List[Tuple[str, str]]:
+    """هفته‌ای یک‌بار (بر اساس هفتهٔ ISO) جمع‌بندی دعوت‌ها را در کانال می‌گذارد."""
+    now = int(now or time.time())
+    week = time.strftime("%G-W%V", time.gmtime(now))
+    if str(get_setting("invite_recap_week", "") or "") == week:
+        return []
+    posted: List[Tuple[str, str]] = []
+    for channel_id, lang in ((PUBLIC_CHANNEL_ID, "fa"), (PUBLIC_CHANNEL_EN, "en")):
+        if not channel_id:
+            continue
+        built = build_invite_recap_post(lang, now)
+        if not built:
+            continue
+        text, kb = built
+        if tg_send_message(channel_id, text, reply_markup=kb).get("ok"):
+            posted.append((channel_id, "invite_recap"))
+            logger.info("🤝 invite recap sent → %s", channel_id)
+    if posted:
+        set_setting("invite_recap_week", week)
+    return posted
+
+
+# ---------------------------------------------------------------------
+#  صفحه‌های عمومی هر نماد (SEO) — از همان فید زنده، بدون عدد ساختگی
+# ---------------------------------------------------------------------
+def _symbol_slug(sym: str) -> str:
+    import re as _re
+    return _re.sub(r"[^a-z0-9_-]+", "", str(sym or "").strip().lower())[:20]
+
+
+def _ld_json(data: Dict) -> str:
+    """JSON-LD امن برای درج داخل <script>: جلوگیری از بسته‌شدن تگ با دادهٔ ورودی."""
+    return (json.dumps(data, ensure_ascii=False)
+            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
+
+
+def _write_symbol_pages(feed: Optional[Dict] = None, out_dir: Optional[Path] = None) -> List[Path]:
+    """docs/s/<sym>.html + sitemap.xml + robots.txt را از فید می‌نویسد.
+
+    فقط وقتی فید زنده و دارای ردیف باشد؛ در غیر این صورت هیچ فایلی نوشته
+    نمی‌شود (سیاست «چیزی بهتر از عدد ساختگی»).
+    """
+    import html as _html
+    try:
+        if feed is None:
+            feed_path = PUBLIC_FEED_DIR / "radar.json"
+            if not feed_path.exists():
+                return []
+            feed = json.loads(feed_path.read_text(encoding="utf-8"))
+        if not feed or not feed.get("live") or not feed.get("funding"):
+            return []
+        root = Path(out_dir) if out_dir is not None else Path(PUBLIC_FEED_DIR).parent
+        sdir = root / "s"
+        sdir.mkdir(parents=True, exist_ok=True)
+        stamp = str(feed.get("generated_at") or "")
+        fng = feed.get("fear_greed") or {}
+        rows = [r for r in feed["funding"] if _symbol_slug(r.get("symbol"))]
+        written: List[Path] = []
+        names = [(r["symbol"], _symbol_slug(r["symbol"])) for r in rows]
+
+        for r in rows:
+            sym = str(r["symbol"])
+            slug = _symbol_slug(sym)
+            rate = float(r.get("funding_pct_8h") or 0)
+            apr = r.get("apr_pct")
+            oi = r.get("oi_usd_m")
+            price = r.get("mark_price")
+            side = (
+                "شورت‌ها به لانگ‌ها پول می‌دهند (فاندینگ منفی)" if rate < 0
+                else ("لانگ‌ها به شورت‌ها پول می‌دهند (فاندینگ مثبت)" if rate > 0 else "فاندینگ صفر است")
+            )
+            side_en = (
+                "shorts pay longs (negative funding)" if rate < 0
+                else ("longs pay shorts (positive funding)" if rate > 0 else "funding is flat")
+            )
+            title = f"{sym} فاندینگ ۸ ساعته، APR و Open Interest — رادار TradeGuard"
+            desc = (
+                f"فاندینگ {sym}: {rate:+.4f}٪ در هر ۸ ساعت"
+                + (f" (APR {float(apr):+.1f}٪)" if apr is not None else "")
+                + (f"، OI {float(oi):.2f}M دلار" if oi is not None else "")
+                + f" — دادهٔ زندهٔ {stamp}."
+            )
+            others = "".join(
+                f'<a href="{s2}.html">${_html.escape(s2.upper())}</a>'
+                for _n, s2 in names if s2 != slug
+            )[:1400]
+            price_row = (
+                f'<tr><th>Mark price</th><td>${float(price):,.6g}</td></tr>' if price else ""
+            )
+            page = f"""<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{_html.escape(title)}</title>
+<meta name="description" content="{_html.escape(desc)}" />
+<link rel="canonical" href="{SITE_BASE_URL}/s/{slug}.html" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="{_html.escape(title)}" />
+<meta property="og:description" content="{_html.escape(desc)}" />
+<meta property="og:url" content="{SITE_BASE_URL}/s/{slug}.html" />
+<meta property="og:site_name" content="TradeGuard" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{_html.escape(title)}" />
+<meta name="twitter:description" content="{_html.escape(desc)}" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+.sym-page{{max-width:760px;margin:0 auto;padding:24px 16px 48px;color:#dbe9e6;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}}
+.sym-page h1{{font-size:22px;margin:0 0 6px}}
+.sym-page .stamp{{font-size:12px;color:#8fb0ab;margin:0 0 18px}}
+.sym-page table{{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}}
+.sym-page th,.sym-page td{{border-bottom:1px solid rgba(120,200,180,.16);padding:9px 6px;text-align:right}}
+.sym-page th{{color:#9db3b3;font-weight:600;width:46%}}
+.sym-page table td{{font-family:ui-monospace,Menlo,monospace}}
+.sym-page .cta{{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}}
+.sym-page .cta a{{flex:1 1 200px;text-align:center;padding:12px 14px;border-radius:12px;text-decoration:none;
+  background:linear-gradient(135deg,#38e0b2,#1aa38a);color:#06231d;font-weight:800;font-size:14px}}
+.sym-page .cta a.ghost{{background:transparent;border:1px solid rgba(120,200,180,.35);color:#cfe6e1;font-weight:600}}
+.sym-page p{{font-size:13.5px;line-height:1.9;color:#c3d8d4}}
+.sym-page .en{{direction:ltr;text-align:left}}
+.sym-page .note{{font-size:11.5px;color:#7f9797;border-top:1px solid rgba(120,200,180,.14);padding-top:12px;margin-top:22px}}
+.sym-page .chips a{{display:inline-block;margin:0 6px 6px 0;font-size:12px;color:#8ff0d2;text-decoration:none;
+  border:1px solid rgba(120,200,180,.22);border-radius:999px;padding:4px 10px}}
+</style>
+</head>
+<body style="background:#070d15">
+<main class="sym-page">
+  <h1>${_html.escape(sym)} — فاندینگ، APR و Open Interest</h1>
+  <p class="stamp">آخرین به‌روزرسانی داده: <b>{_html.escape(stamp)}</b> · منبع: صرافی‌های عمومی (Hyperliquid / OKX / Binance)</p>
+
+  <table>
+    <tr><th>فاندینگ (هر ۸ ساعت)</th><td>{rate:+.4f}٪</td></tr>
+    {'<tr><th>APR معادل</th><td>%+.1f٪</td></tr>' % float(apr) if apr is not None else ''}
+    {'<tr><th>Open Interest</th><td>$%.2fM</td></tr>' % float(oi) if oi is not None else ''}
+    {price_row}
+    <tr><th>معنی علامت</th><td style="font-family:inherit;font-size:13px">{_html.escape(side)}</td></tr>
+    <tr><th>شاخص ترس و طمع</th><td>{int(fng.get('value') or 0)}/100 — {_html.escape(str(fng.get('label') or ''))}</td></tr>
+  </table>
+
+  <div class="cta">
+    <a href="https://t.me/tradeguard1">📣 کانال رادار (فارسی)</a>
+    <a class="ghost" href="https://t.me/{BOT_USERNAME}?start=sym_{slug}">🤖 باز کردن ربات و مینی‌اپ</a>
+  </div>
+
+  <p>فاندینگ، هزینه‌ای است که هر ۸ ساعت بین لانگ و شورت رد و بدل می‌شود. فاندینگ منفی یعنی
+  شورت‌ها به لانگ‌ها پول می‌دهند؛ هر چه این عدد از صفر دورتر شود، یک‌طرفه‌تر شدن بازار
+  و ریسک اسکوییز بیشتر می‌شود. Open Interest هم تعداد پوزیشن‌های <b>باز</b> است، نه حجم معاملات روز.</p>
+  <p>این صفحهٔ ${_html.escape(sym)} با هر تازه‌سازی فید (حدود هر ۳۰ دقیقه) خودکار به‌روز می‌شود.
+  برای دیدن همهٔ نمادها و هشدار شخصی: <a href="../index.html" style="color:#8ff0d2">مینی‌اپ TradeGuard</a>.</p>
+
+  <p class="en"><b>English:</b> ${_html.escape(sym)} funding is {rate:+.4f}% per 8h
+  {'(APR %+.1f%%)' % float(apr) if apr is not None else ''} — {_html.escape(side_en)}.
+  Open interest {('$%.2fM' % float(oi)) if oi is not None else '—'}.
+  Data: {_html.escape(stamp)}. Live radar in Telegram: <a href="https://t.me/tradeguard1e" style="color:#8ff0d2">@tradeguard1e</a>.</p>
+
+  <div class="chips">{others}</div>
+  <p class="note">اطلاعات آموزشی و دادهٔ عمومی است؛ سیگنال خرید/فروش یا وعدهٔ سود نیست.
+  اعداد مستقیماً از فید عمومی <a href="../api/radar.json" style="color:#8ff0d2">radar.json</a> خوانده می‌شوند.</p>
+</main>
+<script type="application/ld+json">{_ld_json({
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": f"{sym} funding rate & open interest",
+    "description": desc,
+    "url": f"{SITE_BASE_URL}/s/{slug}.html",
+    "isAccessibleForFree": True,
+    "creator": {"@type": "Organization", "name": "TradeGuard", "url": SITE_BASE_URL},
+    "variableMeasured": [
+        {"@type": "PropertyValue", "name": "funding_pct_8h", "value": rate, "unitText": "percent"},
+    ] + ([{"@type": "PropertyValue", "name": "apr_pct", "value": float(apr), "unitText": "percent"}] if apr is not None else [])
+      + ([{"@type": "PropertyValue", "name": "open_interest_usd_m", "value": float(oi), "unitText": "million USD"}] if oi is not None else []),
+    "dateModified": stamp,
+    "license": "https://github.com/rmanm19/tradeguard-bot",
+})}</script>
+</body>
+</html>
+"""
+            (sdir / f"{slug}.html").write_text(page, encoding="utf-8")
+            written.append(sdir / f"{slug}.html")
+
+        # sitemap + robots
+        urls = [f"{SITE_BASE_URL}/", f"{SITE_BASE_URL}/app.html",
+                f"{SITE_BASE_URL}/business.html", f"{SITE_BASE_URL}/api/index.html"]
+        urls += [f"{SITE_BASE_URL}/s/{slug}.html" for _n, slug in names]
+        lastmod = stamp[:10] if len(stamp) >= 10 else time.strftime("%Y-%m-%d")
+        sitemap = ['<?xml version="1.0" encoding="UTF-8"?>',
+                   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        for u in urls:
+            sitemap.append(f"  <url><loc>{u}</loc><lastmod>{lastmod}</lastmod></url>")
+        sitemap.append("</urlset>")
+        (root / "sitemap.xml").write_text("\n".join(sitemap) + "\n", encoding="utf-8")
+        (root / "robots.txt").write_text(
+            "User-agent: *\nAllow: /\n"
+            f"Sitemap: {SITE_BASE_URL}/sitemap.xml\n", encoding="utf-8")
+        written += [root / "sitemap.xml", root / "robots.txt"]
+        logger.info("🗺️ %s صفحهٔ نماد + sitemap نوشته شد", len(rows))
+        return written
+    except Exception as exc:
+        logger.warning("ساخت صفحه‌های نماد ناموفق: %s", exc)
+        return []
+
+
 def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     """پست کانال: ۳ فرصت برتر + ترس و طمع + یک نکتهٔ آموزشی چرخشی."""
     if not rates:
@@ -3874,6 +4326,8 @@ def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     lines.append("👇 مینی‌اپ ۶ زبانه، بدون نصب:")
     kb_rows = [[{"text": "🚀 باز کردن TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=post_radar"}]]
     kb_rows.append([{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}])
+    # دکمهٔ فوروارد با قلاب خودِ همان پست: رشد از ارسال به دوست می‌آید، نه تبلیغ
+    kb_rows.append([share_kb_row("\n".join(lines))])
     return "\n".join(lines), {"inline_keyboard": kb_rows}
 
 
@@ -4802,13 +5256,14 @@ CHANNEL_FEATURE_POSTS = [
 CHANNEL_SIGNATURE = "📊 داده‌ها زنده از آن‌چین · آموزشی است، توصیهٔ سرمایه‌گذاری نیست."
 
 
-def _mini_app_kb(start_param: str = "channel") -> dict:
-    return {
-        "inline_keyboard": [
-            [{"text": "🚀 باز کردن مینی‌اپ (۶ زبان)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
-            [{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
-        ]
-    }
+def _mini_app_kb(start_param: str = "channel", share_text: str = "") -> dict:
+    rows = [
+        [{"text": "🚀 باز کردن مینی‌اپ (۶ زبان)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
+        [{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+    ]
+    if share_text:
+        rows.append([share_kb_row(share_text)])
+    return {"inline_keyboard": rows}
 
 
 # ---------------------------------------------------------------------
@@ -4891,13 +5346,14 @@ CHANNEL_FEATURE_POSTS_EN = [
 ]
 
 
-def _mini_app_kb_en(start_param: str = "channel") -> dict:
-    return {
-        "inline_keyboard": [
-            [{"text": "🚀 Open the mini app (6 languages)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
-            [{"text": "🎁 Invite friends (3 = 7 days PRO)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
-        ]
-    }
+def _mini_app_kb_en(start_param: str = "channel", share_text: str = "") -> dict:
+    rows = [
+        [{"text": "🚀 Open the mini app (6 languages)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
+        [{"text": "🎁 Invite friends (3 = 7 days PRO)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+    ]
+    if share_text:
+        rows.append([growth_share_button(share_text, "en")])
+    return {"inline_keyboard": rows}
 
 
 def build_channel_post_en(rates: List[Dict]) -> Tuple[str, dict]:
@@ -4925,6 +5381,7 @@ def build_channel_post_en(rates: List[Dict]) -> Tuple[str, dict]:
     kb = {"inline_keyboard": [
         [{"text": "🚀 Open TradeGuard", "url": f"https://t.me/{BOT_USERNAME}?start=post_radar_en"}],
         [{"text": "🤝 Invite friends", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
+        [{**growth_share_button("\n".join(lines), "en")}],
     ]}
     return "\n".join(lines), kb
 
@@ -4932,13 +5389,15 @@ def build_channel_post_en(rates: List[Dict]) -> Tuple[str, dict]:
 def build_edu_post_en(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_edu_idx_en", len(CHANNEL_EDU_POSTS_EN)) if advance else 0
     title, body = CHANNEL_EDU_POSTS_EN[idx]
-    return f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE_EN}", _mini_app_kb_en("post_edu_en")
+    text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE_EN}"
+    return text, _mini_app_kb_en("post_edu_en", text)
 
 
 def build_feature_post_en(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_feature_idx_en", len(CHANNEL_FEATURE_POSTS_EN)) if advance else 0
     title, body = CHANNEL_FEATURE_POSTS_EN[idx]
-    return f"{title}\n\n{body}\n\n👇 Open inside Telegram:", _mini_app_kb_en("post_feature_en")
+    text = f"{title}\n\n{body}\n\n👇 Open inside Telegram:"
+    return text, _mini_app_kb_en("post_feature_en", text)
 
 
 def validate_target(channel_id: str) -> Tuple[bool, str]:
@@ -5042,14 +5501,14 @@ def build_edu_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_edu_idx", len(CHANNEL_EDU_POSTS)) if advance else 0
     title, body = CHANNEL_EDU_POSTS[idx]
     text = f"🎓 *{title}*\n\n{body}\n\n{CHANNEL_SIGNATURE}"
-    return text, _mini_app_kb("post_edu")
+    return text, _mini_app_kb("post_edu", text)
 
 
 def build_feature_post(advance: bool = True) -> Tuple[str, dict]:
     idx = _next_index("channel_feature_idx", len(CHANNEL_FEATURE_POSTS)) if advance else 0
     title, body = CHANNEL_FEATURE_POSTS[idx]
     text = f"{title}\n\n{body}\n\n👇 داخل تلگرام، بدون نصب:"
-    return text, _mini_app_kb("post_feature")
+    return text, _mini_app_kb("post_feature", text)
 
 
 def next_post_eta_en(now_ts: Optional[int] = None) -> str:
@@ -5248,6 +5707,7 @@ def auto_channel_loop() -> None:
             post_due_slots()
             evaluate_user_alerts()
             maybe_send_monthly_partner_report()
+            post_weekly_invite_recap()
             publish_public_feed()
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)
