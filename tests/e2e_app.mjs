@@ -31,6 +31,7 @@ const HL = {
 
 let HL_LIVE = false;   // فقط تست‌هایی که باید داده زندهٔ هایپرلیکوید ببینند
 let PARTNERS = { partners: [], disclosure: "" };   // محتوای partners.json برای تست
+let PLANS = { plans: [] };                         // محتوای api/plans.json برای تست
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
 let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
 
@@ -66,6 +67,7 @@ function stubFetch(url, init) {
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
   if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, users: PRO_USERS });
   if (u.includes("partners.json")) return json(PARTNERS);
+  if (u.includes("plans.json")) return json(PLANS);
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
   return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("") });
 }
@@ -419,6 +421,47 @@ check("بدون شبکه، پیام صادقانه نشان داده می‌شو
   (sd.querySelector("#appToast") || {}).textContent);
 check("هیچ خطای جاوااسکریپت در این بخش نیست", S5.errors.length === 0, S5.errors.slice(0, 2).join(" | "));
 
+/* ---------- ۳٫۶ب) انتخاب پلن: قیمت فقط از api/plans.json ---------- */
+PLANS = {
+  currency: "XTR",
+  trial_days: 3,
+  plans: [
+    { days: 30, stars: 300, usd_gross: 3.9 },
+    { days: 90, stars: 750, usd_gross: 9.75 },
+    { days: 365, stars: 2400, usd_gross: 31.2 }
+  ]
+};
+const PL = boot({ userId: 666000555, seedStorage: { tg_onboard_v1: "1" } });
+await wait(700);
+const pld = PL.w.document;
+const planBtns = Array.from(pld.querySelectorAll("#planOptions .plan-opt"));
+check("سه پلن واقعی از فایل نمایش داده می‌شود", planBtns.length === 3, String(planBtns.length));
+check("پلن پیش‌فرض ۳۰ روزه فعال است",
+  (planBtns[0] || {}).classList && planBtns[0].classList.contains("is-active"));
+check("قیمت پیش‌فرض از فایل خوانده می‌شود (نه هاردکد)",
+  /۳۰۰|300/.test((pld.querySelector("#planStarsNum") || {}).textContent || ""),
+  (pld.querySelector("#planStarsNum") || {}).textContent);
+check("قیمت دلاری از همان فایل محاسبه می‌شود",
+  /3\.9|۳٫۹/.test((pld.querySelector("#planFiat") || {}).textContent || ""),
+  (pld.querySelector("#planFiat") || {}).textContent);
+planBtns[1].dispatchEvent(new PL.w.MouseEvent("click", { bubbles: true }));
+await wait(80);
+check("انتخاب پلن ۹۰ روزه، قیمت را به ۷۵۰ تغییر می‌دهد",
+  /۷۵۰|750/.test((pld.querySelector("#planStarsNum") || {}).textContent || ""),
+  (pld.querySelector("#planStarsNum") || {}).textContent);
+check("همان پلن در شیت پرداخت هم دیده می‌شود",
+  /۷۵۰|750/.test((pld.querySelector("#invPriceNum") || {}).textContent || "")
+  && /۹۰|90/.test((pld.querySelector("#invItemLabel") || {}).textContent || ""),
+  (pld.querySelector("#invItemLabel") || {}).textContent);
+check("انتخاب پلن خطای جاوااسکریپت نمی‌دهد", PL.errors.length === 0, PL.errors.slice(0, 2).join(" | "));
+
+PLANS = { plans: [] };
+const PL0 = boot({ userId: 666000444, seedStorage: { tg_onboard_v1: "1" } });
+await wait(600);
+check("اگر فایل پلن‌ها نبود، همان یک پلن پیش‌فرض می‌ماند (بدون قیمت جعلی)",
+  PL0.w.document.querySelectorAll("#planOptions .plan-opt").length === 1,
+  String(PL0.w.document.querySelectorAll("#planOptions .plan-opt").length));
+
 /* ---------- ۳٫۷) بخش شرکا (لینک همکاری) ---------- */
 PARTNERS = { partners: [], disclosure: "" };
 const P0 = boot({ userId: 666000999, seedStorage: { tg_onboard_v1: "1" } });
@@ -450,6 +493,67 @@ check("rel امنیتی لینک ست شده",
 check("افشای شفاف کمیسیون دیده می‌شود",
   /کمیسیون/.test(pdoc.querySelector("#partnersList").textContent),
   pdoc.querySelector("#partnersList").textContent.slice(0, 80));
+
+/* ---------- ۳٫۷ب) تب پیشنهادها: فقط دادهٔ واقعی partners.json ----------
+   هیچ کد/کش‌بک/درصدی نباید از خودِ اپ بیاید؛ همه باید از partners.json باشد
+   و وقتی شریکی نیست، جایگاه خالی صادقانه نشان داده شود.
+*/
+PARTNERS = { partners: [], disclosure: "" };
+const D0 = boot({ userId: 666000777, seedStorage: { tg_onboard_v1: "1" } });
+await wait(650);
+const d0 = D0.w.document;
+const dBox = d0.querySelector("#propDealsList");
+check("بدون شریک، هیچ کارت پیشنهاد ساختگی رندر نمی‌شود",
+  !!dBox && !d0.querySelector(".deal-card")
+  && !/(TGPRO10|TGVIP|TGGLOBAL|98\.4)/.test(dBox.textContent),
+  (dBox ? dBox.textContent : "").slice(0, 80));
+check("بدون شریک، جایگاه خالی با متن صادقانه و CTA دیده می‌شود",
+  !!d0.querySelector(".deal-empty") && /درخواست جایگاه شریک/.test(dBox.textContent),
+  (dBox ? dBox.textContent : "").slice(0, 80));
+check("CTA جایگاه خالی به مسیر شریک در ربات می‌رود",
+  /t\.me\/TradeGuard1_bot\?start=biz/.test(
+    (d0.querySelector(".deal-empty-cta") || {}).href || ""),
+  (d0.querySelector(".deal-empty-cta") || {}).href);
+
+PARTNERS = {
+  disclosure: "لینک همکاری — ممکن است کمیسیون بگیریم.",
+  partners: [
+    {
+      id: "propfirm_x", name: "Prop Firm X", badge: "تأییدشده",
+      url: "https://propfirmx.example/r/tg", emoji: "🏦",
+      discount_pct: 50, cashback_usdt: 6, code: "PFX50",
+      plan_10k_usd: 59, daily_dd: "5%"
+    },
+    { id: "ex_b", name: "Exchange B", url: "https://exb.example/r", emoji: "🌐" }
+  ]
+};
+const D1 = boot({ userId: 666000666, seedStorage: { tg_onboard_v1: "1" } });
+await wait(750);
+const d1 = D1.w.document;
+const dCards = Array.from(d1.querySelectorAll(".deal-card"));
+check("با شریک واقعی، کارت پیشنهاد رندر می‌شود",
+  dCards.length === 2 && /Prop Firm X/.test(d1.querySelector("#propDealsList").textContent),
+  String(dCards.length));
+const cardX = dCards.find((c) => /Prop Firm X/.test(c.textContent)) || {};
+const cardB = dCards.find((c) => /Exchange B/.test(c.textContent)) || {};
+check("کش‌بک دقیقاً همان عدد شریک است (بدون گرد کردن یا بزرگ‌نمایی)",
+  /۶/.test((cardX.querySelector ? cardX.querySelector(".deal-cb") : {}).textContent || "")
+  || /6/.test((cardX.querySelector ? cardX.querySelector(".deal-cb") : {}).textContent || ""),
+  (cardX.querySelector ? cardX.querySelector(".deal-cb") : {}).textContent);
+check("کد تخفیف از دادهٔ شریک می‌آید و قابل کپی است",
+  !!cardX.querySelector && /PFX50/.test((cardX.querySelector(".deal-code-btn") || {}).textContent || ""),
+  (cardX.querySelector ? cardX.querySelector(".deal-code-btn") : {}).textContent);
+check("شریکی که عدد نداده، کش‌بک/کد ساختگی نمی‌گیرد",
+  !!cardB.querySelector && !cardB.querySelector(".deal-cb") && !cardB.querySelector("button.deal-code-btn"),
+  cardB.textContent);
+const goB = cardB.querySelector ? cardB.querySelector("a.deal-code-btn") : null;
+check("لینک پیشنهاد بدون کد، از مسیر رهگیری ربات می‌رود",
+  !!goB && /t\.me\/TradeGuard1_bot\?start=p_ex_b/.test(goB.href), goB ? goB.href : "");
+check("افشای کمیسیون زیر کارت‌های پیشنهاد دیده می‌شود",
+  /کمیسیون/.test(d1.querySelector("#propDealsList").textContent));
+check("هیچ خطای جاوااسکریپت در تب پیشنهادها نیست",
+  D0.errors.length === 0 && D1.errors.length === 0,
+  D0.errors.concat(D1.errors).slice(0, 2).join(" | "));
 
 /* ---------- ۳٫۸) پروفایل شریک (شیت داخل اپ + لینک مستقیم) ---------- */
 const pcard = pdoc.querySelector(".partner-item");

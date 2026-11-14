@@ -554,6 +554,30 @@ section{scroll-margin-top:84px}
 .deal-card{
   background:rgba(16,26,44,.88);border:1px solid var(--line);border-radius:14px;padding:12px;
 }
+/* انتخاب پلن اشتراک (۳۰/۹۰/۳۶۵ روز) — قیمت‌ها از api/plans.json می‌آید */
+.plan-options{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+.plan-opt{
+  flex:1 1 30%;min-width:104px;cursor:pointer;
+  background:rgba(18,28,46,.85);border:1px solid var(--line);border-radius:12px;
+  color:#cfdcef;font-size:11.5px;font-weight:800;padding:9px 6px;
+  font-family:inherit;transition:border-color .15s,background .15s,color .15s;
+}
+.plan-opt:hover{border-color:rgba(120,200,180,.45)}
+.plan-opt.is-active{
+  background:linear-gradient(180deg,rgba(56,224,178,.18),rgba(56,224,178,.07));
+  border-color:var(--green);color:#eafff7;
+}
+.deal-empty{
+  background:rgba(14,22,38,.72);border:1px dashed rgba(120,200,180,.28);border-radius:14px;
+  padding:14px;display:flex;flex-direction:column;gap:8px;
+}
+.deal-empty b{font-size:12.5px;color:#fff;font-weight:900}
+.deal-empty p{margin:0;font-size:11.5px;line-height:1.9;color:var(--mut)}
+.deal-empty-cta{
+  align-self:flex-start;font-size:11.5px;font-weight:900;text-decoration:none;
+  color:#04160f;background:var(--green);padding:7px 14px;border-radius:99px;
+}
+.deal-empty-cta:hover{filter:brightness(1.08)}
 .deal-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 .deal-name{font-size:13px;font-weight:900;color:#fff}
 .deal-sub{font-size:10.5px;color:var(--mut)}

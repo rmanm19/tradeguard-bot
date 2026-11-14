@@ -1,0 +1,29 @@
+{
+  "updated": 1794683086,
+  "currency": "XTR",
+  "trial_days": 3,
+  "plans": [
+    {
+      "days": 30,
+      "stars": 300,
+      "usd_net": 3.7,
+      "usd_gross": 3.9,
+      "per_month_stars": 300
+    },
+    {
+      "days": 90,
+      "stars": 750,
+      "usd_net": 9.26,
+      "usd_gross": 9.75,
+      "per_month_stars": 250
+    },
+    {
+      "days": 365,
+      "stars": 2400,
+      "usd_net": 29.64,
+      "usd_gross": 31.2,
+      "per_month_stars": 197
+    }
+  ],
+  "note": "Real prices written by the bot. One-time Stars payment, no auto-renewal."
+}

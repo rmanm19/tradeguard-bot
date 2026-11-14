@@ -104,7 +104,8 @@ check("دورهٔ رایگان هم از همان فایل می‌آید (نه �
   /freeMode/.test(entBody) && /isFreeMode\s*=\s*!!\(data\s*&&\s*data\.freeMode\)/.test(appJsClean));
 check("پارامتر URL هیچ‌وقت PRO را باز نمی‌کند",
   !/[?&](pro|pro_until|vip)=/i.test(appJsClean) && !/URLSearchParams[^;]*pro/i.test(appJsClean));
-check("دکمه پرداخت به چت ربات وصل است", /openBotChat\("pro"\)/.test(appJsClean));
+check("دکمه پرداخت به چت ربات وصل است (با پلن انتخاب‌شده)",
+  /openBotChat\("pay"\s*\+\s*planDays\)/.test(appJsClean));
 check("شبیه‌سازی دعوت حذف شد و لینک واقعی ref_ ساخته می‌شود",
   !/simInviteBtn/.test(html) && !/simInviteBtn/.test(appJsClean) && /start=ref_/.test(appJsClean));
 check("کارت دعوت فقط پیام ربات را باز نمی‌کند (کپی/اشتراک واقعی دارد)",
@@ -365,6 +366,56 @@ check("پک کپشن هر ۶ زبان را دارد",
 check("پک کپشن لینک واقعی ربات دارد و خودش ادعای سود نمی‌کند",
   /t\.me\/TradeGuard1_bot/.test(captions) && /هیچ‌وقت ادعای/.test(captions)
   && !/(ما دقت|our accuracy is|کسب سود تضمینی)/i.test(captions));
+
+/* ── ۱۳) موتور درآمد و صداقت پیشنهادها ─────────────────────────
+   چرا: هر کد تخفیف/کش‌بک/درصد «تأییدشده» که خودمان ساخته باشیم، هم کاربر
+   را فریب می‌دهد و هم بروکر واقعی را فراری می‌دهد. این بلوک تضمین می‌کند
+   داده‌ی ساختگی هرگز برنگردد و جایگاه پیشنهاد فقط از partners.json پر شود.
+*/
+const i18nSrc = read("i18n.js");
+const jsAll = ["app.js", "i18n.js", "static_api.js", "app_tg.js", "admin.js"].map(read).join("\n");
+const htmlAll = ["index.html", "app.html", "business.html", "press.html"].map(read).join("\n");
+const allSrc = jsAll + "\n" + htmlAll;
+
+check("هیچ کد تخفیف ساختگی در مینی‌اپ نیست",
+  !/(TGPRO10|TGVIP|TGGLOBAL)/.test(allSrc));
+check("هیچ درصد «تأیید آن‌چین» ساختگی نیست",
+  !/(98\.4|97\.1|96\.5)\s*%/.test(allSrc) && !/۹۸٫۴|۹۷٫۱|۹۶٫۵/.test(allSrc));
+check("هیچ تراکنش واریز ساختگی در فید نیست",
+  !/2,?۱۵۰|2,?150\s*USDT/.test(allSrc) && !/واریز سود پراپ: تراکنش/.test(allSrc));
+check("کارت پیشنهادها دیگر از آرایهٔ هاردکد i18n نمی‌خواند",
+  !/d\.deals\s*\|\|/.test(stripComments(appJs)) && /partnersItems/.test(appJs));
+check("همهٔ آرایه‌های deals در ۶ زبان خالی‌اند",
+  (i18nSrc.match(/deals:\s*\[\]/g) || []).length === 6,
+  String((i18nSrc.match(/deals:\s*\[\]/g) || []).length));
+check("کلیدهای «جایگاه خالی» در ۶ زبان هست",
+  LANGS.every((l) => I18N[l].dealsEmptyTitle && I18N[l].dealsEmptyText
+    && I18N[l].dealsEmptyCta && I18N[l].dealsOpenCta));
+const dealFn = appJs.slice(appJs.indexOf("function renderPropDeals"), appJs.indexOf("function calcGuard"));
+check("کارت خالی صادقانه ساخته می‌شود (بدون کد/کش‌بک ساختگی)",
+  /deal-empty/.test(dealFn) && /dealsEmptyTitle/.test(dealFn));
+check("کش‌بک فقط وقتی شریک عدد داده باشد نمایش می‌یابد",
+  /Number\.isFinite\(cb\)\s*&&\s*cb\s*>\s*0/.test(dealFn), dealFn.slice(0, 60));
+check("لینک پیشنهاد از مسیر رهگیری ربات می‌رود (?start=p_)",
+  /start=p_\$\{encodeURIComponent\(pid\)\}/.test(dealFn));
+check("پیشنهادها با rel=nofollow sponsored و نام شریک به‌صورت متنی ساخته می‌شوند",
+  /nofollow sponsored/.test(dealFn) && /textContent\s*=\s*String\(item\.name/.test(dealFn));
+check("CSS کارت «جایگاه خالی» را استایل می‌دهد", /\.deal-empty\s*\{/.test(read("styles.css")));
+check("برچسب تب دیگر «کش‌بک» نیست", LANGS.every((l) => !/کش‌بک|Cashback|Кэшбэк|كاش باك|iade/i.test(String(I18N[l].tabDeals))),
+  LANGS.map((l) => I18N[l].tabDeals).join(" | "));
+check("متن معرفی تب پیشنهادها ادعای کش‌بک تضمینی نمی‌کند",
+  LANGS.every((l) => !/(۴ تا ۶|\$4–\$6|4–6 USDT)/.test(String(I18N[l].dealsIntroHtml))));
+check("کارت قفل‌شدهٔ پرو تراکنش یا عدد ساختگی ندارد",
+  /type: "pro"/.test(read("static_api.js")) || /type:\s*"pro"/.test(read("static_api.js")));
+
+const revenue = readRepo("REVENUE_FA.md");
+check("پلی‌بوک درآمد وجود دارد و موتورهای واقعی را نام می‌برد",
+  revenue.length > 2500 && /\/income/.test(revenue) && /\/trial/.test(revenue)
+  && /freemode until/.test(revenue));
+check("پلی‌بوک درآمد مرز صداقت را صریح می‌گوید",
+  /کد تخفیف یا کش‌بک ساختگی/.test(revenue) && /تمدید خودکار پنهان/.test(revenue));
+check("پلی‌بوک درآمد عدد را از تخمین جدا می‌کند",
+  /ضرب و تقسیم‌اند، نه پیش‌بینی/.test(revenue) && /STARS_USD_RATE/.test(revenue));
 
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));

@@ -773,45 +773,138 @@
   });
 
   /* =======================================================
-     2) PROP DEALS (Localized per language/region)
+     2) PROP DEALS — فقط پیشنهادهای واقعی از partners.json
+     -------------------------------------------------------
+     چرا این‌طور: هر کد/کش‌بک/عدد باید از شریک واقعی آمده باشد.
+     هیچ نام، تخفیف یا «تأیید پرداخت» ساختگی در کد نیست. اگر هنوز
+     هیچ شریکی ثبت نشده باشد، کارت صادقانهٔ «جایگاه خالی» نشان داده
+     می‌شود — همین صداقت چیزی است که بروکر را متقاعد می‌کند.
   ======================================================= */
   function renderPropDeals() {
     const box = $("#propDealsList");
     if (!box) return;
     const d = t();
-    const deals = d.deals || [];
+    const botUser = String((window.TG_CONFIG || {}).botUsername || "").replace(/^@/, "");
     box.innerHTML = "";
+
+    const deals = (partnersItems || []).filter(
+      (p) => p && p.name && /^https?:\/\//.test(String(p.url || ""))
+    );
+
+    if (!deals.length) {
+      const empty = document.createElement("div");
+      empty.className = "deal-empty";
+      const title = document.createElement("b");
+      title.textContent = String(d.dealsEmptyTitle || "");
+      const body = document.createElement("p");
+      body.textContent = String(d.dealsEmptyText || "");
+      const cta = document.createElement("a");
+      cta.className = "deal-empty-cta";
+      cta.textContent = String(d.dealsEmptyCta || "");
+      cta.href = botUser ? `https://t.me/${botUser}?start=biz` : "business.html";
+      cta.target = "_blank";
+      cta.rel = "noopener noreferrer";
+      empty.append(title, body, cta);
+      box.appendChild(empty);
+      return;
+    }
+
     deals.forEach((item) => {
+      const pid = String(item.id || item.slug || "").trim();
+      const rawUrl = String(item.url || "");
+      const tracked =
+        pid && botUser
+          ? `https://t.me/${botUser}?start=p_${encodeURIComponent(pid)}`
+          : rawUrl;
+
       const card = document.createElement("div");
       card.className = "deal-card";
-      card.innerHTML = `
-        <div class="deal-top">
-          <div>
-            <div class="deal-name">${item.name}</div>
-            <div class="deal-sub">${item.badge}</div>
-          </div>
-          <span class="deal-cb">+${fmt(item.cashback_usdt)} ${d.dealCbSuffix}</span>
-        </div>
-        <div class="deal-meta">
-          <span>${d.dealChallenge}: $${fmt(item.plan_10k_usd)}</span>
-          <span>${d.dealDd}: ${item.daily_dd}</span>
-          <span>${d.dealDisc}: ${fmt(item.discount_pct)}%</span>
-        </div>
-        <div class="deal-foot">
-          <span class="deal-ver">✓ ${item.verified_payouts}</span>
-          <button class="deal-code-btn" data-code="${item.code}">${d.dealCopy}: ${item.code}</button>
-        </div>`;
+
+      const top = document.createElement("div");
+      top.className = "deal-top";
+      const topLeft = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "deal-name";
+      name.textContent = String(item.name || "");
+      topLeft.appendChild(name);
+      if (item.badge) {
+        const sub = document.createElement("div");
+        sub.className = "deal-sub";
+        sub.textContent = String(item.badge);
+        topLeft.appendChild(sub);
+      }
+      top.appendChild(topLeft);
+
+      // کش‌بک فقط اگر شریک عدد داده باشد
+      const cb = Number(item.cashback_usdt);
+      if (Number.isFinite(cb) && cb > 0) {
+        const cbEl = document.createElement("span");
+        cbEl.className = "deal-cb";
+        cbEl.textContent = `+${fmt(cb)} ${d.dealCbSuffix || ""}`.trim();
+        top.appendChild(cbEl);
+      }
+      card.appendChild(top);
+
+      // ردیف اعداد: هر مقدار فقط وقتی واقعاً در داده هست
+      const metas = [];
+      const plan = Number(item.plan_10k_usd);
+      if (Number.isFinite(plan) && plan > 0) {
+        metas.push(`${d.dealChallenge || ""}: $${fmt(plan)}`.trim());
+      }
+      if (item.daily_dd) metas.push(`${d.dealDd || ""}: ${item.daily_dd}`.trim());
+      const disc = Number(item.discount_pct);
+      if (Number.isFinite(disc) && disc > 0) {
+        metas.push(`${d.dealDisc || ""}: ${fmt(disc)}%`.trim());
+      }
+      if (metas.length) {
+        const meta = document.createElement("div");
+        meta.className = "deal-meta";
+        metas.forEach((txt) => {
+          const sp = document.createElement("span");
+          sp.textContent = txt;
+          meta.appendChild(sp);
+        });
+        card.appendChild(meta);
+      }
+
+      const foot = document.createElement("div");
+      foot.className = "deal-foot";
+      if (item.verified_payouts) {
+        const ver = document.createElement("span");
+        ver.className = "deal-ver";
+        ver.textContent = `✓ ${item.verified_payouts}`;
+        foot.appendChild(ver);
+      }
+      if (item.code) {
+        const btn = document.createElement("button");
+        btn.className = "deal-code-btn";
+        btn.dataset.code = String(item.code);
+        btn.textContent = `${d.dealCopy || ""}: ${item.code}`.trim();
+        btn.addEventListener("click", () => {
+          haptic("medium");
+          if (navigator.clipboard) navigator.clipboard.writeText(btn.dataset.code).catch(() => {});
+          appToast(tpl(t().toastCopyCode, { code: btn.dataset.code }));
+        });
+        foot.appendChild(btn);
+      } else {
+        const go = document.createElement("a");
+        go.className = "deal-code-btn";
+        go.href = tracked;
+        go.target = "_blank";
+        go.rel = "noopener noreferrer nofollow sponsored";
+        go.textContent = String(d.dealsOpenCta || "");
+        foot.appendChild(go);
+      }
+      if (foot.children.length) card.appendChild(foot);
       box.appendChild(card);
     });
 
-    $$(".deal-code-btn", box).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        haptic("medium");
-        const code = btn.dataset.code;
-        if (navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {});
-        appToast(tpl(t().toastCopyCode, { code }));
-      });
-    });
+    if (partnersDisclosure) {
+      const note = document.createElement("p");
+      note.className = "partners-note";
+      note.textContent = partnersDisclosure;
+      box.appendChild(note);
+    }
   }
 
   /* =======================================================
@@ -1880,6 +1973,67 @@
     if (btn) btn.click();
   }
 
+  /* ---- پلن‌های واقعی اشتراک (تک‌منبع: api/plans.json که ربات می‌نویسد) ----
+     قبل از این، قیمت داخل HTML هاردکد بود؛ با تغییر قیمت در ربات، مینی‌اپ
+     عدد کهنه نشان می‌داد. الان فقط از فایل می‌خوانیم و اگر فایل نبود،
+     همان یک پلن ۳۰ روزه با قیمت پیش‌فرض نمایش داده می‌شود. */
+  let PLAN_LIST = [{ days: 30, stars: 300, usd_gross: 3.9 }];
+  let planDays = 30;
+
+  function currentPlan() {
+    return PLAN_LIST.find((p) => Number(p.days) === planDays) || PLAN_LIST[0];
+  }
+
+  function renderPlans() {
+    const d = t();
+    const cur = currentPlan();
+    const box = $("#planOptions");
+    if (box) {
+      box.innerHTML = "";
+      PLAN_LIST.forEach((pl) => {
+        const days = Number(pl.days);
+        if (!days || !Number(pl.stars)) return;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "plan-opt" + (days === planDays ? " is-active" : "");
+        b.dataset.days = String(days);
+        b.textContent = `${fmt(days)} ${d.planDaySuffix || ""} · ${fmt(Number(pl.stars))} ⭐`;
+        b.addEventListener("click", () => {
+          planDays = days;
+          haptic("light");
+          renderPlans();
+        });
+        box.appendChild(b);
+      });
+    }
+    const starsEl = $("#planStarsNum");
+    if (starsEl) starsEl.textContent = fmt(Number(cur.stars));
+    const fiatEl = $("#planFiat");
+    if (fiatEl && d.subFiatTpl) {
+      fiatEl.textContent = tpl(d.subFiatTpl, { usd: "$" + fmt(Number(cur.usd_gross || 0), 2) });
+    }
+    const invPrice = $("#invPriceNum");
+    if (invPrice) invPrice.textContent = fmt(Number(cur.stars));
+    const invLabel = $("#invItemLabel");
+    if (invLabel && d.invItemTpl) {
+      invLabel.textContent = tpl(d.invItemTpl, { days: fmt(Number(cur.days)) });
+    }
+  }
+
+  async function loadPlans() {
+    try {
+      const resp = await fetch("api/plans.json", { cache: "no-store" });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const arr = (data && Array.isArray(data.plans) ? data.plans : [])
+        .filter((p) => Number(p.days) > 0 && Number(p.stars) > 0);
+      if (!arr.length) return;
+      PLAN_LIST = arr;
+      if (!PLAN_LIST.some((p) => Number(p.days) === planDays)) planDays = Number(PLAN_LIST[0].days);
+      renderPlans();
+    } catch (e) {}
+  }
+
   const invoice = $("#invoice");
   function showStep(n) {
     $$(".sheet-step", invoice).forEach((s) =>
@@ -1905,7 +2059,8 @@
      اشتراک پولی را باز می‌کرد — بدون این‌که یک استارز پرداخت شود. */
   $("#startBtn")?.addEventListener("click", () => {
     invoice.classList.add("hidden");
-    openBotChat("pro");
+    // پلن انتخاب‌شده به ربات می‌رود: ?start=pay30 / pay90 / pay365
+    openBotChat("pay" + planDays);
     appToast(t().toastPayInBot || t().toastProOn);
   });
 
@@ -2304,6 +2459,7 @@
     renderCustomAlerts();
     renderRadar();
     renderPropDeals();
+    renderPlans();
     if (partnerSheet && !partnerSheet.classList.contains("hidden") && ptCurrent) {
       openPartnerSheet(ptCurrent.id || ptCurrent.slug || "");
     }
@@ -2632,6 +2788,7 @@
       partnersItems = arr.filter((x) => x && x.name && x.url).slice(0, 6);
       partnersDisclosure = String((data && data.disclosure) || "");
       renderPartners();
+      renderPropDeals();
       // لینک مستقیم پروفایل شریک: ?partner=<id>
       try {
         const pid = new URLSearchParams(location.search).get("partner");
@@ -2649,6 +2806,7 @@
   maybeShowOnboard();
   fetchLiveWhales();
   loadPartners();
+  loadPlans();
   setInterval(fetchLiveMarket, 22000);
 
   // وضعیت واقعی اشتراک/دعوت از فایلی که ربات می‌نویسد
