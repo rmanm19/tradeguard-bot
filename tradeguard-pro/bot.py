@@ -14,6 +14,7 @@ TradeGuard Pro v7.0 Global — موتور ۶ زبانه بدون نیاز به �
 5) پنل مدیریت مؤسس (/admin) + ارسال همگانی (/broadcast) + پست‌گذار خودکار ۸ ساعته کانال
 """
 
+import base64
 import hashlib
 import json
 import logging
@@ -1379,6 +1380,55 @@ def init_db() -> None:
             """
         )
 
+        # احراز هویت گوگل: فقط شناسهٔ گوگل و هش ایمیل ذخیره می‌شود
+        # (نه ایمیل خام، نه رمز، نه access/refresh token).
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS google_auth (
+                user_id INTEGER PRIMARY KEY,
+                sub TEXT NOT NULL UNIQUE,
+                email_hash TEXT NOT NULL,
+                email_verified INTEGER NOT NULL DEFAULT 0,
+                verified_at INTEGER NOT NULL,
+                granted_days INTEGER NOT NULL DEFAULT 0,
+                revoked INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        # ژورنال ابری: هر معامله به هویتِ تأییدشده وصل است، نه به یک دستگاه
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS journal (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                entry REAL NOT NULL,
+                stop REAL NOT NULL,
+                target REAL DEFAULT 0,
+                exit_price REAL DEFAULT 0,
+                risk_usd REAL DEFAULT 0,
+                note TEXT DEFAULT '',
+                opened_at INTEGER NOT NULL,
+                closed_at INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_journal_user ON journal (user_id, closed_at)")
+        # تحلیل روزانه
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS journal_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                day TEXT NOT NULL,
+                text TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notes_user ON journal_notes (user_id, created_at)")
+
 
 def set_setting(key: str, value: str) -> None:
     """ذخیره تنظیم در دیتابیس (پایدار بین ری‌استارت‌ها و اجراهای Actions)."""
@@ -2220,6 +2270,12 @@ def sync_telegram_menus() -> None:
         {"command": "stars", "description": "⭐ موجودی استارز و فروش‌ها"},
         {"command": "admin", "description": "👑 پنل مدیریت و آمار درآمد مؤسس"},
         {"command": "income", "description": "💵 گزارش واقعی درآمد و قدم بعدی"},
+        {"command": "login", "description": "🔐 ورود با گوگل (پرمیوم + ژورنال ابری)"},
+        {"command": "journal", "description": "📓 ژورنال: R، نرخ برد، پوزیشن‌های باز"},
+        {"command": "note", "description": "📝 ثبت تحلیل روزانه — فقط حساب تأییدشده"},
+        {"command": "login", "description": "🔐 ورود با گوگل (پرمیوم + ژورنال ابری)"},
+        {"command": "journal", "description": "📓 ژورنال: R، نرخ برد، پوزیشن‌های باز"},
+        {"command": "note", "description": "📝 ثبت تحلیل روزانه"},
     ]
     tg_call("setMyCommands", {"commands": en_cmds})
     tg_call("setMyCommands", {"commands": fa_cmds, "language_code": "fa"})
@@ -2257,6 +2313,11 @@ def main_keyboard(is_pro: bool, lang: str = "fa", is_admin_user: bool = False) -
         ],
         [{"text": tr(lang, "btn_lang"), "callback_data": "lang_menu"}],
     ]
+    # ورود با گوگل فقط وقتی معنا دارد که کلاینت تنظیم شده باشد؛ وگرنه
+    # دکمهٔ مردهٔ «کار نمی‌کند» به کاربر نشان نمی‌دهیم.
+    _gcid, _gsecret, _ = google_client_config()
+    if _gcid and _gsecret:
+        rows.append([{"text": "🔐 ورود با گوگل", "callback_data": "auth_login"}])
     ch_url = channel_url()
     if ch_url:
         rows.append([{"text": tr(lang, "btn_channel"), "url": ch_url}])
@@ -2693,6 +2754,663 @@ def send_invite_message(chat_id: int, uid: int, lang: str) -> None:
     )
 
 
+# =====================================================================
+# ۵٫۵) احراز هویت با گوگل (Device Flow) + ژورنال ابری
+# =====================================================================
+# چرا Device Flow و نه «Sign in with Google» داخل مینی‌اپ؟
+#   مینی‌اپ یک سایت استاتیک روی GitHub Pages است و هیچ بک‌اندی ندارد که
+#   کد/توکن گوگل را عوض کند؛ از طرفی Telegram.WebApp.sendData فقط برای
+#   وبه‌اپی کار می‌کند که از دکمهٔ کیبورد باز شده باشد، نه دکمهٔ اینلاین.
+#   Device Flow همه‌چیز را سمت سرور انجام می‌دهد: ربات کد می‌گیرد، کاربر
+#   در مرورگر خودش تأیید می‌کند، ربات توکن را از گوگل می‌گیرد. هیچ رمزی
+#   هرگز از ربات عبور نمی‌کند.
+# چه چیزی ذخیره می‌شود: شناسهٔ پایدار گوگل (sub) + ۱۶ کاراکتر اول
+# sha256(ایمیل) + زمان تأیید. ایمیل خام و توکن‌ها ذخیره نمی‌شوند.
+# =====================================================================
+GOOGLE_DEVICE_URL = "https://oauth2.googleapis.com/device/code"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_SCOPE = "openid email"
+DEFAULT_AUTH_GRANT_DAYS = 30
+
+# نشست‌های در انتظار: user_id → {device_code, interval, expires_at, next_try, chat_id}
+_PENDING_AUTH: Dict[int, Dict[str, object]] = {}
+_AUTH_LOCK = threading.Lock()
+
+
+def _http_json(url: str, form: Optional[Dict[str, str]] = None, timeout: float = 15.0) -> Dict:
+    """POST فرم به گوگل و برگرداندن JSON — حتی وقتی گوگل ۴۰۰ برمی‌گرداند.
+
+    گوگل خطاهای Device Flow را با HTTP 400 و بدنهٔ JSON می‌دهد
+    (`authorization_pending`, `slow_down`, `expired_token`, ...)؛ اگر بدنه
+    خوانده نشود، این خطاها به «خطای شبکه» تبدیل می‌شدند و کاربر الکی
+    منتظر می‌ماند.
+    """
+    data = urllib.parse.urlencode(form).encode() if form is not None else None
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": "TradeGuard-bot",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read().decode("utf-8", "replace")
+        except Exception:
+            return {"error": f"http_{getattr(exc, 'code', 'unknown')}"}
+    except Exception as exc:
+        return {"error": f"network: {exc}"}
+    try:
+        out = json.loads(raw) if raw.strip() else {}
+    except Exception:
+        return {"error": "bad_json"}
+    return out if isinstance(out, dict) else {"error": "bad_json"}
+
+
+def google_client_config() -> Tuple[str, str, str]:
+    """(client_id, client_secret, source) — اول Secrets، بعد تنظیم ادمین.
+
+    کلید در Secret است تا در کد و ریپو نباشد؛ اگر ادمین در تلگرام تنظیم کند
+    (راحت‌تر، بدون دست‌زدن به گیت‌هاب) در دیتابیس ذخیره می‌شود و همان‌جا
+    هشدار صریح می‌گیرد که فایل دیتابیس رمزنگاری‌شده در کش است.
+    """
+    cid = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip() or get_setting("GOOGLE_CLIENT_ID")
+    secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip() or get_setting("GOOGLE_CLIENT_SECRET")
+    if os.environ.get("GOOGLE_CLIENT_ID", "").strip():
+        source = "Secrets"
+    elif cid:
+        source = "دیتابیس"
+    else:
+        source = ""
+    return cid, secret, source
+
+
+def auth_grant_days() -> int:
+    """چند روز پرو با تأیید حساب؟ (۰ = فقط نشان تأیید، بدون پاداش)"""
+    raw = get_setting("AUTH_GRANT_DAYS")
+    if raw.strip().lstrip("-").isdigit():
+        try:
+            return max(0, min(3650, int(raw)))
+        except Exception:
+            pass
+    return DEFAULT_AUTH_GRANT_DAYS
+
+
+def email_hash(email: str) -> str:
+    """هش کوتاه ایمیل — برای تشخیص «یک ایمیل روی دو اکانت تلگرام»."""
+    return hashlib.sha256(("tg-mail:" + email.strip().lower()).encode()).hexdigest()[:16]
+
+
+def decode_id_token_claims(token: str) -> Dict:
+    """payload یک id_token را می‌خواند (بدون بررسی امضا).
+
+    امضا اینجا لازم نیست: این توکن را خودِ ربات مستقیماً از
+    accounts.google.com روی TLS گرفته است؛ هیچ طرف سومی آن را به ما
+    نداده که بتواند جعل کند. اگر روزی توکن از سمت مرورگر بیاید،
+    بررسی امضا (jwks) هم لازم می‌شود.
+    """
+    parts = str(token or "").split(".")
+    if len(parts) != 3:
+        return {}
+    seg = parts[1]
+    seg += "=" * (-len(seg) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(seg.encode())
+        out = json.loads(raw.decode("utf-8", "replace"))
+    except Exception:
+        return {}
+    return out if isinstance(out, dict) else {}
+
+
+def auth_status(user_id: int) -> Optional[Dict]:
+    """وضعیت تأیید گوگل این کاربر (None = هرگز وصل نشده)."""
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT sub, email_hash, email_verified, verified_at, granted_days, revoked "
+                "FROM google_auth WHERE user_id = ?",
+                (int(user_id),),
+            ).fetchone()
+    except Exception:
+        return None
+    if not row:
+        return None
+    return {
+        "sub": row[0], "email_hash": row[1], "email_verified": bool(row[2]),
+        "verified_at": int(row[3] or 0), "granted_days": int(row[4] or 0),
+        "revoked": bool(row[5]),
+    }
+
+
+def is_verified(user_id: int) -> bool:
+    """آیا این کاربر حساب گوگلِ وصل و فعال دارد؟ (ادمین همیشه مجاز است)"""
+    if is_admin(user_id):
+        return True
+    st = auth_status(user_id)
+    return bool(st) and not st.get("revoked")
+
+
+def link_google_identity(user_id: int, claims: Dict) -> Tuple[bool, str, int]:
+    """اتصال هویت گوگل به کاربر تلگرام. (ok, پیام, انقضای پرو)
+
+    قواعد ضدسوءاستفاده:
+      • ایمیل باید verified باشد.
+      • هر حساب گوگل فقط به یک اکانت تلگرام وصل می‌شود (و برعکس).
+      • پاداش پرمیوم فقط یک‌بار برای هر حساب گوگل داده می‌شود
+        (granted_days ذخیره می‌شود؛ قطع/وصل دوباره پاداش تازه نمی‌سازد).
+    """
+    sub = str(claims.get("sub") or "").strip()
+    mail = str(claims.get("email") or "").strip()
+    verified = claims.get("email_verified")
+    if not sub or not mail:
+        return False, "پاسخ گوگل شناسه/ایمیل نداشت. یک‌بار دیگر تلاش کن.", 0
+    if verified is not None and str(verified).lower() not in ("true", "1"):
+        return False, "این حساب گوگل ایمیلِ تأییدشده ندارد؛ با حساب دیگری وارد شو.", 0
+
+    now = int(time.time())
+    eh = email_hash(mail)
+    # مقدار پاداش را *قبل* از گرفتن _db_lock می‌خوانیم: get_setting هم همان
+    # قفل غیربازگشتی را می‌خواهد و خواندن داخل بلوک، بن‌بست می‌سازد.
+    grant_cfg = auth_grant_days()
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            other = conn.execute(
+                "SELECT user_id FROM google_auth WHERE sub = ? AND user_id <> ?", (sub, int(user_id))
+            ).fetchone()
+            if other:
+                return False, "این حساب گوگل قبلاً به اکانت تلگرام دیگری وصل شده است.", 0
+            same_mail = conn.execute(
+                "SELECT user_id FROM google_auth WHERE email_hash = ? AND user_id <> ? AND revoked = 0",
+                (eh, int(user_id)),
+            ).fetchone()
+            if same_mail:
+                return False, "این ایمیل قبلاً روی اکانت دیگری تأیید شده است.", 0
+            row = conn.execute(
+                "SELECT sub, granted_days, revoked FROM google_auth WHERE user_id = ?", (int(user_id),)
+            ).fetchone()
+            if row and row[0] != sub:
+                return False, "این اکانت تلگرام قبلاً به گوگل دیگری وصل شده است. اول `/logout` بزن.", 0
+            already = int(row[1] or 0) if row else 0
+            grant = 0 if already > 0 else grant_cfg
+            conn.execute(
+                "INSERT INTO google_auth (user_id, sub, email_hash, email_verified, verified_at, granted_days, revoked) "
+                "VALUES (?, ?, ?, 1, ?, ?, 0) "
+                "ON CONFLICT(user_id) DO UPDATE SET sub = excluded.sub, email_hash = excluded.email_hash, "
+                "email_verified = 1, verified_at = excluded.verified_at, revoked = 0",
+                (int(user_id), sub, eh, now, already if already > 0 else grant),
+            )
+    except Exception as exc:
+        logger.warning("ثبت هویت گوگل ناموفق: %s", exc)
+        return False, "ثبت هویت ناموفق بود (خطای دیتابیس). بعداً تلاش کن.", 0
+
+    expires = 0
+    if grant > 0:
+        try:
+            expires = grant_pro_days(int(user_id), grant)
+            publish_pro_status([int(user_id)])
+        except Exception as exc:
+            logger.warning("پاداش پرمیوم تأیید گوگل ناموفق: %s", exc)
+    if already > 0 and not expires:
+        expires = int(is_user_pro(int(user_id))[1] or 0)
+    return True, ("link" if already == 0 else "relink"), expires
+
+
+def start_google_auth(user_id: int, chat_id: int) -> Tuple[bool, str]:
+    """شروع Device Flow: گرفتن کد کاربر از گوگل و پیام راهنما."""
+    cid, _secret, _src = google_client_config()
+    if not cid:
+        return False, (
+            "⚙️ *ورود با گوگل هنوز تنظیم نشده.*\n\n"
+            "این یک‌بار کار ادمین است (رایگان، ~۵ دقیقه):\n"
+            "۱) [console.cloud.google.com](https://console.cloud.google.com/) → پروژهٔ تازه\n"
+            "۲) APIs & Services → OAuth consent screen → نوع *External* → اسکوپ‌های "
+            "`email` و `profile` و `openid`\n"
+            "۳) Credentials → Create credentials → OAuth client ID → نوع "
+            "*TVs and Limited Input devices*\n"
+            "۴) همین‌جا: `/google id <CLIENT_ID>` و `/google secret <CLIENT_SECRET>`\n\n"
+            "بعد از آن هر کاربر با `/login` خودش تأیید می‌شود. "
+            "رمز گوگل هیچ‌وقت از ربات عبور نمی‌کند."
+        )
+    resp = _http_json(GOOGLE_DEVICE_URL, {"client_id": cid, "scope": GOOGLE_SCOPE})
+    code = str(resp.get("device_code") or "")
+    user_code = str(resp.get("user_code") or "")
+    if not code or not user_code:
+        err = str(resp.get("error") or "unknown")
+        logger.warning("شروع ورود گوگل ناموفق: %s (%s)", err, str(resp)[:200])
+        hint = ""
+        if "invalid_client" in err or "unauthorized" in err:
+            hint = "\n\nنکته: نوع کلاینت باید «TVs and Limited Input devices» باشد و Client ID درست وارد شده باشد."
+        elif "invalid_scope" in err:
+            hint = "\n\nنکته: در OAuth consent screen اسکوپ‌های email/openid را اضافه کن."
+        return False, f"⚠️ گوگل کد نداد (`{err}`).{hint}"
+    try:
+        interval = max(5, int(resp.get("interval") or 5))
+    except Exception:
+        interval = 5
+    try:
+        expires_in = max(60, int(resp.get("expires_in") or 1800))
+    except Exception:
+        expires_in = 1800
+    verify_url = str(resp.get("verification_url") or "https://www.google.com/device")
+    with _AUTH_LOCK:
+        _PENDING_AUTH[int(user_id)] = {
+            "device_code": code,
+            "interval": interval,
+            "expires_at": int(time.time()) + expires_in,
+            "next_try": int(time.time()) + interval,
+            "chat_id": int(chat_id),
+            "started": int(time.time()),
+        }
+    kb = {"inline_keyboard": [[{"text": "🌐 باز کردن google.com/device", "url": verify_url}]]}
+    text = (
+        "🔐 *ورود با گوگل*\n\n"
+        f"۱) این لینک را باز کن: {verify_url}\n"
+        f"۲) این کد را وارد کن: `{user_code}`\n"
+        "۳) حساب گوگل خودت را تأیید کن.\n\n"
+        f"⏳ تا {expires_in // 60} دقیقه معتبر است؛ من همین‌جا منتظر می‌مانم و "
+        "به‌محض تأیید خبر می‌دهم.\n\n"
+        "🔒 *چه چیزی ذخیره می‌شود:* شناسهٔ گوگل و یک هش از ایمیل — "
+        "نه رمز، نه ایمیل خام، نه توکن. رمزت را هیچ‌وقت به کسی/رباتی نده؛ "
+        "اینجا رمز جایی وارد نمی‌شود."
+    )
+    return True, text
+
+
+def poll_google_auth(user_id: int) -> Tuple[str, Dict]:
+    """یک بار وضعیت را از گوگل می‌پرسد: pending / verified / error / none."""
+    with _AUTH_LOCK:
+        st = _PENDING_AUTH.get(int(user_id))
+        if not st:
+            return "none", {}
+        if int(time.time()) > int(st["expires_at"]):
+            _PENDING_AUTH.pop(int(user_id), None)
+            return "error", {"error": "expired", "chat_id": st.get("chat_id")}
+        if int(time.time()) < int(st["next_try"]):
+            return "pending", {}
+        st["next_try"] = int(time.time()) + int(st["interval"])
+        device_code = str(st["device_code"])
+        chat_id = int(st.get("chat_id") or user_id)
+
+    cid, secret, _src = google_client_config()
+    if not cid or not secret:
+        return "error", {"error": "not_configured", "chat_id": chat_id}
+    resp = _http_json(
+        GOOGLE_TOKEN_URL,
+        {
+            "client_id": cid,
+            "client_secret": secret,
+            "device_code": device_code,
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        },
+    )
+    err = str(resp.get("error") or "")
+    if err in ("authorization_pending",):
+        return "pending", {}
+    if err == "slow_down":
+        with _AUTH_LOCK:
+            s2 = _PENDING_AUTH.get(int(user_id))
+            if s2:
+                s2["interval"] = int(s2["interval"]) + 5
+        return "pending", {}
+    if err in ("expired_token", "access_denied", "invalid_grant", "not_configured"):
+        with _AUTH_LOCK:
+            _PENDING_AUTH.pop(int(user_id), None)
+        return "error", {"error": err, "chat_id": chat_id}
+    if err:
+        with _AUTH_LOCK:
+            _PENDING_AUTH.pop(int(user_id), None)
+        logger.warning("خطای توکن گوگل: %s (%s)", err, str(resp)[:160])
+        return "error", {"error": err, "chat_id": chat_id}
+
+    claims = decode_id_token_claims(str(resp.get("id_token") or ""))
+    if not claims:
+        with _AUTH_LOCK:
+            _PENDING_AUTH.pop(int(user_id), None)
+        return "error", {"error": "no_id_token", "chat_id": chat_id}
+    ok, why, expires = link_google_identity(int(user_id), claims)
+    with _AUTH_LOCK:
+        _PENDING_AUTH.pop(int(user_id), None)
+    if not ok:
+        return "error", {"error": "link_failed", "message": why, "chat_id": chat_id}
+    return "verified", {
+        "chat_id": chat_id,
+        "why": why,
+        "expires": expires,
+        "mail": mask_email(str(claims.get("email") or "")),
+    }
+
+
+def mask_email(email: str) -> str:
+    """a@b.com → a***@b.com (برای نمایش یک‌بار، بدون ذخیره)."""
+    if "@" not in email:
+        return "—"
+    name, domain = email.split("@", 1)
+    return (name[:1] or "*") + "***@" + domain
+
+
+def auth_verified_text(payload: Dict) -> str:
+    days = auth_grant_days()
+    exp = int(payload.get("expires") or 0)
+    lines = [
+        "✅ *حساب گوگل تأیید شد.*",
+        f"ایمیل: `{payload.get('mail') or '—'}` (ایمیل ذخیره نمی‌شود؛ فقط هش آن)",
+        "",
+    ]
+    if exp > 0:
+        exp_str = datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d")
+        if payload.get("why") == "relink":
+            lines.append(f"🔁 این حساب قبلاً پاداشش را گرفته بود؛ پرمیوم فعلی: تا *{exp_str}*")
+        else:
+            lines.append(f"🎁 *{days} روز پرمیوم* فعال شد — تا *{exp_str}* (بدون تمدید خودکار)")
+    else:
+        lines.append("🔓 پاداش پرمیوم خاموش است (ادمین: `/google days 30`)")
+    lines += [
+        "",
+        "*الان چه کاری می‌توانی بکنی (فقط با احراز هویت):*",
+        "• `/jadd BTC long 65000 63500 69000 50` — ثبت ستاپ با ریسک $۵۰",
+        "• `/jclose 12 68400` — بستن و محاسبهٔ R واقعی",
+        "• `/journal` — نرخ برد، میانگین R، بهترین/بدترین",
+        "• `/note …` — تحلیل روزانه‌ات را بنویس، `/notes` بخوان",
+        "",
+        "ژورنال روی حساب تو ذخیره می‌شود، نه روی یک گوشی — پس با تغییر دستگاه گم نمی‌شود.",
+    ]
+    if free_mode_active():
+        lines.append("\nℹ️ الان دورهٔ رایگان است؛ این پرمیوم بعد از پایان آن هم می‌ماند.")
+    return "\n".join(lines)
+
+
+def auth_poll_loop() -> None:
+    """هر ۵ ثانیه نشست‌های در انتظار را چک می‌کند (بدون هیچ تماس اضافه)."""
+    while True:
+        try:
+            with _AUTH_LOCK:
+                waiting = list(_PENDING_AUTH.keys())
+            for uid in waiting:
+                state, payload = poll_google_auth(uid)
+                if state == "pending":
+                    continue
+                chat_id = int(payload.get("chat_id") or uid)
+                if state == "verified":
+                    tg_send_message(chat_id, auth_verified_text(payload))
+                    logger.info("✅ کاربر %s با گوگل تأیید شد", uid)
+                else:
+                    err = str(payload.get("error") or "")
+                    if err == "expired":
+                        msg = "⌛️ کد منقضی شد. `/login` را دوباره بزن."
+                    elif err == "access_denied":
+                        msg = "❌ خودت دسترسی را رد کردی. هر وقت خواستی `/login` بزن."
+                    elif err == "not_configured":
+                        msg = "⚙️ کلیدهای گوگل کامل نیست (ادمین: `/google`)."
+                    else:
+                        msg = (payload.get("message")
+                               or f"⚠️ تأیید نشد (`{err or 'unknown'}`). `/login` را دوباره بزن.")
+                    tg_send_message(chat_id, msg)
+        except Exception as exc:
+            logger.warning("حلقهٔ احراز هویت: %s", exc)
+        time.sleep(5)
+
+
+def journal_gate(user_id: int) -> Optional[str]:
+    """پیام «اول احراز هویت» — یا None اگر مجاز است."""
+    if is_verified(user_id):
+        return None
+    expires = 0
+    with _AUTH_LOCK:
+        st = _PENDING_AUTH.get(int(user_id))
+        if st:
+            expires = int(st.get("expires_at") or 0)
+    tail = "\n\n_یک کد باز داری؛ همان کد را در google.com/device وارد کن._" if expires else ""
+    return (
+        "🔐 *ژورنال ابری فقط برای حسابِ تأییدشده است.*\n\n"
+        "با `/login` حساب گوگل را وصل کن (۳۰ روز پرمیوم هم می‌گیری).\n"
+        "دلیلش ساده است: هر معامله به یک هویت وصل می‌شود تا آمارت واقعی و "
+        "قابل‌انتقال بین دستگاه‌ها باشد — نه یک فایل محلی که با پاک‌کردن مرورگر می‌رود."
+        + tail
+    )
+
+
+# ── ژورنال ابری ─────────────────────────────────────────────────────
+JOURNAL_MAX_OPEN = 50
+JOURNAL_MAX_NOTE = 1200
+
+
+def _f(x) -> float:
+    try:
+        return float(str(x).replace(",", "."))
+    except Exception:
+        return 0.0
+
+
+def journal_add(user_id: int, symbol: str, side: str, entry: float, stop: float,
+                target: float = 0.0, risk_usd: float = 0.0, note: str = "") -> Tuple[bool, str, int]:
+    """ثبت یک ستاپ. (ok, پیام, id) — هیچ عددِ سودی ادعا نمی‌شود."""
+    symbol = re.sub(r"[^A-Za-z0-9/_\-]", "", symbol or "")[:16].upper()
+    side = (side or "").strip().lower()
+    if side in ("buy", "long", "خرید"):
+        side = "long"
+    elif side in ("sell", "short", "فروش"):
+        side = "short"
+    if not symbol:
+        return False, "نماد را بده: `/jadd BTC long 65000 63500 69000 50`", 0
+    if side not in ("long", "short"):
+        return False, "جهت باید `long` یا `short` باشد.", 0
+    entry, stop, target, risk_usd = _f(entry), _f(stop), _f(target), _f(risk_usd)
+    if entry <= 0 or stop <= 0:
+        return False, "ورود و حد ضرر باید عدد مثبت باشند.", 0
+    if entry == stop:
+        return False, "ورود و حد ضرر نمی‌توانند برابر باشند.", 0
+    if side == "long" and stop > entry:
+        return False, "در لانگ، حد ضرر باید *زیر* ورود باشد.", 0
+    if side == "short" and stop < entry:
+        return False, "در شورت، حد ضرر باید *بالای* ورود باشد.", 0
+    if target > 0:
+        if side == "long" and target <= entry:
+            return False, "هدف در لانگ باید بالای ورود باشد.", 0
+        if side == "short" and target >= entry:
+            return False, "هدف در شورت باید زیر ورود باشد.", 0
+    risk_usd = max(0.0, risk_usd)
+    note = str(note or "").strip()[:JOURNAL_MAX_NOTE]
+    now = int(time.time())
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM journal WHERE user_id = ? AND closed_at = 0", (int(user_id),)
+        ).fetchone()[0]
+        if int(open_count or 0) >= JOURNAL_MAX_OPEN:
+            return False, f"همزمان حداکثر {JOURNAL_MAX_OPEN} پوزیشن باز؛ اول چندتا را ببند.", 0
+        cur = conn.execute(
+            "INSERT INTO journal (user_id, symbol, side, entry, stop, target, risk_usd, note, opened_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (int(user_id), symbol, side, entry, stop, target, risk_usd, note, now),
+        )
+        new_id = int(cur.lastrowid or 0)
+    per_unit = abs(entry - stop)
+    rr = abs(target - entry) / per_unit if target > 0 and per_unit > 0 else 0
+    risk_txt = f" · ریسک ${risk_usd:,.2f}" if risk_usd > 0 else ""
+    return True, (
+        f"📓 ثبت شد `#{new_id}`\n"
+        f"{symbol} · {'لانگ' if side == 'long' else 'شورت'} · ورود {entry:g} · حد ضرر {stop:g}"
+        + (f" · هدف {target:g}" if target > 0 else "")
+        + f"\nفاصله تا حد ضرر: {per_unit:g} (۱R)"
+        + (f" · نسبت R:R = {rr:.2f}" if rr else "")
+        + risk_txt
+        + "\n\nبرای بستن: `/jclose " + str(new_id) + " <قیمت خروج>`"
+    ), new_id
+
+
+def journal_r(side: str, entry: float, stop: float, exit_price: float) -> float:
+    """نتیجهٔ معامله به واحد R (۱R = فاصلهٔ ورود تا حد ضرر)."""
+    per_unit = abs(float(entry) - float(stop))
+    if per_unit <= 0:
+        return 0.0
+    pnl = (float(exit_price) - float(entry)) if side == "long" else (float(entry) - float(exit_price))
+    return pnl / per_unit
+
+
+def journal_close(user_id: int, trade_id: int, exit_price: float) -> Tuple[bool, str]:
+    exit_price = _f(exit_price)
+    if exit_price <= 0:
+        return False, "قیمت خروج را بده: `/jclose 12 68400`"
+    now = int(time.time())
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT symbol, side, entry, stop, target, risk_usd, closed_at FROM journal "
+            "WHERE id = ? AND user_id = ?",
+            (int(trade_id), int(user_id)),
+        ).fetchone()
+        if not row:
+            return False, "پوزیشنی با این شماره پیدا نشد (مال تو نیست یا پاک شده)."
+        if int(row[6] or 0) > 0:
+            return False, "این پوزیشن قبلاً بسته شده."
+        r = journal_r(str(row[1]), float(row[2]), float(row[3]), exit_price)
+        conn.execute(
+            "UPDATE journal SET exit_price = ?, closed_at = ? WHERE id = ? AND user_id = ?",
+            (exit_price, now, int(trade_id), int(user_id)),
+        )
+    usd = r * float(row[5] or 0)
+    head = "✅" if r > 0 else ("➖" if r == 0 else "🔻")
+    return True, (
+        f"{head} بسته شد `#{int(trade_id)}` — {row[0]} {'لانگ' if row[1] == 'long' else 'شورت'}\n"
+        f"ورود {float(row[2]):g} → خروج {exit_price:g} · حد ضرر {float(row[3]):g}\n"
+        f"*نتیجه: {r:+.2f}R*"
+        + (f" (≈ {usd:+,.2f}$ با ریسک ${float(row[5]):,.2f})" if float(row[5] or 0) > 0 else "")
+        + "\n\n" + journal_stats_text(user_id)
+    )
+
+
+def journal_delete(user_id: int, trade_id: int) -> Tuple[bool, str]:
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute("DELETE FROM journal WHERE id = ? AND user_id = ?", (int(trade_id), int(user_id)))
+        if not cur.rowcount:
+            return False, "چنین پوزیشنی برای تو ثبت نشده."
+    return True, f"🗑 پوزیشن `#{int(trade_id)}` حذف شد."
+
+
+def journal_stats(user_id: int) -> Dict:
+    """آمار واقعی از دیتابیس — هیچ عددی از پیش‌فرض پر نمی‌شود."""
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        open_rows = conn.execute(
+            "SELECT id, symbol, side, entry, stop, target, risk_usd FROM journal "
+            "WHERE user_id = ? AND closed_at = 0 ORDER BY id DESC", (int(user_id),)
+        ).fetchall()
+        closed = conn.execute(
+            "SELECT id, symbol, side, entry, stop, exit_price, risk_usd, closed_at FROM journal "
+            "WHERE user_id = ? AND closed_at > 0 ORDER BY closed_at DESC", (int(user_id),)
+        ).fetchall()
+        notes_today = conn.execute(
+            "SELECT COUNT(*) FROM journal_notes WHERE user_id = ? AND day = ?",
+            (int(user_id), _utc_date(int(time.time()))),
+        ).fetchone()[0]
+    rs = [journal_r(str(r[2]), float(r[3]), float(r[4]), float(r[5])) for r in closed]
+    wins = sum(1 for x in rs if x > 0)
+    return {
+        "open": open_rows, "closed_count": len(rs),
+        "wins": wins, "win_rate": (wins / len(rs) * 100) if rs else 0.0,
+        "sum_r": sum(rs), "avg_r": (sum(rs) / len(rs)) if rs else 0.0,
+        "best": max(rs) if rs else 0.0, "worst": min(rs) if rs else 0.0,
+        "last_r": rs[:5], "notes_today": int(notes_today or 0),
+    }
+
+
+def journal_stats_text(user_id: int) -> str:
+    st = journal_stats(user_id)
+    lines = ["📊 *ژورنال تو*"]
+    if st["closed_count"] == 0 and not st["open"]:
+        return ("📊 *ژورنال تو خالی است.*\n\n"
+                "با `/jadd BTC long 65000 63500 69000 50` اولین ستاپت را ثبت کن "
+                "(نماد، جهت، ورود، حد ضرر، هدف، ریسک به دلار).")
+    if st["open"]:
+        lines.append(f"📂 باز: *{len(st['open'])}*")
+        for t in st["open"][:5]:
+            rr = (abs(float(t[5]) - float(t[3])) / abs(float(t[3]) - float(t[4]))) if float(t[5] or 0) > 0 else 0
+            lines.append(
+                f"• `#{t[0]}` {t[1]} {'لانگ' if t[2] == 'long' else 'شورت'} "
+                f"{float(t[3]):g}→{float(t[4]):g}" + (f" · R:R {rr:.1f}" if rr else "")
+            )
+        if len(st["open"]) > 5:
+            lines.append(f"   … و {len(st['open']) - 5} مورد دیگر")
+    if st["closed_count"]:
+        lines += [
+            "",
+            f"✅ بسته‌شده: *{st['closed_count']}*",
+            f"🎯 نرخ برد: *{st['win_rate']:.0f}%* ({st['wins']}/{st['closed_count']})",
+            f"📈 میانگین: *{st['avg_r']:+.2f}R* · مجموع: *{st['sum_r']:+.2f}R*",
+            f"🏆 بهترین {st['best']:+.2f}R · بدترین {st['worst']:+.2f}R",
+            "آخرین‌ها: " + " · ".join(f"{x:+.2f}R" for x in st["last_r"]),
+        ]
+    lines.append(f"\n📝 تحلیل امروز: *{st['notes_today']}* مورد (`/note …`)")
+    return "\n".join(lines)
+
+
+def delete_message_safe(chat_id: int, message_id: Optional[int]) -> None:
+    """پیام حساس (مثل Client Secret) را از چت پاک می‌کند — بی‌صدا اگر نشد."""
+    if not message_id:
+        return
+    try:
+        tg_call("deleteMessage", {"chat_id": chat_id, "message_id": int(message_id)}, timeout=8.0)
+    except Exception as exc:
+        logger.warning("پاک‌کردن پیام حساس ناموفق: %s", exc)
+
+
+def journal_export_json(user_id: int, limit: int = 200) -> str:
+    """خروجی JSON از ژورنالِ خودِ کاربر (بی‌پردازش، فقط برای پشتیبان‌گیری)."""
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT id, symbol, side, entry, stop, target, exit_price, risk_usd, note, opened_at, closed_at "
+            "FROM journal WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (int(user_id), max(1, min(500, int(limit)))),
+        ).fetchall()
+    items = [
+        {
+            "id": int(r[0]), "symbol": r[1], "side": r[2], "entry": r[3], "stop": r[4],
+            "target": r[5], "exit": r[6], "risk_usd": r[7], "note": r[8],
+            "opened_at": int(r[9] or 0), "closed_at": int(r[10] or 0),
+            "r": round(journal_r(str(r[2]), float(r[3]), float(r[4]), float(r[6])), 4) if int(r[10] or 0) else None,
+        }
+        for r in rows
+    ]
+    return "```json\n" + json.dumps({"user": int(user_id), "trades": items},
+                                     ensure_ascii=False, separators=(",", ":")) + "\n```"
+
+
+def note_add(user_id: int, text: str) -> Tuple[bool, str]:
+    text = str(text or "").strip()
+    if len(text) < 3:
+        return False, "متن تحلیل خیلی کوتاه است. مثال: `/note بازار امروز رنج بود؛ پلن: فقط لبهٔ ۶۵٬۰۰۰`"
+    text = text[:JOURNAL_MAX_NOTE]
+    now = int(time.time())
+    day = _utc_date(now)
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO journal_notes (user_id, day, text, created_at) VALUES (?, ?, ?, ?)",
+            (int(user_id), day, text, now),
+        )
+    return True, f"📝 تحلیل امروز ({day}) ثبت شد — {len(text)} کاراکتر. با `/notes` بخوانش."
+
+
+def notes_text(user_id: int, limit: int = 7) -> str:
+    limit = max(1, min(30, int(limit or 7)))
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT day, text, created_at FROM journal_notes WHERE user_id = ? "
+            "ORDER BY created_at DESC LIMIT ?", (int(user_id), limit)
+        ).fetchall()
+    if not rows:
+        return "📝 هنوز تحلیلی ننوشته‌ای. با `/note …` امروزت را ثبت کن."
+    out = ["📝 *آخرین تحلیل‌ها*"]
+    current_day = ""
+    for day, text, ts in rows:
+        if day != current_day:
+            out.append(f"\n*{day}*")
+            current_day = day
+        out.append("• " + str(text).replace("\n", " ")[:400])
+    return "\n".join(out)
+
+
 def send_status_message(chat_id: int, uid: int, lang: str, pro: bool, pro_until: int) -> None:
     """وضعیت واقعی اشتراک + راه بازگشت به مینی‌اپ."""
     count, _claimed = get_user_referral_stats(uid)
@@ -2702,6 +3420,16 @@ def send_status_message(chat_id: int, uid: int, lang: str, pro: bool, pro_until:
     else:
         text = tr(lang, "status_free")
     text += "\n\n" + tr(lang, "invite_progress", count=count, target=FREE_PRO_INVITE_TARGET)
+    st = auth_status(uid)
+    if is_admin(uid):
+        text += "\n\n🔐 گوگل: ادمین (بدون نیاز به احراز برای ژورنال)"
+    elif st and not st.get("revoked"):
+        day = datetime.fromtimestamp(int(st["verified_at"]), tz=timezone.utc).strftime("%Y-%m-%d")
+        text += f"\n\n🔐 گوگل: تأییدشده از {day}"
+    elif st and st.get("revoked"):
+        text += "\n\n🔐 گوگل: قطع شده — `/login` برای وصل دوباره"
+    else:
+        text += "\n\n🔐 گوگل: وصل نیست — `/login` (۳۰ روز پرمیوم + ژورنال ابری)"
     tg_send_message(chat_id, text, reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)))
 
 
@@ -3565,6 +4293,184 @@ def handle_message(msg: dict) -> None:
             is_user_pro(uid)[0], lang, is_admin_user=is_admin(uid)))
         return
 
+    # ── احراز هویت با گوگل ─────────────────────────────────
+    if text == "/login" or text.startswith("/login "):
+        ok, reply = start_google_auth(uid, chat_id)
+        kb = None
+        if ok:
+            with _AUTH_LOCK:
+                st = _PENDING_AUTH.get(int(uid)) or {}
+            if st:
+                kb = {"inline_keyboard": [[{"text": "🌐 باز کردن google.com/device",
+                                            "url": "https://www.google.com/device"}]]}
+        tg_send_message(chat_id, reply, reply_markup=kb)
+        return
+
+    if text == "/logout":
+        st = auth_status(uid)
+        if not st or st.get("revoked"):
+            tg_send_message(chat_id, "ℹ️ حسابی وصل نیست.")
+            return
+        try:
+            with _db_lock, sqlite3.connect(DB_PATH) as conn:
+                conn.execute("UPDATE google_auth SET revoked = 1 WHERE user_id = ?", (int(uid),))
+        except Exception as exc:
+            logger.warning("قطع اتصال گوگل ناموفق: %s", exc)
+            tg_send_message(chat_id, "⚠️ قطع اتصال ناموفق بود؛ بعداً تلاش کن.")
+            return
+        pro, until = is_user_pro(uid)
+        keep = ""
+        if pro and until:
+            keep = "\n\nپرمیومِ داده‌شده پس گرفته نمی‌شود؛ تا " + \
+                   datetime.fromtimestamp(int(until), tz=timezone.utc).strftime("%Y-%m-%d") + " می‌ماند."
+        tg_send_message(
+            chat_id,
+            "🔓 اتصال حساب گوگل قطع شد. ژورنال و تحلیل‌هایت سر جایشان هستند "
+            "(به هویت وصل بودند، نه به دستگاه)." + keep,
+        )
+        return
+
+    if text.startswith("/google"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        parts = text.split()
+        cid, secret, src = google_client_config()
+        if len(parts) == 1:
+            days = auth_grant_days()
+            with _db_lock, sqlite3.connect(DB_PATH) as conn:
+                verified_n = conn.execute(
+                    "SELECT COUNT(*) FROM google_auth WHERE revoked = 0").fetchone()[0]
+                total_n = conn.execute("SELECT COUNT(*) FROM google_auth").fetchone()[0]
+            cid_show = (cid[:14] + "…" + cid[-12:]) if len(cid) > 30 else (cid or "—")
+            tg_send_message(
+                chat_id,
+                "🔐 *وضعیت ورود با گوگل*\n\n"
+                f"Client ID: `{cid_show}`" + (f" ({src})" if src else " ⚠️ تنظیم نشده") + "\n"
+                f"Client Secret: {'✅ ست شده' if secret else '❌ نیست'}\n"
+                f"پاداش تأیید: *{days}* روز (۰ = بدون پاداش)\n"
+                f"تأییدشده: *{verified_n}* فعال · {total_n} در کل\n\n"
+                "تنظیم:\n"
+                "`/google id <CLIENT_ID>`\n"
+                "`/google secret <CLIENT_SECRET>`\n"
+                "`/google days 30`\n\n"
+                "Secret را همین‌جا می‌گذاری یا در GitHub Secrets با نام‌های "
+                "`GOOGLE_CLIENT_ID` و `GOOGLE_CLIENT_SECRET` — Secretهای گیت‌هاب اولویت دارند.",
+            )
+            return
+        sub = parts[1].lower()
+        val = text.split(maxsplit=2)[2].strip() if len(parts) > 2 else ""
+        if sub == "id":
+            if not val.endswith(".apps.googleusercontent.com"):
+                tg_send_message(chat_id, "⚠️ Client ID باید به `.apps.googleusercontent.com` ختم شود.")
+                return
+            set_setting("GOOGLE_CLIENT_ID", val)
+            tg_send_message(chat_id, "✅ Client ID ذخیره شد. حالا `/google secret <SECRET>` و بعد `/login`.")
+            return
+        if sub == "secret":
+            if len(val) < 10:
+                tg_send_message(chat_id, "⚠️ Secret شبیه `GOCSPX-…` است و باید کامل باشد.")
+                return
+            set_setting("GOOGLE_CLIENT_SECRET", val)
+            # پیام کاربر پاک‌سازی می‌شود تا Secret در تاریخچهٔ چت نماند
+            delete_message_safe(chat_id, msg.get("message_id"))
+            tg_send_message(chat_id, "✅ Client Secret ذخیره شد (و پیامت پاک شد تا در چت نماند).")
+            return
+        if sub == "days":
+            if not val.isdigit():
+                tg_send_message(chat_id, "مثال: `/google days 30` (۰ = بدون پاداش)")
+                return
+            set_setting("AUTH_GRANT_DAYS", str(int(val)))
+            tg_send_message(chat_id, f"✅ پاداش تأیید روی *{int(val)}* روز تنظیم شد.")
+            return
+        tg_send_message(chat_id, "زیردستور نامشخص. `/google` را بزن تا راهنما را ببینی.")
+        return
+
+    # ── ژورنال ابری (فقط حساب تأییدشده) ─────────────────────
+    if text.startswith("/jadd") or text.startswith("/journal") or text.startswith("/jlist") \
+            or text.startswith("/jclose") or text.startswith("/jdel"):
+        gate = journal_gate(uid)
+        if gate:
+            tg_send_message(chat_id, gate)
+            return
+
+        if text.startswith("/journal") or text.startswith("/jlist"):
+            parts = text.split()
+            if len(parts) > 1 and parts[1].lower() in ("json", "export"):
+                tg_send_message(chat_id, journal_export_json(uid)[:3800])
+                return
+            tg_send_message(chat_id, journal_stats_text(uid))
+            return
+
+        if text.startswith("/jadd"):
+            body = text[len("/jadd"):].strip()
+            if not body:
+                tg_send_message(
+                    chat_id,
+                    "📓 فرمت: `/jadd <نماد> <long|short> <ورود> <حد ضرر> [هدف] [ریسک$]`\n"
+                    "مثال: `/jadd BTC long 65000 63500 69000 50`",
+                )
+                return
+            note = ""
+            if "|" in body:
+                body, note = body.split("|", 1)
+            toks = body.split()
+            if len(toks) < 4:
+                tg_send_message(chat_id, "⚠️ کم است. مثال: `/jadd BTC long 65000 63500 69000 50`")
+                return
+            symbol, side = toks[0], toks[1]
+            entry, stop = toks[2], toks[3]
+            target = toks[4] if len(toks) > 4 else 0
+            risk_usd = toks[5] if len(toks) > 5 else 0
+            ok, reply, _tid = journal_add(uid, symbol, side, _f(entry), _f(stop), _f(target), _f(risk_usd), note)
+            tg_send_message(chat_id, reply)
+            return
+
+        if text.startswith("/jclose"):
+            toks = text.split()
+            if len(toks) < 3 or not toks[1].lstrip("#").isdigit():
+                tg_send_message(chat_id, "مثال: `/jclose 12 68400`")
+                return
+            ok, reply = journal_close(uid, int(toks[1].lstrip("#")), _f(toks[2]))
+            tg_send_message(chat_id, reply)
+            return
+
+        if text.startswith("/jdel"):
+            toks = text.split()
+            if len(toks) < 2 or not toks[1].lstrip("#").isdigit():
+                tg_send_message(chat_id, "مثال: `/jdel 12`")
+                return
+            ok, reply = journal_delete(uid, int(toks[1].lstrip("#")))
+            tg_send_message(chat_id, reply)
+            return
+
+    # ── تحلیل روزانه ────────────────────────────────────────
+    if text.startswith("/notes"):
+        gate = journal_gate(uid)
+        if gate:
+            tg_send_message(chat_id, gate)
+            return
+        parts = text.split()
+        n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 7
+        tg_send_message(chat_id, notes_text(uid, n))
+        return
+
+    if text.startswith("/note"):
+        gate = journal_gate(uid)
+        if gate:
+            tg_send_message(chat_id, gate)
+            return
+        body = text[len("/note"):].strip()
+        if not body:
+            tg_send_message(
+                chat_id,
+                "📝 تحلیل روزانه‌ات را بنویس:\n`/note بایاس لانگ تا ۶۸٬۰۰۰؛ فقط لبه و ریسک ۰٫۵٪`",
+            )
+            return
+        ok, reply = note_add(uid, body)
+        tg_send_message(chat_id, reply)
+        return
+
     if text.startswith("/biz"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
@@ -3792,6 +4698,16 @@ def handle_callback(cb: dict) -> None:
     tg_lang = user.get("language_code")
     chat_id = cb["message"]["chat"]["id"]
     lang = get_user_lang(uid, tg_lang)
+
+    if data == "auth_login":
+        tg_answer_callback(cb_id)
+        ok, reply = start_google_auth(uid, chat_id)
+        kb = None
+        if ok:
+            kb = {"inline_keyboard": [[{"text": "🌐 باز کردن google.com/device",
+                                        "url": "https://www.google.com/device"}]]}
+        tg_send_message(chat_id, reply, reply_markup=kb)
+        return
 
     if data == "claim_admin":
         if ADMIN_USER_ID:
@@ -6834,6 +7750,8 @@ def main() -> None:
         threading.Thread(target=auto_channel_profile_once, daemon=True).start()
     threading.Thread(target=admin_digest_loop, daemon=True).start()
     threading.Thread(target=weekly_digest_loop, daemon=True).start()
+    # ورود با گوگل: نشست‌های در انتظار را هر ۵ ثانیه چک می‌کند
+    threading.Thread(target=auth_poll_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=8)
     offset = 0
 
