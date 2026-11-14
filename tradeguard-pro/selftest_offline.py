@@ -1470,6 +1470,220 @@ finally:
     bot.fetch_live_funding_and_oi = _real_feed
     bot.fetch_fear_greed = _real_fng
 
+# ─────────────────────────────────────────────────────────────
+print("\n۱۳) موتور درآمد: آزمایش، یادآوری تمدید، گزارش واقعی")
+import sqlite3 as _sq
+
+# در بخش‌های قبلی، tg_send_message با یک جمع‌کنندهٔ محلی (_posts) جایگزین شده؛
+# پس متن آخر باید از همان‌جا خوانده شود، نه از SENT.
+def _last_sent() -> str:
+    if _posts:
+        return str(_posts[-1][1])
+    return last_text()
+
+def _clear_sent() -> None:
+    SENT.clear()
+    _posts.clear()
+
+# نرخ تبدیل و صحت ستون‌های جدید
+check("نرخ استارز→دلار درست است", abs(bot.stars_to_usd(300) - (300 * bot.STARS_USD_RATE * bot.STARS_NET_SHARE)) < 1e-9,
+      str(bot.stars_to_usd(300)))
+check("استارز صفر، دلار صفر می‌دهد", bot.stars_to_usd(0) == 0)
+with _sq.connect(bot.DB_PATH) as _c:
+    _pcols = [r[1] for r in _c.execute("PRAGMA table_info(payments)").fetchall()]
+    _ucols = [r[1] for r in _c.execute("PRAGMA table_info(users)").fetchall()]
+check("ستون‌های درآمدی payments ساخته شده‌اند",
+      {"source", "days", "kind"} <= set(_pcols), str(_pcols))
+check("ستون pro_trial_used برای آزمایش یک‌باره هست", "pro_trial_used" in _ucols, str(_ucols))
+
+# آزمایش یک‌باره
+TRIAL_USER = 999000111
+bot.handle_message(msg("/start", uid=TRIAL_USER))
+_with_trial = bot.is_user_pro(TRIAL_USER)
+check("/start کاربر تازه را پرو نمی‌کند", not _with_trial[0])
+_clear_sent()
+bot.handle_message(msg("/trial", uid=TRIAL_USER))
+_trial_ok = bot.is_user_pro(TRIAL_USER)
+check("/trial کاربر را پرو می‌کند", _trial_ok[0], str(_trial_ok))
+check("متن /trial می‌گوید دورهٔ آزمایشی فعال شد", "آزمایشی" in _last_sent(), _last_sent()[:60])
+check("متن /trial می‌گوید پرداختی انجام نشد", "پرداختی انجام نشد" in _last_sent(), _last_sent()[-60:])
+with _sq.connect(bot.DB_PATH) as _c:
+    _trial_rows = _c.execute("SELECT COUNT(*) FROM payments WHERE user_id = ?", (TRIAL_USER,)).fetchone()[0]
+check("آزمایش هیچ ردیف پرداختی نمی‌سازد (درآمد آلوده نمی‌شود)", int(_trial_rows) == 0, str(_trial_rows))
+
+# اگر دورهٔ آزمایشی تمام شود، /trial دوباره نباید کار کند (ضد سوءاستفاده)
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE users SET pro_until = ? WHERE user_id = ?",
+               (int(bot.time.time()) - 60, TRIAL_USER))
+_clear_sent()
+bot.handle_message(msg("/trial", uid=TRIAL_USER))
+check("/trial پس از پایان دوره دوباره فعال نمی‌شود (یک‌بار برای همیشه)",
+      not bot.is_user_pro(TRIAL_USER)[0] and "قبلاً استفاده شده" in _last_sent(), _last_sent()[:70])
+
+# یادآوری تمدید (۳ روز مانده) — یک‌بار و بدون تکرار
+import time as _t
+_now = int(bot.time.time())
+REN_USER = 999000222
+bot.handle_message(msg("/start", uid=REN_USER))
+_chg = "test_renew_charge_1"
+bot.activate_pro_subscription(REN_USER, stars=bot.SUBSCRIPTION_STARS, charge_id=_chg, days=30)
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE users SET pro_until = ? WHERE user_id = ?", (_now + 2 * 86400, REN_USER))
+with _sq.connect(bot.DB_PATH) as _c:
+    _prow = _c.execute("SELECT stars_amount, days, kind, source FROM payments WHERE telegram_charge_id = ?",
+                       (_chg,)).fetchone()
+check("پرداخت با روز و نوع ثبت می‌شود", _prow is not None and int(_prow[1]) == 30 and _prow[2] == "stars", str(_prow))
+check("کاربر در فهرست نامزد تمدید است",
+      any(u == REN_USER for u, _e in bot.renewal_candidates(_now)), str(bot.renewal_candidates(_now))[:80])
+
+_clear_sent()
+_sent1 = bot.maybe_send_renewal_reminders(_now)
+check("یادآوری تمدید برای کاربر در آستانهٔ انقضا ارسال می‌شود",
+      (REN_USER, "renew") in _sent1, str(_sent1))
+check("یادآوری همراه فاکتور استارز است", count("sendInvoice") >= 1, str(count("sendInvoice")))
+_ren_msgs = [str(pp[1]) for pp in _posts if pp[0] == REN_USER]
+check("متن یادآوری تاریخ انقضا را می‌گوید",
+      any("تمام می‌شود" in m or "تمدید" in m for m in _ren_msgs), str(_ren_msgs)[:80])
+_clear_sent()
+_sent2 = bot.maybe_send_renewal_reminders(_now)
+check("یادآوری تمدید دوباره فرستاده نمی‌شود (ضد اسپم)", _sent2 == [] and count("sendMessage") == 0, str(_sent2))
+
+# بازگرداندن کاربر تازه‌منقضی
+WIN_USER = 999000333
+bot.handle_message(msg("/start", uid=WIN_USER))
+bot.activate_pro_subscription(WIN_USER, stars=bot.SUBSCRIPTION_STARS, charge_id="test_winback_charge_1", days=30)
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE users SET pro_until = ? WHERE user_id = ?", (_now - 86400, WIN_USER))
+_clear_sent()
+_sent3 = bot.maybe_send_renewal_reminders(_now)
+check("کاربر تازه‌منقضی پیام بازگشت می‌گیرد", (WIN_USER, "winback") in _sent3, str(_sent3))
+_win_msgs = [str(pp[1]) for pp in _posts if pp[0] == WIN_USER]
+check("پیام بازگشت می‌گوید داده‌ای پاک نمی‌شود",
+      any("پاک نمی‌شود" in m for m in _win_msgs), str(_win_msgs)[:80])
+_clear_sent()
+check("پیام بازگشت تکرار نمی‌شود", bot.maybe_send_renewal_reminders(_now) == [] and count("sendMessage") == 0)
+
+# در حالت رایگان هیچ پیام درآمدی نمی‌رود
+bot.set_free_mode(True)
+with bot._db_lock, _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE users SET pro_until = ? WHERE user_id = ?", (_now + 86400, REN_USER))
+_clear_sent()
+check("در دورهٔ رایگان یادآوری تمدید فرستاده نمی‌شود",
+      bot.maybe_send_renewal_reminders(_now) == [] and count("sendMessage") == 0)
+bot.set_free_mode(False)
+
+# گزارش درآمد: انتساب منبع + جداکردن هدیه
+SRC_USER = 999000444
+bot.register_user_and_check_referral(SRC_USER, "srcuser", "fa", None, "p_okx_ab12")
+bot.activate_pro_subscription(SRC_USER, stars=bot.SUBSCRIPTION_STARS, charge_id="test_src_charge_1", days=30)
+GIFT_USER = 999000555
+bot.activate_pro_subscription(GIFT_USER, stars=0, charge_id="test_gift_charge_1", days=30)
+with _sq.connect(bot.DB_PATH) as _c:
+    _gkind = _c.execute("SELECT kind, stars_amount FROM payments WHERE telegram_charge_id = ?",
+                        ("test_gift_charge_1",)).fetchone()
+check("هدیهٔ ۰ استارزی نوع gift می‌گیرد (درآمد را بالا نمی‌برد)",
+      _gkind is not None and _gkind[0] == "gift" and int(_gkind[1]) == 0, str(_gkind))
+
+_inc = bot.income_report(30)
+check("گزارش درآمد ساخته می‌شود", "گزارش درآمد" in _inc and "نرخ اجرا" in _inc, _inc[:60])
+check("گزارش درآمد منبع پول‌ساز را نشان می‌دهد", "p_okx_ab12" in _inc)
+check("گزارش درآمد «قدم بعدی» می‌دهد", "قدم بعدی" in _inc)
+check("گزارش درآمد عدد ساختگی ندارد (مجموع با دیتابیس یکی است)",
+      f"{bot.SUBSCRIPTION_STARS * 2:,}" in _inc or "مجموع دریافتی" in _inc, _inc[:200])
+check("گزارش درآمد یادآوری می‌کند نرخ دلار تخمینی است", "STARS_USD_RATE" in _inc)
+
+_clear_sent()
+bot.handle_message(msg("/income", uid=TRIAL_USER))
+check("/income برای کاربر عادی بسته است", "فقط ادمین" in _last_sent(), _last_sent()[:40])
+
+# freemode until + announce
+bot.set_free_mode_until(0)
+bot.set_free_mode(True)
+check("رایگان بدون تاریخ = منهای یک (هشدار درآمد صفر)", bot.free_mode_days_left() == -1)
+_future = int(_t.time()) + 5 * 86400
+bot.set_free_mode_until(_future)
+_left = bot.free_mode_days_left()
+check("تاریخ پایان رایگان ذخیره و شمرده می‌شود", 4 <= _left <= 5, str(_left))
+check("تاریخ پایان در دیتابیس می‌ماند", bot.get_setting("free_mode_until") == str(_future))
+# پلن‌های بلندمدت: قیمت، payload و روزهای واقعی
+bot.set_free_mode(False)   # برای تست خرید باید پرداخت باز باشد
+check("قیمت پلن ۹۰ روزه از قیمت ۳۰ روزه گران‌تر و از ۳ برابر ارزان‌تر است",
+      bot.SUBSCRIPTION_STARS < bot.plan_price(90) < bot.SUBSCRIPTION_STARS * 3,
+      f"{bot.plan_price(30)}/{bot.plan_price(90)}")
+check("قیمت پلن سالانه از ۱۲ برابر ماهانه ارزان‌تر است",
+      bot.plan_price(365) < bot.SUBSCRIPTION_STARS * 12, str(bot.plan_price(365)))
+check("روزها فقط از payload مجاز خوانده می‌شوند (ضد دست‌کاری)",
+      bot.plan_days_from_payload("tradeguard_pro_90d_750") == 90
+      and bot.plan_days_from_payload("tradeguard_pro_7d_1") == 30
+      and bot.plan_days_from_payload("garbage") == 30,
+      str(bot.plan_days_from_payload("tradeguard_pro_365d_2400")))
+
+_clear_sent()
+bot.send_pro_invoice(USER, "fa", 90)
+_inv = [pl for api, pl in SENT if api == "sendInvoice"]
+check("فاکتور پلن ۹۰ روزه با مبلغ و payload درست ساخته می‌شود",
+      bool(_inv) and _inv[-1]["prices"][0]["amount"] == bot.plan_price(90)
+      and f"tradeguard_pro_90d_{bot.plan_price(90)}" == _inv[-1]["payload"],
+      str(_inv[-1:])[:120])
+
+PLAN_USER = 999000666
+bot.handle_message(msg("/start", uid=PLAN_USER))
+_clear_sent()
+bot.handle_message(msg("/buy 90", uid=PLAN_USER))
+_inv2 = [pl for api, pl in SENT if api == "sendInvoice"]
+check("/buy 90 فاکتور ۹۰ روزه می‌دهد",
+      bool(_inv2) and _inv2[-1]["prices"][0]["amount"] == bot.plan_price(90),
+      str(_inv2[-1:])[:120])
+_clear_sent()
+bot.handle_message(msg("/buy", uid=PLAN_USER))
+check("/buy بدون آرگومان جدول پلن‌ها را نشان می‌دهد",
+       any(pp[0] == PLAN_USER and "پلن‌های TradeGuard PRO" in str(pp[1]) for pp in _posts),
+      str([pp[1] for pp in _posts])[:60])
+
+# پرداخت موفق با payload ۹۰ روزه باید ۹۰ روز فعال کند
+_pay_msg = msg("", uid=PLAN_USER)
+_pay_msg.pop("text")
+_pay_msg["successful_payment"] = {
+    "currency": "XTR",
+    "total_amount": bot.plan_price(90),
+    "invoice_payload": f"tradeguard_pro_90d_{bot.plan_price(90)}",
+    "telegram_payment_charge_id": "plan90_charge_test",
+    "provider_payment_charge_id": "x",
+}
+_clear_sent()
+bot.handle_message(_pay_msg)
+_ok90, _exp90 = bot.is_user_pro(PLAN_USER)
+_days90 = int(round((_exp90 - int(bot.time.time())) / 86400))
+check("پرداخت ۹۰ روزه واقعاً ۹۰ روز فعال می‌کند", _ok90 and 88 <= _days90 <= 90, f"{_ok90}/{_days90}")
+with _sq.connect(bot.DB_PATH) as _c:
+    _pdays = _c.execute("SELECT days, stars_amount FROM payments WHERE telegram_charge_id = ?",
+                        ("plan90_charge_test",)).fetchone()
+check("ردیف پرداخت روزهای پلن را ثبت می‌کند",
+      _pdays is not None and int(_pdays[0]) == 90 and int(_pdays[1]) == bot.plan_price(90),
+      str(_pdays))
+
+# انتشار پلن‌ها برای مینی‌اپ (تک‌منبع قیمت)
+_payload = bot.build_plans_payload()
+check("payload پلن‌ها همان قیمت واقعی ربات است",
+      [p["stars"] for p in _payload["plans"]] == [bot.plan_price(d) for d in bot.PRO_PLAN_DAYS],
+      str([p["stars"] for p in _payload["plans"]]))
+check("payload پلن‌ها دورهٔ آزمایشی و ارز را می‌گوید",
+      _payload["currency"] == "XTR" and _payload["trial_days"] == bot.PRO_TRIAL_DAYS)
+check("payload پلن‌ها هیچ عدد ساختگی ندارد (دلار از نرخ env می‌آید)",
+      abs(_payload["plans"][0]["usd_gross"] - bot.plan_price(30) * bot.STARS_USD_RATE) < 1e-9,
+      str(_payload["plans"][0]))
+_old_feed = bot.PUBLIC_FEED_DIR
+with _tmp.TemporaryDirectory() as _pd:
+    bot.PUBLIC_FEED_DIR = _pl.Path(_pd) / "api"
+    _written = bot.publish_plans(push=False)
+    _pf = _pl.Path(_pd) / "api" / "plans.json"
+    check("plans.json برای مینی‌اپ نوشته می‌شود",
+          _pf.exists() and _written is not None and '"plans"' in _pf.read_text(encoding="utf-8"))
+bot.PUBLIC_FEED_DIR = _old_feed
+
+bot.set_free_mode(False)
+bot.set_free_mode_until(0)
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

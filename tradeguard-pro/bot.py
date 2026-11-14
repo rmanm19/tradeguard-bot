@@ -92,6 +92,11 @@ load_env_file(ENV_PATH)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MINI_APP_URL = os.environ.get("MINI_APP_URL", "https://example.com").strip()
 SUBSCRIPTION_STARS = int(os.environ.get("SUBSCRIPTION_STARS", "300") or "300")
+# پلن‌های بلندمدت: تخفیف واقعی در ازای پرداخت یک‌جا (LTV بالاتر، ریزش کمتر).
+# قیمت‌ها از env قابل تغییرند؛ ۳۰ روزه همان قیمت اصلی است.
+SUBSCRIPTION_STARS_90 = int(os.environ.get("SUBSCRIPTION_STARS_90", str(SUBSCRIPTION_STARS * 5 // 2)) or str(SUBSCRIPTION_STARS * 5 // 2))
+SUBSCRIPTION_STARS_365 = int(os.environ.get("SUBSCRIPTION_STARS_365", str(SUBSCRIPTION_STARS * 8)) or str(SUBSCRIPTION_STARS * 8))
+PRO_PLAN_DAYS = (30, 90, 365)
 # کانال عمومی ربات؛ اگر Secret تنظیم نشده باشد از پیش‌فرض زیر استفاده می‌شود.
 # اعتبارسنجی (ادمین‌بودن ربات) همچنان در validate_channel_target انجام می‌شود.
 DEFAULT_CHANNEL_ID = "@tradeguard1"
@@ -111,6 +116,14 @@ FREE_PRO_INVITE_TARGET = int(os.environ.get("FREE_PRO_INVITE_TARGET", "3") or "3
 # دوباره روشن شود. وضعیت در دیتابیس ذخیره می‌شود (بین ری‌استارت‌ها می‌ماند).
 FREE_MODE = os.environ.get("FREE_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
 FREE_MODE_UNTIL = int(os.environ.get("FREE_MODE_UNTIL", "0") or "0")
+
+# ── موتور درآمد (قیمت، آزمایش، تمدید) ─────────────────────────────────
+# هر عدد این‌جا از env قابل تغییر است تا بدون دست‌زدن به کد، کمپین عوض شود.
+STARS_USD_RATE = float(os.environ.get("STARS_USD_RATE", "0.013") or "0.013")  # نرخ تلگرام
+STARS_NET_SHARE = float(os.environ.get("STARS_NET_SHARE", "0.95") or "0.95")  # سهم پس از کارمزد
+PRO_TRIAL_DAYS = int(os.environ.get("PRO_TRIAL_DAYS", "3") or "3")           # طول دورهٔ آزمایشی
+RENEW_NOTICE_DAYS = int(os.environ.get("RENEW_NOTICE_DAYS", "3") or "3")     # چند روز قبل یادآوری
+WINBACK_DAYS = int(os.environ.get("WINBACK_DAYS", "5") or "5")               # پنجرهٔ بازگرداندن
 ADMIN_USER_ID = os.environ.get("ADMIN_USER_ID", "").strip()
 
 # ── وضعیت پرو برای مینی‌اپ (بدون بک‌اند) ─────────────────────────────
@@ -926,6 +939,178 @@ for _lang, _extra in BOT_STRINGS_EXTRA.items():
         BOT_STRINGS[_lang].update(_extra)
 
 
+# ── متن‌های موتور درآمد: آزمایش، یادآوری تمدید، بازگشت ────────────────
+# همه شش زبان دستی نوشته شده‌اند (نه ترجمهٔ ماشینی) و هیچ‌کدام وعدهٔ سود نمی‌دهند.
+BOT_STRINGS_REVENUE = {
+    "fa": {
+        "btn_trial": "🎁 ۳ روز پرو رایگان",
+        "plans_intro": (
+            "🧾 *Planes TradeGuard PRO*\n\n"
+            "• {d30} días — *{p30:,} ⭐*\n"
+            "• {d90} días — *{p90:,} ⭐* (más barato al mes)\n"
+            "• {d365} días — *{p365:,} ⭐* (mejor valor)\n\n"
+            "Pago con Stars, sin renovación automática. El bot te dice la fecha exacta de vencimiento."
+        ),
+        "plans_intro": (
+            "🧾 *TradeGuard PRO planları*\n\n"
+            "• {d30} gün — *{p30:,} ⭐*\n"
+            "• {d90} gün — *{p90:,} ⭐* (aylık daha ucuz)\n"
+            "• {d365} gün — *{p365:,} ⭐* (en avantajlı)\n\n"
+            "Ödeme Stars ile, otomatik yenileme yok. Bitiş tarihini bot size söyler."
+        ),
+        "plans_intro": (
+            "🧾 *خطط TradeGuard PRO*\n\n"
+            "• {d30} يومًا — *{p30:,} ⭐*\n"
+            "• {d90} يومًا — *{p90:,} ⭐* (أرخص شهريًا)\n"
+            "• {d365} يومًا — *{p365:,} ⭐* (أفضل قيمة)\n\n"
+            "الدفع بالنجوم، بدون تجديد تلقائي. سيخبرك البوت بتاريخ الانتهاء بالضبط."
+        ),
+        "plans_intro": (
+            "🧾 *Планы TradeGuard PRO*\n\n"
+            "• {d30} дней — *{p30:,} ⭐*\n"
+            "• {d90} дней — *{p90:,} ⭐* (дешевле в месяц)\n"
+            "• {d365} дней — *{p365:,} ⭐* (максимальная выгода)\n\n"
+            "Оплата в Stars, без автопродления. Точную дату окончания сообщит бот."
+        ),
+        "plans_intro": (
+            "🧾 *TradeGuard PRO plans*\n\n"
+            "• {d30} days — *{p30:,} ⭐*\n"
+            "• {d90} days — *{p90:,} ⭐* (cheaper per month)\n"
+            "• {d365} days — *{p365:,} ⭐* (best value)\n\n"
+            "Paid with Telegram Stars, no auto-renewal. The bot tells you the exact expiry date."
+        ),
+        "plans_intro": (
+            "🧾 *پلن‌های TradeGuard PRO*\n\n"
+            "• {d30} روز — *{p30:,} ⭐*\n"
+            "• {d90} روز — *{p90:,} ⭐* (هر ماه ارزان‌تر)\n"
+            "• {d365} روز — *{p365:,} ⭐* (بیشترین تخفیف)\n\n"
+            "پرداخت با استارز تلگرام، بدون تمدید خودکار. تاریخ انقضا را ربات به شما می‌گوید."
+        ),
+        "trial_ok": (
+            "🎁 *دورهٔ آزمایشی فعال شد!*\n\n"
+            "دسترسی کامل پرو تا `{date}` ({days} روز) باز است: رادار کامل، هشدار شخصی، "
+            "فایل MT5 و اندیکاتور TradingView.\n\n"
+            "_این دوره فقط یک‌بار برای هر کاربر قابل استفاده است. هیچ پرداختی انجام نشد._"
+        ),
+        "trial_used": "این دورهٔ آزمایشی قبلاً استفاده شده است. برای فعال‌سازی کامل: `/buy`",
+        "trial_already": "✅ اشتراک پرو شما همین حالا فعال است تا `{date}` — نیازی به آزمایش نیست.",
+        "renew_reminder": (
+            "⏳ *اشتراک پرو شما {days} روز دیگر تمام می‌شود* (تاریخ: `{date}`).\n\n"
+            "برای اینکه قفل رادار و هشدارها وسط هفته بسته نشود، همین‌جا تمدید کنید. "
+            "۳۰ روز با استارز، بدون تمدید خودکار."
+        ),
+        "winback_reminder": (
+            "🔓 اشتراک پرو شما در `{date}` تمام شد.\n\n"
+            "اگر برایتان مفید بود، با دکمهٔ پایین دوباره فعالش کنید. "
+            "اگر هم نه، هیچ داده‌ای از شما پاک نمی‌شود و حساب رایگان سر جایش است."
+        ),
+    },
+    "en": {
+        "btn_trial": "🎁 3-day free PRO",
+        "trial_ok": (
+            "🎁 *Trial activated!*\n\nFull PRO access until `{date}` ({days} days): complete radar, "
+            "personal alerts, MT5 file and the TradingView indicator.\n\n"
+            "_One trial per user. No payment was made._"
+        ),
+        "trial_used": "You already used the trial. To unlock fully: `/buy`",
+        "trial_already": "✅ Your PRO subscription is active until `{date}` — no trial needed.",
+        "renew_reminder": (
+            "⏳ *Your PRO ends in {days} days* (date: `{date}`).\n\n"
+            "Renew here so the radar locks and alerts don't close mid-week. "
+            "30 days with Stars, no auto-renewal."
+        ),
+        "winback_reminder": (
+            "🔓 Your PRO ended on `{date}`.\n\n"
+            "If it was useful, reactivate with the button below. If not, nothing of yours is "
+            "deleted and your free account stays exactly as it is."
+        ),
+    },
+    "ru": {
+        "btn_trial": "🎁 3 дня PRO бесплатно",
+        "trial_ok": (
+            "🎁 *Пробный период активен!*\n\nПолный доступ PRO до `{date}` ({days} дн.): "
+            "радар, личные оповещения, файл MT5 и индикатор TradingView.\n\n"
+            "_Один раз на пользователя. Оплата не производилась._"
+        ),
+        "trial_used": "Вы уже использовали пробный период. Полная активация: `/buy`",
+        "trial_already": "✅ Подписка PRO активна до `{date}` — пробный период не нужен.",
+        "renew_reminder": (
+            "⏳ *Подписка PRO закончится через {days} дн.* (дата: `{date}`).\n\n"
+            "Продлите здесь, чтобы блокировки радара не закрылись в середине недели. "
+            "30 дней за Stars, без автопродления."
+        ),
+        "winback_reminder": (
+            "🔓 Подписка PRO завершилась `{date}`.\n\n"
+            "Если было полезно — включите снова кнопкой ниже. Если нет, ваши данные "
+            "не удаляются, бесплатный аккаунт остаётся как был."
+        ),
+    },
+    "ar": {
+        "btn_trial": "🎁 ٣ أيام PRO مجانًا",
+        "trial_ok": (
+            "🎁 *تم تفعيل الفترة التجريبية!*\n\nوصول كامل إلى PRO حتى `{date}` ({days} أيام): "
+            "الرادار الكامل، التنبيهات الشخصية، ملف MT5 ومؤشر TradingView.\n\n"
+            "_مرة واحدة لكل مستخدم. لم يتم أي دفع._"
+        ),
+        "trial_used": "لقد استخدمت الفترة التجريبية سابقًا. للتفعيل الكامل: `/buy`",
+        "trial_already": "✅ اشتراك PRO نشط حتى `{date}` — لا حاجة للفترة التجريبية.",
+        "renew_reminder": (
+            "⏳ *ينتهي اشتراك PRO بعد {days} أيام* (التاريخ: `{date}`).\n\n"
+            "جدّد من هنا حتى لا تُغلق أقفال الرادار والتنبيهات في منتصف الأسبوع. "
+            "٣٠ يومًا بالنجوم، بدون تجديد تلقائي."
+        ),
+        "winback_reminder": (
+            "🔓 انتهى اشتراك PRO في `{date}`.\n\n"
+            "إن كان مفيدًا أعد تفعيله بالزر أدناه. وإن لم يكن، لا يُحذف أي شيء من بياناتك "
+            "ويبقى حسابك المجاني كما هو."
+        ),
+    },
+    "tr": {
+        "btn_trial": "🎁 3 gün ücretsiz PRO",
+        "trial_ok": (
+            "🎁 *Deneme aktif!*\n\n`{date}` tarihine kadar ({days} gün) tam PRO erişimi: "
+            "tam radar, kişisel uyarılar, MT5 dosyası ve TradingView indikatörü.\n\n"
+            "_Kullanıcı başına bir kez. Ödeme alınmadı._"
+        ),
+        "trial_used": "Deneme dönemini zaten kullandınız. Tam erişim: `/buy`",
+        "trial_already": "✅ PRO aboneliğiniz `{date}` tarihine kadar aktif — denemeye gerek yok.",
+        "renew_reminder": (
+            "⏳ *PRO aboneliğiniz {days} gün sonra bitiyor* (tarih: `{date}`).\n\n"
+            "Radar kilitleri hafta ortasında kapanmasın diye buradan yenileyin. "
+            "Stars ile 30 gün, otomatik yenileme yok."
+        ),
+        "winback_reminder": (
+            "🔓 PRO aboneliğiniz `{date}` tarihinde sona erdi.\n\n"
+            "Faydalı olduysa aşağıdaki düğmeyle yeniden açın. Olmadıysa hiçbir veriniz "
+            "silinmez ve ücretsiz hesabınız olduğu gibi kalır."
+        ),
+    },
+    "es": {
+        "btn_trial": "🎁 3 días PRO gratis",
+        "trial_ok": (
+            "🎁 *¡Prueba activada!*\n\nAcceso PRO completo hasta `{date}` ({days} días): "
+            "radar completo, alertas personales, archivo MT5 e indicador de TradingView.\n\n"
+            "_Una prueba por usuario. No se realizó ningún pago._"
+        ),
+        "trial_used": "Ya usaste la prueba. Para desbloquear todo: `/buy`",
+        "trial_already": "✅ Tu suscripción PRO está activa hasta `{date}` — no necesitas prueba.",
+        "renew_reminder": (
+            "⏳ *Tu PRO termina en {days} días* (fecha: `{date}`).\n\n"
+            "Renueva aquí para que los bloqueos del radar y las alertas no se cierren a mitad "
+            "de semana. 30 días con Stars, sin renovación automática."
+        ),
+        "winback_reminder": (
+            "🔓 Tu PRO terminó el `{date}`.\n\n"
+            "Si te fue útil, reactívalo con el botón de abajo. Si no, no se borra nada tuyo "
+            "y tu cuenta gratuita sigue igual."
+        ),
+    },
+}
+for _lang, _extra in BOT_STRINGS_REVENUE.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang].update(_extra)
+
+
 def tr(lang: str, key: str, **kwargs) -> str:
     d = BOT_STRINGS.get(lang, BOT_STRINGS["en"])
     txt = d.get(key) or BOT_STRINGS["en"].get(key, "")
@@ -1129,6 +1314,9 @@ def init_db() -> None:
         # منبع ورود هر کاربر (کد کمپین/پست/شریک) — برای اندازه‌گیری قیف تبلیغات
         if "source" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN source TEXT DEFAULT ''")
+        # دورهٔ آزمایشی یک‌بارهٔ پرو (۳ روز رایگان) — جدا از پاداش دعوت
+        if "pro_trial_used" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN pro_trial_used INTEGER DEFAULT 0")
 
         conn.execute(
             """
@@ -1141,6 +1329,15 @@ def init_db() -> None:
             )
             """
         )
+        # ستون‌های درآمدی: منبع (برای انتساب درآمد به شریک/کمپین)، طول اشتراک
+        # و نوع ردیف (stars = پول واقعی، gift = هدیهٔ ادمین با ۰ استارز).
+        pay_cols = [r[1] for r in conn.execute("PRAGMA table_info(payments)").fetchall()]
+        if "source" not in pay_cols:
+            conn.execute("ALTER TABLE payments ADD COLUMN source TEXT DEFAULT ''")
+        if "days" not in pay_cols:
+            conn.execute("ALTER TABLE payments ADD COLUMN days INTEGER DEFAULT 30")
+        if "kind" not in pay_cols:
+            conn.execute("ALTER TABLE payments ADD COLUMN kind TEXT DEFAULT 'stars'")
 
         # تنظیمات زمان اجرا (/seturl، /price، /setchannel، ادمین) — چون هر
         # جاب GitHub Actions از صفر شروع می‌شود، این‌ها باید در دیتابیس بمانند
@@ -1391,6 +1588,53 @@ def _feed_age_seconds() -> Optional[float]:
         return None
 
 
+def build_plans_payload() -> Dict:
+    """پلن‌های واقعی اشتراک برای مصرف مینی‌اپ/سایت (تک‌منبع حقیقت قیمت).
+
+    مینی‌اپ استاتیک است و نمی‌تواند قیمت را از دیتابیس بخواند؛ پس قیمت را
+    فقط همین‌جا (که ربات می‌نویسد) نگه می‌داریم تا هرگز دو عدد متفاوت
+    به کاربر نشان داده نشود.
+    """
+    plans: List[Dict] = []
+    for d in PRO_PLAN_DAYS:
+        stars = plan_price(d)
+        plans.append({
+            "days": int(d),
+            "stars": int(stars),
+            "usd_net": round(stars_to_usd(stars), 2),
+            "usd_gross": round(stars * STARS_USD_RATE, 2),
+            "per_month_stars": int(round(stars / (d / 30.0))),
+        })
+    return {
+        "updated": int(time.time()),
+        "currency": "XTR",
+        "trial_days": int(PRO_TRIAL_DAYS),
+        "plans": plans,
+        "note": "Real prices written by the bot. One-time Stars payment, no auto-renewal.",
+    }
+
+
+def publish_plans(push: bool = True) -> Optional[Dict]:
+    """docs/api/plans.json را می‌نویسد (و در اجرای واقعی کامیت می‌کند)."""
+    try:
+        data = build_plans_payload()
+        PUBLIC_FEED_DIR.mkdir(parents=True, exist_ok=True)
+        (PUBLIC_FEED_DIR / "plans.json").write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if push:
+            try:
+                _git_commit_paths(
+                    [str((PUBLIC_FEED_DIR / "plans.json").relative_to(REPO_ROOT))],
+                    "chore(api): sync PRO plans [skip ci]",
+                )
+            except ValueError:
+                pass
+        return data
+    except Exception as exc:
+        logger.warning("انتشار پلن‌ها ناموفق: %s", exc)
+        return None
+
+
 def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False) -> Optional[Dict]:
     """docs/api/radar.json + docs/api/stats.json را می‌نویسد و (در اجرای واقعی) پوش می‌کند.
 
@@ -1428,8 +1672,11 @@ def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False)
             json.dumps(stats, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         # صفحه‌های عمومی هر نماد + sitemap/robots (ورودی طبیعی از جست‌وجو)
         page_paths = _write_symbol_pages(feed)
+        # قیمت پلن‌ها هم با همان کامیت منتشر می‌شود تا مینی‌اپ هرگز قیمت کهنه نشان ندهد
+        publish_plans(push=False)
         rels: List[str] = []
-        for f in (PUBLIC_FEED_DIR / "radar.json", PUBLIC_FEED_DIR / "stats.json", *page_paths):
+        for f in (PUBLIC_FEED_DIR / "radar.json", PUBLIC_FEED_DIR / "stats.json",
+                  PUBLIC_FEED_DIR / "plans.json", *page_paths):
             try:
                 rels.append(str(f.relative_to(REPO_ROOT)))
             except ValueError:
@@ -1569,13 +1816,19 @@ def get_user_referral_stats(user_id: int) -> Tuple[int, bool]:
 
 def load_free_mode() -> None:
     """پرچم ذخیره‌شدهٔ ادمین (دیتابیس) بر env اولویت دارد."""
-    global FREE_MODE
+    global FREE_MODE, FREE_MODE_UNTIL
     try:
         saved = get_setting("free_mode")
     except Exception:
         saved = None
     if saved in ("0", "1"):
         FREE_MODE = saved == "1"
+    try:
+        until = int(get_setting("free_mode_until") or 0)
+    except Exception:
+        until = 0
+    if until > 0:
+        FREE_MODE_UNTIL = until
 
 
 def set_free_mode(on: bool) -> None:
@@ -1586,6 +1839,25 @@ def set_free_mode(on: bool) -> None:
     except Exception as exc:
         logger.warning("ذخیرهٔ حالت رایگان ناموفق: %s", exc)
     publish_pro_status()
+
+
+def set_free_mode_until(until_ts: int) -> int:
+    """تاریخ پایان دورهٔ رایگان را می‌گذارد (۰ = بدون پایان).
+
+    تاریخ هم در دیتابیس و هم در .env ذخیره می‌شود تا بعد از ری‌استارت Actions
+    (که با env تازه بالا می‌آید) از دست نرود.
+    """
+    global FREE_MODE_UNTIL
+    FREE_MODE_UNTIL = max(0, int(until_ts))
+    try:
+        set_setting("free_mode_until", str(FREE_MODE_UNTIL))
+    except Exception as exc:
+        logger.warning("ذخیرهٔ تاریخ پایان رایگان ناموفق: %s", exc)
+    try:
+        save_env_var("FREE_MODE_UNTIL", str(FREE_MODE_UNTIL))
+    except Exception as exc:
+        logger.warning("ذخیرهٔ FREE_MODE_UNTIL در env ناموفق: %s", exc)
+    return FREE_MODE_UNTIL
 
 
 def free_mode_active() -> bool:
@@ -1682,9 +1954,14 @@ def activate_pro_subscription(user_id: int, stars: int, charge_id: str, days: in
 
         new_expiry = current_expiry + (days * 86400)
         conn.execute("UPDATE users SET pro_until = ? WHERE user_id = ?", (new_expiry, user_id))
+        # منبع کاربر ذخیره می‌شود تا بدانیم کدام شریک/کمپین پول آورده است.
+        src_row = conn.execute("SELECT source FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        src = str((src_row[0] if src_row else "") or "").strip().lower()
+        kind = "stars" if int(stars) > 0 else "gift"
         conn.execute(
-            "INSERT INTO payments (user_id, stars_amount, telegram_charge_id, paid_at) VALUES (?, ?, ?, ?)",
-            (user_id, stars, charge_id, now),
+            "INSERT INTO payments (user_id, stars_amount, telegram_charge_id, paid_at, source, days, kind) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, stars, charge_id, now, src, int(days), kind),
         )
     return new_expiry, True
 
@@ -1871,12 +2148,14 @@ def sync_telegram_menus() -> None:
         {"command": "wallet", "description": "🐋 Hyperliquid Whale Wallet X-Ray"},
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
         {"command": "buy", "description": "⭐ Unlock TradeGuard PRO (Stars)"},
+        {"command": "trial", "description": "🎁 3-day free PRO trial (once)"},
         {"command": "invite", "description": "🎁 Invite 3 Friends → 7 Days Free Pro"},
         {"command": "top", "description": "🏆 Invite Leaderboard"},
         {"command": "status", "description": "🔎 My Subscription Status"},
         {"command": "check", "description": "🩺 Health Check"},
         {"command": "stars", "description": "⭐ Star Balance & Sales"},
         {"command": "admin", "description": "👑 Founder Revenue & Stats Panel"},
+        {"command": "income", "description": "💵 Real revenue, funnel & next action"},
     ]
     fa_cmds = [
         {"command": "start", "description": "🚀 منوی اصلی و اجرای مینی‌اپ"},
@@ -1889,12 +2168,14 @@ def sync_telegram_menus() -> None:
         {"command": "wallet", "description": "🐋 ردیاب کیف پول نهنگ‌ها"},
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
         {"command": "buy", "description": "⭐ خرید اشتراک ویژه Pro با استارز"},
+        {"command": "trial", "description": "🎁 دورهٔ آزمایشی ۳ روزه پرو (یک‌بار)"},
         {"command": "invite", "description": "🎁 دعوت ۳ دوست = ۷ روز پرو رایگان"},
         {"command": "top", "description": "🏆 جدول دعوت‌کننده‌ها"},
         {"command": "status", "description": "🔎 وضعیت اشتراک من"},
         {"command": "check", "description": "🩺 بررسی سلامت و وضعیت ربات"},
         {"command": "stars", "description": "⭐ موجودی استارز و فروش‌ها"},
         {"command": "admin", "description": "👑 پنل مدیریت و آمار درآمد مؤسس"},
+        {"command": "income", "description": "💵 گزارش واقعی درآمد و قدم بعدی"},
     ]
     tg_call("setMyCommands", {"commands": en_cmds})
     tg_call("setMyCommands", {"commands": fa_cmds, "language_code": "fa"})
@@ -2201,20 +2482,51 @@ def set_subscription_price(new_price: int) -> int:
                     if pat in val:
                         val = val.replace(pat, pat.replace(str(old), str(new_price), 1))
                 table[key] = val
+    # مینی‌اپ باید همان لحظه قیمت درست را نشان دهد
+    try:
+        publish_plans(push=True)
+    except Exception as exc:
+        logger.warning("انتشار پلن پس از تغییر قیمت ناموفق: %s", exc)
     return old
 
 
-def send_pro_invoice(chat_id: int, lang: str = "fa") -> None:
+def plan_price(days: int = 30) -> int:
+    """قیمت هر پلن به استارز (۳۰/۹۰/۳۶۵ روز)."""
+    days = int(days or 30)
+    if days >= 365:
+        return SUBSCRIPTION_STARS_365
+    if days >= 90:
+        return SUBSCRIPTION_STARS_90
+    return SUBSCRIPTION_STARS
+
+
+def plan_days_from_payload(payload: str) -> int:
+    """روزهای اشتراک را از payload فاکتور می‌خواند (ضد دست‌کاری: فقط مقادیر مجاز)."""
+    m = re.search(r"tradeguard_pro_(\d{1,3})d", str(payload or ""))
+    if not m:
+        return 30
+    days = int(m.group(1))
+    return days if days in PRO_PLAN_DAYS else 30
+
+
+def send_pro_invoice(chat_id: int, lang: str = "fa", days: int = 30) -> None:
+    """فاکتور Stars برای پلن انتخاب‌شده (۳۰/۹۰/۳۶۵ روز).
+
+    payload شامل روز است تا پرداخت‌گر بداند چند روز باید فعال شود؛ تلگرام
+    مقدار پرداخت‌شده را برمی‌گرداند و ما روز را فقط از همین payload می‌خوانیم.
+    """
+    days = days if days in PRO_PLAN_DAYS else 30
+    stars = plan_price(days)
     tg_call(
         "sendInvoice",
         {
             "chat_id": chat_id,
-            "title": tr(lang, "inv_title"),
+            "title": f"{tr(lang, 'inv_title')} · {days}d",
             "description": tr(lang, "inv_desc"),
-            "payload": f"tradeguard_pro_30d_{SUBSCRIPTION_STARS}",
+            "payload": f"tradeguard_pro_{days}d_{stars}",
             "provider_token": "",
             "currency": "XTR",
-            "prices": [{"label": tr(lang, "inv_label"), "amount": SUBSCRIPTION_STARS}],
+            "prices": [{"label": f"{tr(lang, 'inv_label')} · {days}d", "amount": stars}],
         },
     )
 
@@ -2340,8 +2652,9 @@ def handle_message(msg: dict) -> None:
             logger.warning("پرداخت بدون telegram_payment_charge_id نادیده گرفته شد (کاربر %s)", uid)
             return
 
+        paid_days = plan_days_from_payload(str(pay.get("invoice_payload") or ""))
         new_exp, is_new = activate_pro_subscription(
-            user_id=uid, stars=amount, charge_id=charge_id, days=30
+            user_id=uid, stars=amount, charge_id=charge_id, days=paid_days
         )
         exp_str = datetime.fromtimestamp(new_exp, tz=timezone.utc).strftime("%Y-%m-%d")
 
@@ -2429,19 +2742,36 @@ def handle_message(msg: dict) -> None:
         pro, pro_until = is_user_pro(uid)
 
         # 🛒 دکمهٔ «خرید اشتراک» مینی‌اپ ⇒ مستقیم فاکتور Stars می‌آید
-        if payload in ("pro", "buy", "pay", "stars", "pro_30", "pricing", "subscribe"):
+        _plan_m = re.match(r"^(?:pro|buy|pay)(30|90|365)$", payload or "")
+        _plan_days = int(_plan_m.group(1)) if _plan_m else 30
+        if payload in ("pro", "buy", "pay", "stars", "pro_30", "pricing", "subscribe") or _plan_m:
             if free_mode_active():
                 tg_send_message(chat_id, tr(lang, "free_buy_blocked"), reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)))
                 return
             if pro and pro_until > int(time.time()):
                 send_status_message(chat_id, uid, lang, pro, pro_until)
             else:
-                send_pro_invoice(chat_id, lang)
+                send_pro_invoice(chat_id, lang, _plan_days)
             return
 
         # 🎁 دکمهٔ «دعوت دوستان» مینی‌اپ ⇒ لینک اختصاصی + پیشرفت واقعی
         if payload in ("invite", "refer", "ref", "friends", "refs"):
             send_invite_message(chat_id, uid, lang)
+            return
+
+        # 🧪 لینک «۳ روز رایگان» (از کانال/تبلیغ) ⇒ همان مسیر /trial
+        if payload in ("trial", "try", "test", "free"):
+            ok, exp, reason = start_pro_trial(uid)
+            if reason == "granted":
+                tg_send_message(
+                    chat_id,
+                    tr(lang, "trial_ok", date=_utc_date(exp), days=PRO_TRIAL_DAYS),
+                    reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)),
+                )
+            elif reason == "already_pro":
+                tg_send_message(chat_id, tr(lang, "trial_already", date=_utc_date(exp)))
+            else:
+                send_user_home(chat_id, uid, lang, pro)
             return
 
         # 🔎 بازگشت از پرداخت / بررسی وضعیت
@@ -2458,7 +2788,57 @@ def handle_message(msg: dict) -> None:
             pro, _ = is_user_pro(uid)
             tg_send_message(chat_id, tr(lang, "free_buy_blocked"), reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)))
             return
-        send_pro_invoice(chat_id, lang)
+        parts = text.split()
+        days = 30
+        if len(parts) > 1 and parts[1].isdigit() and int(parts[1]) in PRO_PLAN_DAYS:
+            days = int(parts[1])
+        elif len(parts) == 1:
+            # بدون آرگومان: یک بار جدول پلن‌ها را بفرست، بعد فاکتور پیش‌فرض
+            tg_send_message(
+                chat_id,
+                tr(
+                    lang,
+                    "plans_intro",
+                    d30=PRO_PLAN_DAYS[0], p30=plan_price(30),
+                    d90=PRO_PLAN_DAYS[1], p90=plan_price(90),
+                    d365=PRO_PLAN_DAYS[2], p365=plan_price(365),
+                ),
+            )
+        send_pro_invoice(chat_id, lang, days)
+        return
+
+    if text.startswith("/trial"):
+        lang = get_user_lang(uid, tg_lang)
+        ok, exp, reason = start_pro_trial(uid)
+        if reason == "granted":
+            tg_send_message(
+                chat_id,
+                tr(lang, "trial_ok", date=_utc_date(exp), days=PRO_TRIAL_DAYS),
+                reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)),
+            )
+        elif reason == "already_pro":
+            tg_send_message(chat_id, tr(lang, "trial_already", date=_utc_date(exp)))
+        else:
+            tg_send_message(
+                chat_id,
+                tr(lang, "trial_used"),
+                reply_markup=main_keyboard(False, lang, is_admin_user=is_admin(uid)),
+            )
+        return
+
+    if text.startswith("/income"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        parts = text.split()
+        window = 30
+        if len(parts) > 1 and parts[1].isdigit():
+            window = max(1, min(365, int(parts[1])))
+        try:
+            tg_send_message(chat_id, income_report(window))
+        except Exception as exc:
+            logger.warning("income report failed: %s", exc)
+            tg_send_message(chat_id, "⚠️ گزارش درآمد ساخته نشد؛ لطفاً بعداً دوباره امتحان کنید.")
         return
 
     if text.startswith("/top"):
@@ -3162,13 +3542,62 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, tr(lang, "free_admin_on"))
         elif arg in ("off", "0", "false", "خاموش", "بسته"):
             set_free_mode(False)
+            set_free_mode_until(0)
             tg_send_message(chat_id, tr(lang, "free_admin_off"))
+        elif arg.startswith("until"):
+            # `/freemode until 2026-11-21` — تاریخ پایان مشخص، بدون تمدید خودکار
+            raw_date = arg.replace("until", "").strip()
+            if not raw_date:
+                tg_send_message(
+                    chat_id,
+                    "📅 تاریخ پایان را بدهید: `/freemode until 2026-11-21`\n"
+                    "_تاریخ به UTC است و در `.env` و دیتابیس ذخیره می‌شود._",
+                )
+                return
+            try:
+                end_dt = datetime.strptime(raw_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except ValueError:
+                tg_send_message(chat_id, "⚠️ قالب تاریخ درست نیست. مثال: `/freemode until 2026-11-21`")
+                return
+            end_ts = int(end_dt.timestamp()) + 86400 - 1  # تا پایان همان روز UTC
+            if end_ts <= int(time.time()):
+                tg_send_message(chat_id, "⚠️ این تاریخ گذشته است. یک تاریخ آینده بدهید.")
+                return
+            set_free_mode(True)
+            set_free_mode_until(end_ts)
+            days_left = free_mode_days_left()
+            tg_send_message(
+                chat_id,
+                tr(lang, "free_admin_on")
+                + f"\n\n📅 *پایان دورهٔ رایگان:* `{raw_date}` ({days_left} روز دیگر)\n"
+                f"قیمت پس از آن: *{SUBSCRIPTION_STARS:,} ⭐*\n\n"
+                "متن اعلام عمومی آماده است: `/freemode announce`",
+                reply_markup=admin_back_keyboard(),
+            )
+        elif arg == "announce":
+            if not free_mode_active():
+                tg_send_message(chat_id, "ℹ️ دورهٔ رایگان خاموش است؛ اول `/freemode until YYYY-MM-DD`.")
+                return
+            left = free_mode_days_left()
+            when = _utc_date(FREE_MODE_UNTIL) if FREE_MODE_UNTIL > 0 else "—"
+            tg_send_message(
+                chat_id,
+                "📣 *متن اعلام پایان دورهٔ رایگان* (کانال فارسی)\n\n"
+                f"🎁 دوستان، تا `{when}` ({max(0, left)} روز دیگر) همهٔ امکانات TradeGuard رایگان است.\n\n"
+                "از آن تاریخ، بخش‌های حرفه‌ای (رادار کامل، هشدار شخصی، فایل MT5 و اندیکاتور) "
+                f"با اشتراک *{SUBSCRIPTION_STARS:,} ⭐ / ۳۰ روز* فعال می‌شوند — با استارز تلگرام، بدون تمدید خودکار.\n\n"
+                "همین حالا امتحان کنید تا با قابلیت‌ها آشنا شوید؛ هر کسی که الآن شروع کند "
+                "دورهٔ آزمایشی یک‌بارهٔ خودش را هم دارد.\n\n"
+                f"👉 https://t.me/{BOT_USERNAME}?start=trial",
+            )
         else:
             state = tr(lang, "free_home_line") if free_mode_active() else "💰 پرداختی"
             tg_send_message(
                 chat_id,
                 tr(lang, "free_admin_state", state=("🎁 روشن" if free_mode_active() else "💰 خاموش"))
-                + "\n\n`/freemode on` — همه‌چیز رایگان\n`/freemode off` — برگشت پرداخت",
+                + "\n\n`/freemode on` — همه‌چیز رایگان\n`/freemode off` — برگشت پرداخت"
+                + "\n`/freemode until 2026-11-21` — رایگان تا تاریخ مشخص\n"
+                + "`/freemode announce` — متن اعلام عمومی",
                 reply_markup=admin_back_keyboard(),
             )
         return
@@ -4798,6 +5227,304 @@ def biz_report_text(code: str = "") -> str:
     return "\n".join(lines)
 
 
+# =====================================================================
+#  ۱۰) موتور درآمد: آزمایش یک‌باره، یادآوری تمدید، گزارش واقعی درآمد
+# =====================================================================
+def stars_to_usd(stars: float) -> float:
+    """استارز → دلار خالص (نرخ تلگرام و سهم پس از کارمزد، هر دو از env)."""
+    return max(0.0, float(stars or 0)) * STARS_USD_RATE * STARS_NET_SHARE
+
+
+def _utc_date(ts: int) -> str:
+    return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
+
+
+def free_mode_days_left(now: Optional[float] = None) -> int:
+    """روزهای باقی‌ماندهٔ دورهٔ رایگان.
+
+    ۰ = رایگان خاموش · -۱ = رایگان روشن بدون تاریخ پایان (یعنی درآمد صفر)
+    """
+    if not free_mode_active():
+        return 0
+    if FREE_MODE_UNTIL <= 0:
+        return -1
+    ts = float(now if now is not None else time.time())
+    return max(0, int(round((FREE_MODE_UNTIL - ts) / 86400)))
+
+
+def start_pro_trial(user_id: int) -> Tuple[bool, int, str]:
+    """دورهٔ آزمایشی پرو، فقط یک‌بار برای هر کاربر.
+
+    خروجی: (موفق؟، تاریخ انقضا، دلیل) — دلیل: granted / already_pro / used
+    هیچ ردیف پرداختی ساخته نمی‌شود، پس آمار درآمد با هدیه قاطی نمی‌شود.
+    """
+    now = int(time.time())
+    days = max(1, PRO_TRIAL_DAYS)
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT pro_until, pro_trial_used FROM users WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        if row and int(row[0] or 0) > now:
+            return False, int(row[0] or 0), "already_pro"
+        if row and int(row[1] or 0) == 1:
+            return False, int(row[0] or 0), "used"
+        if not row:
+            conn.execute(
+                "INSERT OR IGNORE INTO users (user_id, username, lang, pro_until, created_at) "
+                "VALUES (?, '', 'fa', 0, ?)",
+                (user_id, now),
+            )
+    # grant_pro_days قفل خودش را می‌گیرد؛ عمداً بیرون از بلوک قبلی صدا زده می‌شود.
+    exp = grant_pro_days(user_id, days)
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE users SET pro_trial_used = 1 WHERE user_id = ?", (user_id,))
+    publish_pro_status([user_id])
+    return True, exp, "granted"
+
+
+def trial_available(user_id: int) -> bool:
+    """آیا این کاربر می‌تواند آزمایش را فعال کند؟ (پرو نیست و قبلاً استفاده نکرده)"""
+    now = int(time.time())
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT pro_until, pro_trial_used FROM users WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    if not row:
+        return True
+    return int(row[0] or 0) <= now and int(row[1] or 0) == 0
+
+
+def _reminder_sent(key: str) -> bool:
+    try:
+        return get_setting(key) == "1"
+    except Exception:
+        return False
+
+
+def _mark_reminder(key: str) -> None:
+    try:
+        set_setting(key, "1")
+    except Exception as exc:
+        logger.warning("ثبت یادآوری ناموفق (%s): %s", key, exc)
+
+
+def renewal_candidates(now: Optional[int] = None) -> List[Tuple[int, int]]:
+    """اشتراک‌های پرداختی که تا RENEW_NOTICE_DAYS روز دیگر تمام می‌شوند."""
+    ts = int(now if now is not None else time.time())
+    limit = ts + RENEW_NOTICE_DAYS * 86400
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT user_id, pro_until FROM users WHERE pro_until > ? AND pro_until <= ? "
+            "ORDER BY pro_until ASC LIMIT 200",
+            (ts, limit),
+        ).fetchall()
+    return [(int(r[0]), int(r[1])) for r in rows]
+
+
+def winback_candidates(now: Optional[int] = None) -> List[Tuple[int, int]]:
+    """اشتراک‌هایی که در WINBACK_DAYS روز گذشته منقضی شده‌اند (بین ۰ و N روز پیش)."""
+    ts = int(now if now is not None else time.time())
+    since = ts - WINBACK_DAYS * 86400
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT user_id, pro_until FROM users WHERE pro_until > 0 AND pro_until <= ? "
+            "AND pro_until >= ? ORDER BY pro_until DESC LIMIT 200",
+            (ts, since),
+        ).fetchall()
+    return [(int(r[0]), int(r[1])) for r in rows]
+
+
+def maybe_send_renewal_reminders(now: Optional[int] = None) -> List[Tuple[int, str]]:
+    """یادآوری تمدید + بازگرداندن کاربر تازه‌منقضی‌شده.
+
+    فقط واقعیت می‌گوید (تاریخ انقضا) و دکمهٔ فاکتور می‌فرستد. برای هر کاربر و
+    هر تاریخ انقضا فقط یک‌بار، پس با ری‌استارت هر ۶ ساعت اسپم نمی‌شود.
+    در حالت رایگان هیچ پیامی فرستاده نمی‌شود، چون چیزی برای خرید نیست.
+    """
+    if free_mode_active():
+        return []
+    ts = int(now if now is not None else time.time())
+    sent: List[Tuple[int, str]] = []
+
+    for uid, exp in renewal_candidates(ts):
+        key = f"renew_{uid}_{exp}"
+        if _reminder_sent(key):
+            continue
+        lang = get_user_lang(uid)
+        days_left = max(1, int(round((exp - ts) / 86400)))
+        res = tg_send_message(
+            uid, tr(lang, "renew_reminder", days=days_left, date=_utc_date(exp))
+        )
+        if res.get("ok"):
+            send_pro_invoice(uid, lang)
+            _mark_reminder(key)
+            sent.append((uid, "renew"))
+
+    for uid, exp in winback_candidates(ts):
+        key = f"winback_{uid}_{exp}"
+        if _reminder_sent(key):
+            continue
+        lang = get_user_lang(uid)
+        res = tg_send_message(uid, tr(lang, "winback_reminder", date=_utc_date(exp)))
+        if res.get("ok"):
+            send_pro_invoice(uid, lang)
+            _mark_reminder(key)
+            sent.append((uid, "winback"))
+
+    if sent:
+        logger.info("یادآوری درآمد: %s پیام (%s)", len(sent), sent[:5])
+    return sent
+
+
+def income_report(window_days: int = 30) -> str:
+    """گزارش درآمد واقعی + تشخیص «قدم بعدی» — فقط از دیتابیس، بدون عدد ساختگی.
+
+    ستارگان با نرخ env به دلار خالص تبدیل می‌شوند؛ هیچ درآمدی پیش‌بینی نمی‌شود،
+    فقط چیزی که واقعاً پرداخت شده + قیمت فعلی برای سقف بالقوه.
+    """
+    ts = int(time.time())
+    days = max(1, min(365, int(window_days or 30)))
+    since = ts - days * 86400
+    day_ago = ts - 86400
+
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        def one(sql: str, args: tuple = ()) -> int:
+            row = conn.execute(sql, args).fetchone()
+            return int((row[0] if row else 0) or 0)
+
+        total_stars = one("SELECT COALESCE(SUM(stars_amount),0) FROM payments WHERE stars_amount > 0")
+        total_pay = one("SELECT COUNT(*) FROM payments WHERE stars_amount > 0")
+        win_stars = one(
+            "SELECT COALESCE(SUM(stars_amount),0) FROM payments WHERE stars_amount > 0 AND paid_at >= ?",
+            (since,),
+        )
+        win_pay = one(
+            "SELECT COUNT(*) FROM payments WHERE stars_amount > 0 AND paid_at >= ?", (since,)
+        )
+        day_stars = one(
+            "SELECT COALESCE(SUM(stars_amount),0) FROM payments WHERE stars_amount > 0 AND paid_at >= ?",
+            (day_ago,),
+        )
+        day_pay = one(
+            "SELECT COUNT(*) FROM payments WHERE stars_amount > 0 AND paid_at >= ?", (day_ago,)
+        )
+        users_total = one("SELECT COUNT(*) FROM users")
+        new_users = one("SELECT COUNT(*) FROM users WHERE created_at >= ?", (since,))
+        active_pro = one("SELECT COUNT(*) FROM users WHERE pro_until > ?", (ts,))
+        trials_active = one(
+            "SELECT COUNT(*) FROM users WHERE pro_until > ? AND pro_trial_used = 1", (ts,)
+        )
+        trials_used = one("SELECT COUNT(*) FROM users WHERE pro_trial_used = 1")
+        payers = one("SELECT COUNT(DISTINCT user_id) FROM payments WHERE stars_amount > 0")
+        payers_win = one(
+            "SELECT COUNT(DISTINCT user_id) FROM payments WHERE stars_amount > 0 AND paid_at >= ?",
+            (since,),
+        )
+        renewers = one(
+            "SELECT COUNT(*) FROM (SELECT user_id FROM payments WHERE stars_amount > 0 "
+            "GROUP BY user_id HAVING COUNT(*) >= 2)"
+        )
+        expiring = one(
+            "SELECT COUNT(*) FROM users WHERE pro_until > ? AND pro_until <= ?",
+            (ts, ts + 7 * 86400),
+        )
+        by_source = conn.execute(
+            "SELECT COALESCE(NULLIF(u.source,''), 'direct') AS s, COUNT(DISTINCT p.user_id) AS payers, "
+            "COALESCE(SUM(p.stars_amount),0) AS stars FROM payments p "
+            "LEFT JOIN users u ON u.user_id = p.user_id WHERE p.stars_amount > 0 "
+            "GROUP BY s ORDER BY stars DESC LIMIT 6"
+        ).fetchall()
+
+    # نسبت‌ها — هر تقسیم با محافظ صفر
+    conv_all = (payers / users_total * 100) if users_total else 0.0
+    conv_win = (payers_win / new_users * 100) if new_users else 0.0
+    renew_rate = (renewers / payers * 100) if payers else 0.0
+    arppu_stars = (win_stars / win_pay) if win_pay else 0
+    trial_conv = (max(0, payers - 0) / trials_used * 100) if trials_used else 0.0
+
+    net_total = stars_to_usd(total_stars)
+    net_win = stars_to_usd(win_stars)
+    net_day = stars_to_usd(day_stars)
+    potential_mrr = stars_to_usd(active_pro * SUBSCRIPTION_STARS)
+
+    free_left = free_mode_days_left(ts)
+    if free_left == 0:
+        free_line = "خاموش — قفل‌ها و پرداخت فعال است"
+    elif free_left < 0:
+        free_line = "⚠️ *روشن بدون تاریخ پایان* — تا وقتی روشن است درآمد صفر می‌ماند"
+    else:
+        free_line = f"روشن — {free_left} روز دیگر تمام می‌شود"
+
+    lines: List[str] = [
+        f"💵 *گزارش درآمد TradeGuard* — پنجرهٔ {days} روز",
+        "",
+        f"💰 مجموع دریافتی (کل تاریخ): *{total_stars:,} ⭐* ≈ *${net_total:,.2f}*",
+        f"📈 همین پنجره: *{win_pay}* پرداخت · *{win_stars:,} ⭐* ≈ *${net_win:,.2f}*",
+        f"🕐 ۲۴ ساعت اخیر: *{day_pay}* پرداخت · *{day_stars:,} ⭐* ≈ *${net_day:,.2f}*",
+        f"🔁 نرخ اجرا (Run-rate ماهانه): *${net_win:,.2f}* — از فروش واقعی همین پنجره",
+        "",
+        "*قیف تبدیل*",
+        f"👥 کاربر: *{users_total:,}* (تازه در پنجره: *{new_users:,}*)",
+        f"💎 پرو فعال: *{active_pro:,}* (از این‌ها دورهٔ آزمایشی: *{trials_active:,}*)",
+        f"🧪 آزمایش استفاده‌شده: *{trials_used:,}* · تبدیل آزمایش→خرید: *{trial_conv:.1f}%*",
+        f"🛒 خریدار یکتا: *{payers:,}* · تبدیل کل: *{conv_all:.1f}%* · پنجره: *{conv_win:.1f}%*",
+        f"🔁 تمدیدکننده (۲+ پرداخت): *{renewers:,}* · نرخ تمدید: *{renew_rate:.1f}%*",
+        f"💳 میانگین هر خرید: *{arppu_stars:,.0f} ⭐* ≈ *${stars_to_usd(arppu_stars):,.2f}*",
+        "",
+        f"⏳ انقضا در ۷ روز آینده: *{expiring:,}* کاربر (یادآوری خودکار فعال است)",
+        f"💲 قیمت فعلی: *{SUBSCRIPTION_STARS:,} ⭐* ≈ *${stars_to_usd(SUBSCRIPTION_STARS):,.2f}* خالص",
+        f"🎁 دورهٔ رایگان: {free_line}",
+        f"🧮 سقف بالقوهٔ ماهانه با همین قیمت و همین کاربران فعال: *${potential_mrr:,.2f}*",
+    ]
+
+    if by_source:
+        lines += ["", "*درآمد به تفکیک منبع (کدام کانال/شریک پول آورد)*"]
+        for src, src_payers, src_stars in by_source:
+            lines.append(
+                f"• `{src}` — {int(src_payers)} خریدار · {int(src_stars):,} ⭐ "
+                f"≈ ${stars_to_usd(src_stars):,.2f}"
+            )
+
+    # تشخیص «قدم بعدی» — قاعده‌محور، از همان اعداد بالا
+    todo: List[str] = []
+    if free_left != 0:
+        todo.append(
+            "دورهٔ رایگان روشن است، پس هیچ فروشی ممکن نیست. تاریخ پایان بگذار: "
+            "`/freemode until 2026-11-21` و همان روز اعلام عمومی کن (متن آماده در `REVENUE_FA.md`)."
+        )
+    if free_left == 0 and payers == 0:
+        todo.append(
+            "اولین فروش: قیمت را با `/price 1` تست کن، بعد به قیمت واقعی برگردان "
+            f"(`/price {SUBSCRIPTION_STARS}`)."
+        )
+    if users_total >= 10 and conv_all < 2:
+        todo.append(
+            "تبدیل زیر ۲٪ است: هر کاربر تازه یک‌بار `/trial` پیشنهاد بگیرد و "
+            "قفل نرم روی رادار کامل بماند (ارزش را قبل از پول نشان بده)."
+        )
+    if trials_used > 0 and payers == 0:
+        todo.append("آزمایش‌ها به خرید نرسیده‌اند: در پیام پایان آزمایش، فاکتور و تاریخ را بفرست.")
+    if payers > 0 and renewers == 0:
+        todo.append(
+            "هنوز تمدید نداشته‌ای: یادآوری ۳ روزه روشن است؛ با `/income 7` هفتگی چک کن."
+        )
+    if expiring > 0:
+        todo.append(f"{expiring} کاربر تا یک هفته دیگر منقضی می‌شوند — همین چرخه یادآوری می‌روند.")
+    if total_pay > 0 and total_stars == 0:
+        todo.append("همهٔ ردیف‌های پرداخت ۰ استارز هستند (هدیه)؛ فروش واقعی هنوز صفر است.")
+    if not todo:
+        todo.append("قیف سالم است: کانال بمان روی محتوای رادار + معرفی قابلیت، و هر هفته یک شریک اضافه کن.")
+
+    lines += ["", "*قدم بعدی (خودکار از همین اعداد)*"]
+    lines += [f"{i}) {t}" for i, t in enumerate(todo, 1)]
+    lines += [
+        "",
+        "_ستارهٔ دریافتی خام است؛ دلار با نرخ env (`STARS_USD_RATE`) و سهم پس از کارمزد "
+        f"`{STARS_NET_SHARE}` محاسبه می‌شود. موجودی و تراکنش رسمی: `/stars`._",
+    ]
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------
 #  گزارش ماهانهٔ شرکا (اسنپ‌شات + تغییر نسبت به ماه قبل)
 # ---------------------------------------------------------------------
@@ -5262,6 +5989,9 @@ def _mini_app_kb(start_param: str = "channel", share_text: str = "") -> dict:
         [{"text": "🚀 باز کردن مینی‌اپ (۶ زبان)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
         [{"text": "🎁 دعوت دوستان (۳ نفر = ۷ روز پرو)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
     ]
+    # در دورهٔ رایگان دکمهٔ آزمایش معنی ندارد؛ بعد از آن، این تنها دکمهٔ بدون‌پرداخت است.
+    if not free_mode_active():
+        rows.insert(1, [{"text": "🧪 ۳ روز پرو رایگان (یک‌بار)", "url": f"https://t.me/{BOT_USERNAME}?start=trial"}])
     if share_text:
         rows.append([share_kb_row(share_text)])
     return {"inline_keyboard": rows}
@@ -5352,6 +6082,8 @@ def _mini_app_kb_en(start_param: str = "channel", share_text: str = "") -> dict:
         [{"text": "🚀 Open the mini app (6 languages)", "url": f"https://t.me/{BOT_USERNAME}?start={start_param}"}],
         [{"text": "🎁 Invite friends (3 = 7 days PRO)", "url": f"https://t.me/{BOT_USERNAME}?start=invite"}],
     ]
+    if not free_mode_active():
+        rows.insert(1, [{"text": "🧪 3-day free PRO (one time)", "url": f"https://t.me/{BOT_USERNAME}?start=trial"}])
     if share_text:
         rows.append([growth_share_button(share_text, "en")])
     return {"inline_keyboard": rows}
@@ -5707,6 +6439,7 @@ def auto_channel_loop() -> None:
                 validate_channel_target(silent=True)
             post_due_slots()
             evaluate_user_alerts()
+            maybe_send_renewal_reminders()
             maybe_send_monthly_partner_report()
             post_weekly_invite_recap()
             publish_public_feed()
