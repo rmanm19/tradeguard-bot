@@ -30,6 +30,12 @@ on:
         default: "true"
         type: choice
         options: ["true", "false"]
+      debug:
+        description: "چاپ اطلاعات تشخیصی دیتابیس؟ (معمولاً لازم نیست)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
       force:
         description: "حتی اگر از قبل ست شده، با مقدار استاندارد جایگزین کن؟"
         required: true
@@ -92,7 +98,7 @@ jobs:
           MINI_APP_URL: ${{ secrets.MINI_APP_URL }}
           PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
           PUBLIC_CHANNEL_EN_ID: ${{ secrets.PUBLIC_CHANNEL_EN_ID }}
-          DEBUG: "1"
+          DEBUG: ${{ inputs.debug }}
         run: |
           set +e
           set -o pipefail
