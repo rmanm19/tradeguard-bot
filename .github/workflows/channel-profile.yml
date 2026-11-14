@@ -30,6 +30,12 @@ on:
         default: "true"
         type: choice
         options: ["true", "false"]
+      debug:
+        description: "چاپ اطلاعات تشخیصی دیتابیس؟ (معمولاً لازم نیست)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
       force:
         description: "حتی اگر از قبل ست شده، با مقدار استاندارد جایگزین کن؟"
         required: true
@@ -90,13 +96,26 @@ jobs:
           APPLY: ${{ inputs.apply }}
           FORCE: ${{ inputs.force }}
           MINI_APP_URL: ${{ secrets.MINI_APP_URL }}
+          PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+          PUBLIC_CHANNEL_EN_ID: ${{ secrets.PUBLIC_CHANNEL_EN_ID }}
+          DEBUG: ${{ inputs.debug }}
         run: |
           set +e
+          set -o pipefail
           if [ "$APPLY" = "true" ]; then A=1; else A=0; fi
           if [ "$FORCE" = "true" ]; then F=1; else F=0; fi
-          APPLY=$A FORCE=$F python -u channel_profile.py
-          code=$?
+          APPLY=$A FORCE=$F python -u channel_profile.py 2>&1 | tee profile_report.txt
+          code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             echo "::error title=پروفایل کامل نشد::کد خروج $code — متن خطا در پیام‌های بالا/پایین همین مرحله است."
           fi
           exit "$code"
+
+      - name: ذخیرهٔ گزارش
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-report-${{ github.run_id }}
+          path: tradeguard-pro/profile_report.txt
+          if-no-files-found: ignore
+          retention-days: 7

@@ -127,6 +127,30 @@ def api_upload_photo(chat_id: str, path: Path, token: str) -> dict:
         return {"ok": False, "description": str(exc)}
 
 
+def debug_db() -> None:
+    """گزارش تشخیصی امن: فقط کلیدهای تنظیمات، بدون مقدار حساس."""
+    print(f"::notice::DEBUG DB: {DB_PATH.name} exists={DB_PATH.exists()}")
+    if not DB_PATH.exists():
+        base = HERE / ".dbcache"
+        print(f"::notice::DEBUG .dbcache exists={base.exists()}")
+        if base.exists():
+            for f in sorted(base.iterdir()):
+                print(f"::notice::DEBUG file {f.name} {f.stat().st_size}B")
+        return
+    try:
+        with sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            print(f"::notice::DEBUG tables: {','.join(tables)}")
+            if "settings" in tables:
+                keys = [r[0] for r in conn.execute("SELECT key FROM settings ORDER BY key")]
+                print(f"::notice::DEBUG settings keys({len(keys)}): {','.join(keys[:20])}")
+                for k in ("PUBLIC_CHANNEL_ID", "PUBLIC_CHANNEL_EN_ID"):
+                    row = conn.execute("SELECT value FROM settings WHERE key = ?", (k,)).fetchone()
+                    print(f"::notice::DEBUG {k}={row[0] if row else 'NONE'}")
+    except Exception as exc:
+        print(f"::error title=DEBUG DB read failed::{exc}")
+
+
 def setting(key: str) -> str:
     """خواندن تنظیمات از دیتابیس رمزگشایی‌شده (اگر وجود داشته باشد)."""
     if not DB_PATH.exists():
@@ -137,6 +161,44 @@ def setting(key: str) -> str:
         return str(row[0]) if row and row[0] else ""
     except Exception:
         return ""
+
+
+def bot_status(token: str, channel: str, bot_id) -> tuple[str, dict]:
+    """وضعیت ربات در یک کانال: ('administrator'|'member'|'?' , rights)."""
+    if not bot_id:
+        return "?", {}
+    res = api("getChatMember", {"chat_id": channel, "user_id": bot_id}, token)
+    if not res.get("ok"):
+        return "?", {}
+    member = res.get("result") or {}
+    return str(member.get("status") or "?"), member
+
+
+def probe_candidates(candidates: list[str], token: str, bot_id) -> tuple[str, list[str]]:
+    """چند نام را امتحان می‌کند و اولین کانالی را برمی‌گرداند که ربات در آن ادمین است.
+
+    چرا؟ چون Bot API فهرست «کانال‌های من» را نمی‌دهد. فقط کانال‌هایی پذیرفته
+    می‌شوند که همین ربات در آن‌ها ادمین است، پس امکان دست‌زدن به کانال غریبه صفر است.
+    """
+    log: list[str] = []
+    for cand in candidates:
+        cand = cand.strip()
+        if not cand:
+            continue
+        if not cand.startswith("@") and not cand.lstrip("-").isdigit():
+            cand = "@" + cand
+        info = api("getChat", {"chat_id": cand}, token)
+        if not info.get("ok"):
+            log.append(f"   ✖ {cand}: {(info.get('description') or '')[:60]}")
+            continue
+        chat = info.get("result") or {}
+        status, member = bot_status(token, cand, bot_id)
+        title = chat.get("title") or "?"
+        if status in ("administrator", "creator"):
+            log.append(f"   ✅ {cand}: «{title}» — ربات {status}")
+            return cand, log
+        log.append(f"   ⚠ {cand}: «{title}» وجود دارد ولی ربات ادمین نیست ({status})")
+    return "", log
 
 
 def resolve_channel(lang: str) -> tuple[str, str]:
@@ -177,7 +239,20 @@ def main() -> int:
         print("::error title=بدون توکن::BOT_TOKEN تنظیم نشده است.")
         return 2
 
+    if env("DEBUG", "0") in ("1", "true", "yes"):
+        debug_db()
     channel, source = resolve_channel(lang)
+    bot_id = (api("getMe", {}, token).get("result") or {}).get("id")
+    if "," in channel or (source == "ورودی workflow" and not channel.startswith("@")):
+        candidates = [c for c in channel.replace("\n", ",").split(",") if c.strip()]
+        if len(candidates) > 1 or "," in channel:
+            print(f"🔎 {len(candidates)} نام کاندید بررسی می‌شود…")
+            channel, probe_log = probe_candidates(candidates, token, bot_id)
+            print("\n".join(probe_log))
+            if not channel:
+                print("::error title=هیچ کاندیدی تأیید نشد::ربات در هیچ‌کدام از این کانال‌ها ادمین نیست.")
+                return 6
+            source = "کاندید تأییدشده"
     print(f"🌍 زبان: {lang} · کانال: {channel or '—'} · منبع: {source or '—'}")
     if not channel:
         print("::error title=کانال پیدا نشد::نه ورودی CHANNEL بود و نه PUBLIC_CHANNEL_* در دیتابیس.")
@@ -191,10 +266,10 @@ def main() -> int:
     chat = info.get("result") or {}
     cur = describe(chat)
     print("📋 وضعیت فعلی:")
-    print(f"   • عنوان: {cur['title']}")
-    print(f"   • یوزرنیم: @{cur['username']}" if cur["username"] else "   • یوزرنیم: — (خصوصی)")
-    print(f"   • توضیحات: {cur['desc_len']} کاراکتر")
-    print(f"   • عکس: {'✅' if cur['has_photo'] else '❌'} · پین: {'✅' if cur['has_pin'] else '❌'}")
+    print(f"::notice::وضعیت فعلی · عنوان: {cur['title']}")
+    print(f"::notice::وضعیت فعلی · یوزرنیم: @{cur['username']}" if cur["username"] else "   • یوزرنیم: — (خصوصی)")
+    print(f"::notice::وضعیت فعلی · توضیحات: {cur['desc_len']} کاراکتر")
+    print(f"::notice::وضعیت فعلی · عکس: {'YES' if cur['has_photo'] else 'NO'} · پین: {'YES' if cur['has_pin'] else 'NO'}")
 
     me = api("getChatMember", {"chat_id": channel, "user_id": (api("getMe", {}, token).get("result") or {}).get("id")}, token)
     member = (me.get("result") or {}) if me.get("ok") else {}
@@ -202,7 +277,7 @@ def main() -> int:
     can_info = bool(member.get("can_change_info"))
     can_pin = bool(member.get("can_pin_messages"))
     can_post = bool(member.get("can_post_messages"))
-    print(f"👤 دسترسی ربات: {rights} · تغییر اطلاعات: {'✅' if can_info else '❌'}"
+    print(f"::notice::دسترسی ربات: {rights} · تغییر اطلاعات: {'YES' if can_info else 'NO'}"
           f" · پین: {'✅' if can_pin else '❌'} · ارسال: {'✅' if can_post else '❌'}")
 
     if rights not in ("administrator", "creator"):
@@ -257,7 +332,7 @@ def main() -> int:
     print("\n🧾 نتیجه:")
     failed = 0
     for label, ok, detail in results:
-        print(f"   {'✅' if ok else '❌'} {label}" + (f" — {detail}" if detail else ""))
+        print(f"::notice::{'OK' if ok else 'FAIL'} {label}" + (f" — {detail}" if detail else ""))
         if not ok:
             failed += 1
 
@@ -269,11 +344,11 @@ def main() -> int:
 
     after = describe((api("getChat", {"chat_id": channel}, token).get("result") or {}))
     print("\n📋 وضعیت بعد از تغییر:")
-    print(f"   • عنوان: {after['title']}")
+    print(f"::notice::بعد از تغییر · عنوان: {after['title']}")
     print(f"   • یوزرنیم: @{after['username']}" if after["username"] else "   • یوزرنیم: — (خصوصی)")
-    print(f"   • توضیحات: {after['desc_len']} کاراکتر")
-    print(f"   • عکس: {'✅' if after['has_photo'] else '❌'} · پین: {'✅' if after['has_pin'] else '❌'}")
-    print(f"   • لینک عمومی: https://t.me/{after['username']}" if after["username"] else "")
+    print(f"::notice::بعد از تغییر · توضیحات: {after['desc_len']} کاراکتر")
+    print(f"::notice::بعد از تغییر · عکس: {'YES' if after['has_photo'] else 'NO'} · پین: {'YES' if after['has_pin'] else 'NO'}")
+    print(f"::notice::لینک عمومی: https://t.me/{after['username']}" if after["username"] else "")
     print("\n🔗 یوزرنیم کانال را فقط Bot API نمی‌تواند عوض کند؛ آن را مالک در تلگرام ست می‌کند.")
     return 1 if failed else 0
 
