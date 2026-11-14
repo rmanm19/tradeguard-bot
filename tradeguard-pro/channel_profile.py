@@ -139,6 +139,44 @@ def setting(key: str) -> str:
         return ""
 
 
+def bot_status(token: str, channel: str, bot_id) -> tuple[str, dict]:
+    """وضعیت ربات در یک کانال: ('administrator'|'member'|'?' , rights)."""
+    if not bot_id:
+        return "?", {}
+    res = api("getChatMember", {"chat_id": channel, "user_id": bot_id}, token)
+    if not res.get("ok"):
+        return "?", {}
+    member = res.get("result") or {}
+    return str(member.get("status") or "?"), member
+
+
+def probe_candidates(candidates: list[str], token: str, bot_id) -> tuple[str, list[str]]:
+    """چند نام را امتحان می‌کند و اولین کانالی را برمی‌گرداند که ربات در آن ادمین است.
+
+    چرا؟ چون Bot API فهرست «کانال‌های من» را نمی‌دهد. فقط کانال‌هایی پذیرفته
+    می‌شوند که همین ربات در آن‌ها ادمین است، پس امکان دست‌زدن به کانال غریبه صفر است.
+    """
+    log: list[str] = []
+    for cand in candidates:
+        cand = cand.strip()
+        if not cand:
+            continue
+        if not cand.startswith("@") and not cand.lstrip("-").isdigit():
+            cand = "@" + cand
+        info = api("getChat", {"chat_id": cand}, token)
+        if not info.get("ok"):
+            log.append(f"   ✖ {cand}: {(info.get('description') or '')[:60]}")
+            continue
+        chat = info.get("result") or {}
+        status, member = bot_status(token, cand, bot_id)
+        title = chat.get("title") or "?"
+        if status in ("administrator", "creator"):
+            log.append(f"   ✅ {cand}: «{title}» — ربات {status}")
+            return cand, log
+        log.append(f"   ⚠ {cand}: «{title}» وجود دارد ولی ربات ادمین نیست ({status})")
+    return "", log
+
+
 def resolve_channel(lang: str) -> tuple[str, str]:
     """کانال مقصد: ورودی دستی، وگرنه تنظیمات ذخیره‌شدهٔ ربات."""
     given = env("CHANNEL")
@@ -178,6 +216,17 @@ def main() -> int:
         return 2
 
     channel, source = resolve_channel(lang)
+    bot_id = (api("getMe", {}, token).get("result") or {}).get("id")
+    if "," in channel or (source == "ورودی workflow" and not channel.startswith("@")):
+        candidates = [c for c in channel.replace("\n", ",").split(",") if c.strip()]
+        if len(candidates) > 1 or "," in channel:
+            print(f"🔎 {len(candidates)} نام کاندید بررسی می‌شود…")
+            channel, probe_log = probe_candidates(candidates, token, bot_id)
+            print("\n".join(probe_log))
+            if not channel:
+                print("::error title=هیچ کاندیدی تأیید نشد::ربات در هیچ‌کدام از این کانال‌ها ادمین نیست.")
+                return 6
+            source = "کاندید تأییدشده"
     print(f"🌍 زبان: {lang} · کانال: {channel or '—'} · منبع: {source or '—'}")
     if not channel:
         print("::error title=کانال پیدا نشد::نه ورودی CHANNEL بود و نه PUBLIC_CHANNEL_* در دیتابیس.")
