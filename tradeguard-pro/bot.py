@@ -1299,6 +1299,7 @@ def sync_telegram_menus() -> None:
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
         {"command": "buy", "description": "⭐ Unlock TradeGuard PRO (Stars)"},
         {"command": "invite", "description": "🎁 Invite 3 Friends → 7 Days Free Pro"},
+        {"command": "top", "description": "🏆 Invite Leaderboard"},
         {"command": "status", "description": "🔎 My Subscription Status"},
         {"command": "check", "description": "🩺 Health Check"},
         {"command": "stars", "description": "⭐ Star Balance & Sales"},
@@ -1313,6 +1314,7 @@ def sync_telegram_menus() -> None:
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
         {"command": "buy", "description": "⭐ خرید اشتراک ویژه Pro با استارز"},
         {"command": "invite", "description": "🎁 دعوت ۳ دوست = ۷ روز پرو رایگان"},
+        {"command": "top", "description": "🏆 جدول دعوت‌کننده‌ها"},
         {"command": "status", "description": "🔎 وضعیت اشتراک من"},
         {"command": "check", "description": "🩺 بررسی سلامت و وضعیت ربات"},
         {"command": "stars", "description": "⭐ موجودی استارز و فروش‌ها"},
@@ -1646,6 +1648,71 @@ def invite_link(user_id: int) -> str:
     return f"https://t.me/{BOT_USERNAME}?start=ref_{int(user_id)}"
 
 
+def referral_leaderboard(limit: int = 10) -> List[Tuple[int, int, str]]:
+    """جدول دعوت‌کننده‌های برتر: [(user_id, count, username)].
+
+    فقط شمارش واقعیِ ثبت‌شده در دیتابیس؛ هیچ عدد یا نام ساختگی اضافه نمی‌شود.
+    """
+    limit = max(1, min(int(limit or 10), 25))
+    with _db_lock, sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT user_id, referrals_count, COALESCE(username, '') FROM users "
+            "WHERE referrals_count > 0 ORDER BY referrals_count DESC, created_at ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [(int(r[0]), int(r[1] or 0), str(r[2] or "")) for r in rows]
+
+
+def _mask_name(user_id: int, username: str, lang: str = "fa") -> str:
+    """نام نمایشی امن: یوزرنیم اگر عمومی بود، وگرنه آیدی ماسک‌شده (۲ رقم آخر)."""
+    uname = (username or "").strip().lstrip("@")
+    if uname:
+        return "@" + uname
+    digits = str(int(user_id))
+    prefix = "کاربر ••" if lang == "fa" else "User ••"
+    return prefix + digits[-2:]
+
+
+def leaderboard_text(uid: int, lang: str = "fa") -> str:
+    """متن /top — رتبهٔ واقعی کاربر + برترین دعوت‌کننده‌ها."""
+    rows = referral_leaderboard()
+    mine, _claimed = get_user_referral_stats(uid)
+    my_rank = "—"
+    if mine:
+        rank = 1 + sum(1 for _u, c, _n in referral_leaderboard(limit=10000) if c > mine)
+        my_rank = fa_num(rank) if lang == "fa" else str(rank)
+    medals = ("🥇", "🥈", "🥉")
+    lines: List[str] = []
+    if lang == "fa":
+        lines += ["🏆 *جدول دعوت‌کننده‌ها*", ""]
+        if not rows:
+            lines += ["هنوز هیچ دعوتی ثبت نشده — نفر اول جدول می‌توانی خودت باشی.",
+                      "", "با هر ۳ دعوت واقعی، ۷ روز پرو رایگان می‌گیری."]
+        else:
+            for i, (u, c, name) in enumerate(rows):
+                prefix = medals[i] if i < 3 else f"{fa_num(i + 1)}."
+                lines.append(f"{prefix} {_mask_name(u, name, 'fa')} — *{fa_num(c)}* دعوت")
+            lines += ["", "فقط دعوت‌های واقعی شمرده می‌شوند (استارت لینک اختصاصی)."]
+        lines += ["", f"جای تو: *{fa_num(mine)}* دعوت · رتبه: *{my_rank}*",
+                  f"تا هدیه: *{fa_num(max(0, FREE_PRO_INVITE_TARGET - mine))}* دعوت دیگر",
+                  f"لینک تو: `{invite_link(uid)}`"]
+        return "\n".join(lines)
+
+    lines += ["🏆 *Invite leaderboard*", ""]
+    if not rows:
+        lines += ["No invites recorded yet — you can be the first on this board.",
+                  "", "Three real invites unlock 7 days of PRO."]
+    else:
+        for i, (u, c, name) in enumerate(rows):
+            prefix = medals[i] if i < 3 else f"{i + 1}."
+            lines.append(f"{prefix} {_mask_name(u, name, 'en')} — *{c}* invites")
+        lines += ["", "Only real invites count (someone starting your personal link)."]
+    lines += ["", f"Yours: *{mine}* invites · rank: *{my_rank}*",
+              f"To the reward: *{max(0, FREE_PRO_INVITE_TARGET - mine)}* more",
+              f"Your link: `{invite_link(uid)}`"]
+    return "\n".join(lines)
+
+
 def send_invite_message(chat_id: int, uid: int, lang: str) -> None:
     """پیام «دعوت دوستان» با لینک واقعی و پیشرفت واقعی (بدون شبیه‌سازی)."""
     count, _claimed = get_user_referral_stats(uid)
@@ -1816,6 +1883,16 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, tr(lang, "free_buy_blocked"), reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)))
             return
         send_pro_invoice(chat_id, lang)
+        return
+
+    if text.startswith("/top"):
+        lang = get_user_lang(uid, tg_lang)
+        try:
+            tg_send_message(chat_id, leaderboard_text(uid, lang),
+                            reply_markup=main_keyboard(is_user_pro(uid)[0], lang, is_admin_user=is_admin(uid)))
+        except Exception as exc:
+            logger.warning("leaderboard failed: %s", exc)
+            tg_send_message(chat_id, "⚠️ جدول فعلاً در دسترس نیست.")
         return
 
     if text.startswith("/invite") or text.startswith("/ref"):
@@ -2291,7 +2368,11 @@ def handle_message(msg: dict) -> None:
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
-        tg_send_message(chat_id, channel_plan(), reply_markup=admin_back_keyboard())
+        args = text.split()[1:]
+        lang_plan = "en" if any(a.lower() in ("en", "english") for a in args) else "fa"
+        nums = [a for a in args if a.isdigit()]
+        tg_send_message(chat_id, channel_plan(int(nums[0]) if nums else 6, lang_plan),
+                        reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/channelpost"):
@@ -2781,6 +2862,19 @@ def human_delta(seconds: int) -> str:
         m = (sec % 3600) // 60
         return f"{fa_num(h)} ساعت" + (f" و {fa_num(m)} دقیقه" if m else "")
     return f"{fa_num(sec // 86400)} روز"
+
+
+def human_delta_en(seconds: int) -> str:
+    """«3 minutes» / «2 hours» — English twin of human_delta()."""
+    sec = max(0, int(seconds))
+    if sec < 60:
+        return f"{sec}s"
+    if sec < 3600:
+        return f"{sec // 60} min"
+    if sec < 86400:
+        h, m = sec // 3600, (sec % 3600) // 60
+        return f"{h}h" + (f" {m}m" if m else "")
+    return f"{sec // 86400}d"
 
 
 def own_bot_id() -> int:
@@ -3865,44 +3959,70 @@ def next_post_eta_en(now_ts: Optional[int] = None) -> str:
     last_ts = int(last) if last.isdigit() else 0
     remaining = CHANNEL_POST_INTERVAL_SEC - (now - last_ts) if last_ts else 0
     if remaining > 0:
-        return f"تا {human_delta(remaining)} دیگر"
+        return f"in {human_delta_en(remaining)}"
     if not in_post_window(now):
-        return "در بازهٔ ارسال نیست (۰۴:۰۰ UTC به بعد)"
-    return "در چرخهٔ بعدی (حداکثر ۱۰ دقیقه)"
+        return "outside the posting window (starts 04:00 UTC)"
+    if not last_ts:
+        return "soon (first post of this cycle)"
+    return "in the next cycle (max 10 minutes)"
 
 
-def channel_plan(n: int = 6) -> str:
-    """پیش‌نمایش N پست بعدی (فقط دسته و تیتر) — بدون تغییر شمارنده‌ها."""
+def channel_plan(n: int = 6, lang: str = "fa") -> str:
+    """پیش‌نمایش N پست بعدی (فقط دسته و تیتر) — بدون تغییر شمارنده‌ها.
+
+    با lang="en" برنامهٔ کانال انگلیسی را از شمارنده‌های مستقل خودش نشان می‌دهد،
+    پس می‌شود فردا قبل از ساختن کانال هم دید چه چیزی منتشر خواهد شد.
+    """
     def as_int(key: str) -> int:
         raw = str(get_setting(key, "0") or "0")
         return int(raw) if raw.isdigit() else 0
 
-    idx = as_int("channel_cycle_idx")
-    edu_i = as_int("channel_edu_idx")
-    feat_i = as_int("channel_feature_idx")
+    en = lang == "en"
+    suffix = "_en" if en else ""
+    idx = as_int("channel_cycle_idx" + suffix)
+    edu_i = as_int("channel_edu_idx" + suffix)
+    feat_i = as_int("channel_feature_idx" + suffix)
+    edu_posts = CHANNEL_EDU_POSTS_EN if en else CHANNEL_EDU_POSTS
+    feat_posts = CHANNEL_FEATURE_POSTS_EN if en else CHANNEL_FEATURE_POSTS
     edu_used = 0
     feat_used = 0
     icons = {"radar": "📡", "edu": "🎓", "feature": "✨"}
-    lines = ["🗓 *برنامهٔ پست‌های بعدی کانال*", ""]
+    if en:
+        lines = ["🗓 *Upcoming posts — English channel*", ""]
+    else:
+        lines = ["🗓 *برنامهٔ پست‌های بعدی کانال*", ""]
     for i in range(max(1, n)):
         cat = CHANNEL_CYCLE[(idx + i) % len(CHANNEL_CYCLE)]
         if cat == "edu":
-            title = CHANNEL_EDU_POSTS[(edu_i + edu_used) % len(CHANNEL_EDU_POSTS)][0]
+            title = edu_posts[(edu_i + edu_used) % len(edu_posts)][0]
             edu_used += 1
         elif cat == "feature":
-            title = CHANNEL_FEATURE_POSTS[(feat_i + feat_used) % len(CHANNEL_FEATURE_POSTS)][0]
+            title = feat_posts[(feat_i + feat_used) % len(feat_posts)][0]
             feat_used += 1
         else:
-            title = "رادار زندهٔ فاندینگ و OI (دادهٔ واقعی)"
-        lines.append(f"{fa_num(i + 1)}. {icons[cat]} {title}")
+            title = ("Live funding & OI radar (real data)" if en
+                     else "رادار زندهٔ فاندینگ و OI (دادهٔ واقعی)")
+        num = str(i + 1) if en else fa_num(i + 1)
+        lines.append(f"{num}. {icons[cat]} {title}")
     every_h = CHANNEL_POST_INTERVAL_SEC // 3600
-    lines += [
-        "",
-        f"⏱ هر {fa_num(every_h)} ساعت · بازهٔ {fa_num(f'{CHANNEL_WINDOW_UTC[0]:02d}')}–{fa_num(f'{CHANNEL_WINDOW_UTC[1]:02d}')} UTC",
-        f"⏭ پست بعدی: {next_post_eta()}",
-        "",
-        "ارسال فوری: `/channelpost` یا `/channelpost edu` / `/channelpost feature`",
-    ]
+    win = f"{CHANNEL_WINDOW_UTC[0]:02d}–{CHANNEL_WINDOW_UTC[1]:02d}"
+    if en:
+        lines += [
+            "",
+            f"⏱ Every {every_h}h · window {win} UTC",
+            f"⏭ Next post: {next_post_eta_en()}",
+            "",
+            "Channel: " + (f"`{PUBLIC_CHANNEL_EN}`" if PUBLIC_CHANNEL_EN else "not set — `/channelen @your_en_channel`"),
+        ]
+    else:
+        lines += [
+            "",
+            f"⏱ هر {fa_num(every_h)} ساعت · بازهٔ {fa_num(f'{CHANNEL_WINDOW_UTC[0]:02d}')}–{fa_num(f'{CHANNEL_WINDOW_UTC[1]:02d}')} UTC",
+            f"⏭ پست بعدی: {next_post_eta()}",
+            "",
+            "ارسال فوری: `/channelpost` یا `/channelpost edu` / `/channelpost feature`",
+            "برنامهٔ کانال انگلیسی: `/channelplan en`",
+        ]
     return "\n".join(lines)
 
 
