@@ -1,0 +1,118 @@
+name: Public Feed
+
+# ─────────────────────────────────────────────────────────────
+#  فید دادهٔ عمومی (docs/api/radar.json + stats.json)
+#
+#  چرا جدا از ربات؟ چون جاب ربات ساعت‌ها در حال اجراست و ممکن است
+#  در صف بماند (pending). این workflow مستقل و سبک است: هر ساعت
+#  دیتابیس کش‌شده را فقط می‌خواند و فید را تازه می‌کند.
+#
+#  هیچ‌چیز حساسی منتشر نمی‌شود: فقط فاندینگ/OI عمومی + شمارنده‌های
+#  تجمیعی. اگر دادهٔ زنده نیاید، هیچ فایلی نوشته نمی‌شود (نه عدد جعلی).
+# ─────────────────────────────────────────────────────────────
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "25 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-feed
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  feed:
+    name: 📡 تازه‌سازی فید عمومی
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      TG_DB_KEY: ${{ secrets.TG_DB_KEY }}
+      PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+      PUBLIC_CHANNEL_EN_ID: ${{ secrets.PUBLIC_CHANNEL_EN_ID }}
+      # اجازهٔ کامیت/پوش فید
+      PRO_STATUS_PUSH: "1"
+      PUBLIC_FEED_DIR: docs/api
+      # حداکثر هر ۳۰ دقیقه یک‌بار بنویس (جلوگیری از تاریخچهٔ شلوغ)
+      PUBLIC_FEED_MIN_INTERVAL: "1800"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: نصب وابستگی‌ها
+        run: pip install --quiet requests
+
+      # ── دیتابیس فقط برای شمارنده‌های تجمیعی stats.json ──────────
+      - name: بازیابی دیتابیس از کش
+        uses: actions/cache/restore@v4
+        with:
+          path: tradeguard-pro/.dbcache
+          key: tgdb-feed-${{ github.run_id }}
+          restore-keys: |
+            tgdb-
+
+      - name: رمزگشایی (فقط خواندن)
+        working-directory: tradeguard-pro
+        run: |
+          mkdir -p .dbcache
+          if [ -f .dbcache/tradeguard.db.enc ]; then
+            python db_crypt.py decrypt .dbcache/tradeguard.db.enc tradeguard.db \
+              && echo "✅ دیتابیس برای آمار تجمیعی آماده است" \
+              || echo "::warning title=رمزگشایی ناموفق::آمار با شمارندهٔ صفر منتشر می‌شود (داده بازار سالم است)."
+          else
+            echo "::warning title=کش دیتابیس خالی است::آمار با شمارندهٔ صفر منتشر می‌شود."
+          fi
+
+      - name: انتشار فید
+        working-directory: tradeguard-pro
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, ".")
+          import bot
+
+          feed = bot.publish_public_feed()
+          if not feed:
+              print("::warning title=فید منتشر نشد::دادهٔ زنده در دسترس نبود؛ چیزی نوشته نشد (سیاست: بدون عدد ساختگی).")
+              sys.exit(0)
+          print(f"✅ فید منتشر شد — {feed['generated_at']} | {len(feed['funding'])} نماد")
+          PY
+
+      - name: خلاصه در گزارش اجرا
+        if: always()
+        run: |
+          {
+            echo "## 📡 فید دادهٔ عمومی"
+            echo ""
+            if [ -f docs/api/radar.json ]; then
+              python - <<'PY'
+              import json
+              d = json.load(open("docs/api/radar.json", encoding="utf-8"))
+              s = json.load(open("docs/api/stats.json", encoding="utf-8"))
+              print(f"- زمان: `{d['generated_at']}`")
+              print(f"- ترس و طمع: **{d['fear_greed']['value']}** ({d['fear_greed']['label']})")
+              print(f"- نمادها: {len(d['funding'])}")
+              print(f"- کاربر / پرو: {s['users_total']} / {s['active_pro']}")
+              print("")
+              print("| نماد | فاندینگ ۸س | APR | OI (M$) |")
+              print("|---|---|---|---|")
+              for x in d["funding"][:6]:
+                  print(f"| {x['symbol']} | {x['funding_pct_8h']:+.4f}% | {x['apr_pct']}% | {x['oi_usd_m']} |")
+              PY
+            else
+              echo "فایلی موجود نیست."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
