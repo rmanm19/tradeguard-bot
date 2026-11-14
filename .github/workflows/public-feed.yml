@@ -13,7 +13,8 @@ name: Public Feed
 on:
   workflow_dispatch:
   schedule:
-    - cron: "25 * * * *"
+    # هر ۳۰ دقیقه — فید عمومی برای مصرف‌کننده‌های بیرونی نباید کهنه باشد
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: write
@@ -40,8 +41,8 @@ jobs:
       # اجازهٔ کامیت/پوش فید
       PRO_STATUS_PUSH: "1"
       PUBLIC_FEED_DIR: docs/api
-      # حداکثر هر ۳۰ دقیقه یک‌بار بنویس (جلوگیری از تاریخچهٔ شلوغ)
-      PUBLIC_FEED_MIN_INTERVAL: "1800"
+      # حداکثر هر ۲۵ دقیقه یک‌بار بنویس (جلوگیری از تاریخچهٔ شلوغ)
+      PUBLIC_FEED_MIN_INTERVAL: "1500"
 
     steps:
       - uses: actions/checkout@v4

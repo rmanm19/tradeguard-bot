@@ -1123,8 +1123,9 @@ def resolve_repo_path(value: str, default: Path) -> Path:
 
 
 PUBLIC_FEED_DIR = resolve_repo_path(os.environ.get("PUBLIC_FEED_DIR", ""), REPO_ROOT / "docs" / "api")
-# حداقل فاصلهٔ دو انتشار (ثانیه) — پیش‌فرض ۳۰ دقیقه تا تاریخچهٔ گیت شلوغ نشود
-PUBLIC_FEED_MIN_INTERVAL = int(os.environ.get("PUBLIC_FEED_MIN_INTERVAL", "1800"))
+# حداقل فاصلهٔ دو انتشار (ثانیه) — پیش‌فرض ۲۵ دقیقه تا تاریخچهٔ گیت شلوغ نشود
+# (چرخهٔ واقعی: cron هر ۳۰ دقیقه + چرخهٔ ربات هر ۱۰ دقیقه)
+PUBLIC_FEED_MIN_INTERVAL = int(os.environ.get("PUBLIC_FEED_MIN_INTERVAL", "1500"))
 
 
 def public_feed_stats() -> Dict[str, int]:
