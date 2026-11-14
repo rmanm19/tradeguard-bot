@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TradeGuard — کیت رسانه‌ای و معرفی برای شرکا</title>
+  <meta name="description" content="Press & partner kit: TradeGuard is a 6-language Telegram mini-app giving traders a live funding/OI radar, prop risk tools, personal alerts and a journal. Facts, boilerplate, assets and contact." />
+  <link rel="canonical" href="https://rmanm19.github.io/tradeguard-bot/press.html" />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="TradeGuard — press & partner kit" />
+  <meta property="og:description" content="6-language Telegram mini-app for traders: live funding/OI radar, prop risk tools, personal alerts. Facts, boilerplate, banners and contact." />
+  <meta property="og:url" content="https://rmanm19.github.io/tradeguard-bot/press.html" />
+  <meta property="og:image" content="https://rmanm19.github.io/tradeguard-bot/assets/ads/ad_radar.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:#070d15; color:#dbe9e6; line-height:1.85;
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 28px 18px 60px; }
+    h1 { font-size: 26px; margin: 0 0 6px; letter-spacing:.2px; }
+    h2 { font-size: 17px; margin: 34px 0 10px; color:#8ff0d2; }
+    .lede { color:#a8c4bf; font-size: 14.5px; margin: 0 0 8px; }
+    .lang { display:flex; gap:6px; flex-wrap:wrap; margin: 14px 0 0; }
+    .lang button { background:transparent; color:#8fb0ab; border:1px solid rgba(120,200,180,.28);
+      border-radius:999px; padding:4px 11px; font-size:12px; cursor:pointer; }
+    .lang button[aria-pressed="true"] { background:#38e0b2; color:#06231d; border-color:#38e0b2; font-weight:800; }
+    .live { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:18px 0 6px; }
+    .live div { border:1px solid rgba(120,200,180,.18); background:rgba(9,16,26,.7);
+      border-radius:14px; padding:12px; }
+    .live b { display:block; font-size:22px; color:#8ff0d2; font-variant-numeric: tabular-nums; }
+    .live small { color:#8fb0ab; font-size:11.5px; }
+    .stamp { font-size:12px; color:#7f9797; margin: 6px 0 0; }
+    table { width:100%; border-collapse: collapse; margin: 12px 0; font-size:13.5px; }
+    th, td { border-bottom:1px solid rgba(120,200,180,.14); padding:9px 6px; text-align:right; vertical-align:top; }
+    th { color:#9db3b3; font-weight:600; width:38%; }
+    a { color:#8ff0d2; }
+    .buttons { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+    .buttons a { flex:1 1 200px; text-align:center; padding:11px 14px; border-radius:12px; text-decoration:none;
+      background:linear-gradient(135deg,#38e0b2,#1aa38a); color:#06231d; font-weight:800; font-size:13.5px; }
+    .buttons a.ghost { background:transparent; border:1px solid rgba(120,200,180,.35); color:#cfe6e1; font-weight:600; }
+    .note { border:1px solid rgba(120,200,180,.14); background:rgba(9,16,26,.6); border-radius:14px;
+      padding:14px 16px; font-size:13px; color:#b9d2cd; }
+    .note b { color:#e6f4f1; }
+    .boiler { font-size:13.5px; color:#cfe6e1; border-right:3px solid #38e0b2; padding: 10px 12px;
+      background:rgba(56,224,178,.05); border-radius: 8px; }
+    .boiler[dir="ltr"] { border-right:0; border-left:3px solid #38e0b2; }
+    ul.assets { columns: 2; gap: 18px; font-size:13px; padding-inline-start: 18px; }
+    footer { margin-top: 34px; font-size:12px; color:#7f9797; }
+    @media (max-width:600px) { ul.assets { columns: 1; } th { width:44%; } }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <h1>TradeGuard — کیت رسانه‌ای و معرفی برای شرکا</h1>
+  <p class="lede" id="lede">یک مینی‌اپ ۶ زبانهٔ تلگرام برای تریدرها: رادار زندهٔ فاندینگ و Open Interest، ابزارهای ریسک پراپ،
+  هشدار شخصی و ژورنال معاملات. دادهٔ واقعی — و صریحاً «سیگنال» یا «وعدهٔ سود» نیست.</p>
+  <div class="lang" id="langRow" role="group" aria-label="language">
+    <button data-lang="fa" aria-pressed="true">فارسی</button>
+    <button data-lang="en" aria-pressed="false">English</button>
+    <button data-lang="ru" aria-pressed="false">Русский</button>
+    <button data-lang="ar" aria-pressed="false">العربية</button>
+    <button data-lang="tr" aria-pressed="false">Türkçe</button>
+    <button data-lang="es" aria-pressed="false">Español</button>
+  </div>
+
+  <h2>اعداد زنده (همان چیزی که هر کسی می‌تواند بررسی کند)</h2>
+  <div class="live" id="liveBox">
+    <div><b id="lvUsers">—</b><small>کاربر ربات</small></div>
+    <div><b id="lvPro">—</b><small>پرو فعال</small></div>
+    <div><b id="lvSymbols">—</b><small>نماد در فید</small></div>
+    <div><b id="lvRefresh">—</b><small>دقیقه از تازه‌سازی فید</small></div>
+  </div>
+  <p class="stamp" id="liveStamp">در حال خواندن فید عمومی…</p>
+
+  <h2>چه چیزی هست (و چه چیزی نیست)</h2>
+  <table>
+    <tr><th>در یک جمله</th><td>مینی‌اپ تلگرام با رادار فاندینگ/OI، ماشین‌حساب ریسک پراپ و هشدار شخصی — ۶ زبان، بدون نصب.</td></tr>
+    <tr><th>زبان‌ها</th><td>فارسی، انگلیسی، روسی، عربی، ترکی، اسپانیایی (متن اصیل، نه ترجمهٔ ماشینی)</td></tr>
+    <tr><th>دادهٔ بازار</th><td>APIهای عمومی صرافی‌ها (Hyperliquid · OKX · Binance)، تازه‌سازی حدود هر ۳۰ دقیقه</td></tr>
+    <tr><th>ورودی دادهٔ باز</th><td><code>docs/api/radar.json</code> + <code>docs/api/stats.json</code> — بدون کلید، بدون دادهٔ شخصی</td></tr>
+    <tr><th>مدل درآمد</th><td>در فاز رشد رایگان؛ بعداً اشتراک داخل تلگرام (Stars) + جایگاه همکاری بروکر/صرافی با افشای کمیسیون</td></tr>
+    <tr><th>آنچه نمی‌فروشیم</th><td>ممبر فیک، ترافیک «تضمینی»، رتبهٔ ساختگی، وعدهٔ سود، دادهٔ شخصی کاربران</td></tr>
+  </table>
+
+  <h2>معرفی آماده (boilerplate — کپی کنید)</h2>
+  <p class="boiler" id="boilerFa" dir="rtl"></p>
+  <p class="boiler" id="boilerEn" dir="ltr" style="margin-top:10px"></p>
+
+  <h2>دارایی‌های آمادهٔ استفاده</h2>
+  <ul class="assets">
+    <li><a href="assets/ads/ad_radar.png">بنر رادار (PNG)</a></li>
+    <li><a href="assets/ads/ad_risk.png">بنر ریسک/پراپ (PNG)</a></li>
+    <li><a href="assets/ads/ad_reward.png">بنر پاداش/دعوت (PNG)</a></li>
+    <li><a href="s/btc.html">نمونهٔ صفحهٔ زندهٔ نماد</a></li>
+    <li><a href="api/index.html">مستندات فید داده</a></li>
+    <li><a href="business.html">صفحهٔ B2B (جایگاه شریک)</a></li>
+    <li><a href="../PARTNER_KIT_FA.md">کیت همکاری (فرم و رهگیری)</a></li>
+    <li><a href="sitemap.xml">sitemap</a></li>
+  </ul>
+
+  <h2>تماس و لینک‌ها</h2>
+  <div class="buttons">
+    <a href="https://t.me/tradeguard1">📣 کانال فارسی</a>
+    <a class="ghost" href="https://t.me/tradeguard1e">🌍 English channel</a>
+    <a class="ghost" href="https://t.me/TradeGuard1_bot?start=press">🤖 ربات / مینی‌اپ</a>
+  </div>
+  <p class="stamp">برای همکاری بروکر/صرافی: از همان ربات شروع کنید (<code>/partnerlink</code> برای ادمین) یا صفحهٔ <a href="business.html">business.html</a>.</p>
+
+  <div class="note" style="margin-top:22px">
+    <b>قاعدهٔ انتشار:</b> هر عددی که در متن شما می‌آید باید از همین صفحه یا از <code>stats.json</code> قابل بررسی باشد.
+    اگر جمله‌ای «سود تضمینی»، «بدون ریسک» یا «بهترین در جهان» دارد، منتشر نمی‌کنیم — حتی اگر جذاب‌تر باشد.
+  </div>
+
+  <footer>TradeGuard · این صفحه با هر تازه‌سازی فید خودکار عددهایش را به‌روز می‌کند · <a href="index.html">صفحهٔ اصلی</a></footer>
+</main>
+
+<script>
+(function () {
+  var BOILER = {
+    fa: "TradeGuard یک مینی‌اپ ۶ زبانهٔ تلگرام برای تریدرهای فارکس و کریپتو است: رادار زندهٔ فاندینگ و Open Interest با دادهٔ عمومی صرافی‌ها، ماشین‌حساب ریسک و حجم پراپ، هشدار شخصی فاندینگ/قیمت و ژورنال معاملات. بدون نصب باز می‌شود، رایگان است و هیچ‌جا وعدهٔ سود نمی‌دهد.",
+    en: "TradeGuard is a 6-language Telegram mini-app for forex and crypto traders: a live funding-rate and open-interest radar built on public exchange data, a prop drawdown and position-size calculator, personal funding/price alerts and a trading journal. It opens without install, is free during the growth phase, and never promises profits.",
+    ru: "TradeGuard — мини-приложение Telegram на 6 языках для трейдеров форекс и крипто: живой радар фандинга и открытого интереса на публичных данных бирж, калькулятор риска и объёма для проп-счетов, личные алерты по фандингу и цене, журнал сделок. Открывается без установки, бесплатно в фазе роста и никогда не обещает прибыль.",
+    ar: "TradeGuard تطبيق مصغّر على تلغرام بست لغات لمتداولي الفوركس والعملات الرقمية: رادار حي لمعدل التمويل والفائدة المفتوحة من بيانات المنصات العامة، وحاسبة مخاطر وحجم للمتداولين، وتنبيهات شخصية، ودفتر صفقات. يعمل دون تثبيت، ومجاني في مرحلة النمو، ولا يَعِد بالأرباح.",
+    tr: "TradeGuard, forex ve kripto yatırımcıları için 6 dilli bir Telegram mini uygulamasıdır: borsaların halka açık verisiyle canlı fonlama ve açık pozisyon radarı, prop risk/pozisyon büyüklüğü hesaplayıcısı, kişisel fonlama/fiyat alarmları ve işlem günlüğü. Kurulum gerektirmez, büyüme döneminde ücretsizdir ve asla kâr vaat etmez.",
+    es: "TradeGuard es una mini app de Telegram en 6 idiomas para traders de forex y cripto: radar en vivo de funding e interés abierto con datos públicos de exchanges, calculadora de riesgo y tamaño para cuentas prop, alertas personales y diario de operaciones. Se abre sin instalar, es gratis durante la fase de crecimiento y nunca promete beneficios."
+  };
+  var LEDE = {
+    fa: document.getElementById("lede").textContent.trim(),
+    en: "A 6-language Telegram mini-app for traders: live funding & open-interest radar, prop risk tools, personal alerts and a journal. Real data — explicitly not a signal service and never a profit promise.",
+    ru: "Мини-приложение Telegram на 6 языках: живой радар фандинга/OI, инструменты риска для проп-счетов, личные алерты и журнал. Реальные данные — это не сервис сигналов и не обещание прибыли.",
+    ar: "تطبيق تلغرام مصغّر بست لغات: رادار حي للتمويل والفائدة المفتوحة، أدوات مخاطر، تنبيهات شخصية ودفتر صفقات. بيانات حقيقية — ليس خدمة توصيات ولا وعداً بالأرباح.",
+    tr: "6 dilli Telegram mini uygulaması: canlı funding/OI radarı, prop risk araçları, kişisel alarmlar ve işlem günlüğü. Gerçek veri — sinyal servisi değil, kâr vaadi hiç değil.",
+    es: "Mini app de Telegram en 6 idiomas: radar en vivo de funding/OI, herramientas de riesgo prop, alertas personales y diario. Datos reales: no es un servicio de señales ni una promesa de beneficios."
+  };
+  var ledeFa = LEDE.fa;
+
+  function setLang(lang) {
+    var btns = document.querySelectorAll("#langRow button");
+    btns.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-lang") === lang ? "true" : "false"); });
+    document.getElementById("boilerFa").textContent = BOILER.fa;
+    document.getElementById("boilerEn").textContent = BOILER.en;
+    document.getElementById("lede").textContent = lang === "fa" ? ledeFa : (LEDE[lang] || LEDE.en);
+  }
+  document.getElementById("langRow").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-lang]");
+    if (b) setLang(b.getAttribute("data-lang"));
+  });
+  setLang("fa");
+
+  function get(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  Promise.all([get("api/stats.json"), get("api/radar.json")]).then(function (res) {
+    var stats = res[0] || {}, radar = res[1] || {};
+    var users = document.getElementById("lvUsers"), pro = document.getElementById("lvPro");
+    var syms = document.getElementById("lvSymbols"), refresh = document.getElementById("lvRefresh");
+    var stamp = document.getElementById("liveStamp");
+    if (typeof stats.users_total === "number") users.textContent = stats.users_total.toLocaleString("en-US");
+    if (typeof stats.active_pro === "number") pro.textContent = stats.active_pro.toLocaleString("en-US");
+    if (Array.isArray(radar.funding)) syms.textContent = radar.funding.length;
+    var gen = radar.generated_at || stats.generated_at;
+    if (gen) {
+      var mins = Math.max(0, Math.round((Date.now() - Date.parse(gen)) / 60000));
+      refresh.textContent = mins;
+      stamp.textContent = "دادهٔ فید: " + gen + " · منبع: " + (radar.source || "TradeGuard public feed") + " · اعداد بدون ویرایش از همان فایل‌های عمومی خوانده می‌شوند.";
+    } else {
+      stamp.textContent = "فید عمومی هنوز در دسترس نیست — هیچ عددی جای آن ساخته نمی‌شود.";
+    }
+  });
+})();
+</script>
+</body>
+</html>
