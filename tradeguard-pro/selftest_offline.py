@@ -1933,6 +1933,247 @@ bot.RESTART_FLAG_PATH = _old_bot_flag
 check("تست هیچ فایل restart.flag در ریپو جا نمی‌گذارد",
       not (HERE / "restart.flag").exists())
 
+print("\n۱۶) ورود با گوگل (Device Flow) + ژورنال ابری")
+
+import base64 as _b64g  # noqa: E402
+
+
+def _fake_tok(claims: dict) -> str:
+    head = _b64g.urlsafe_b64encode(b'{"alg":"RS256","typ":"JWT"}').decode().rstrip("=")
+    body = _b64g.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+    return f"{head}.{body}.signature-not-checked"
+
+
+_old_admin_g = bot.ADMIN_USER_ID
+_old_http_g = bot._http_json
+_old_gid = bot.get_setting("GOOGLE_CLIENT_ID")
+_old_gsecret = bot.get_setting("GOOGLE_CLIENT_SECRET")
+_old_gdays = bot.get_setting("AUTH_GRANT_DAYS")
+bot.ADMIN_USER_ID = ""            # کاربر تست نباید از مسیر ادمین رد شود
+bot._PENDING_AUTH.clear()
+with _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("DELETE FROM google_auth")
+    _c.execute("DELETE FROM journal")
+    _c.execute("DELETE FROM journal_notes")
+
+# ── بدون کلید، ربات دروغ نمی‌گوید و دکمهٔ مرده هم نمی‌سازد ──
+bot.set_setting("GOOGLE_CLIENT_ID", "")
+bot.set_setting("GOOGLE_CLIENT_SECRET", "")
+_ok, _txt = bot.start_google_auth(USER, USER)
+check("بدون Client ID، پیام «تنظیم نشده» با مراحل دقیق می‌آید",
+      _ok is False and "تنظیم نشده" in _txt and "TVs and Limited Input" in _txt, _txt[:120])
+check("بدون کلاینت، دکمهٔ ورود در کیبورد ساخته نمی‌شود",
+      not any(b.get("callback_data") == "auth_login"
+              for row in bot.main_keyboard(True, "fa")["inline_keyboard"] for b in row))
+check("ژورنال برای کاربر تأییدنشده قفل است و راهش را می‌گوید",
+      "تأییدشده" in (bot.journal_gate(USER) or "") and "/login" in (bot.journal_gate(USER) or ""))
+
+# ── با کلید: شروع Device Flow ──
+bot.set_setting("GOOGLE_CLIENT_ID", "1234567890-abc.apps.googleusercontent.com")
+bot.set_setting("GOOGLE_CLIENT_SECRET", "GOCSPX-fake-secret-for-tests")
+check("Client ID و Secret از دیتابیس خوانده می‌شوند",
+      bot.google_client_config()[0].endswith(".apps.googleusercontent.com")
+      and bot.google_client_config()[1].startswith("GOCSPX-"))
+check("دکمهٔ ورود با گوگل بعد از تنظیم کلاینت ظاهر می‌شود",
+      any(b.get("callback_data") == "auth_login"
+          for row in bot.main_keyboard(True, "fa")["inline_keyboard"] for b in row))
+
+_device_calls = []
+
+
+def _fake_http_device(url, form=None, timeout=15.0):
+    _device_calls.append((url, dict(form or {})))
+    if url == bot.GOOGLE_DEVICE_URL:
+        return {"device_code": "dev-code-1", "user_code": "ABCD-EFGH",
+                "verification_url": "https://www.google.com/device",
+                "expires_in": 1800, "interval": 5}
+    return {"error": "authorization_pending"}
+
+
+bot._http_json = _fake_http_device
+_ok, _txt = bot.start_google_auth(USER, USER)
+check("کد کاربر و لینک گوگل در پیام می‌آید",
+      _ok and "ABCD-EFGH" in _txt and "google.com/device" in _txt, _txt[:140])
+check("اسکوپ درخواستی فقط openid و email است (نه دسترسی به جیمیل/درایو)",
+      _device_calls and _device_calls[0][1].get("scope") == "openid email", str(_device_calls[:1]))
+check("نشست در انتظار ثبت شد و کلید رمز لو نمی‌رود",
+      USER in bot._PENDING_AUTH and "GOCSPX" not in _txt)
+
+bot._PENDING_AUTH[USER]["next_try"] = 0
+_state, _ = bot.poll_google_auth(USER)
+check("تا وقتی کاربر تأیید نکرده، state همان pending است", _state == "pending", _state)
+check("در حالت pending هنوز تأیید نشده", bot.is_verified(USER) is False)
+
+# ── تأیید واقعی ──
+_claims = {"sub": "google-sub-AAA", "email": "Trader@Gmail.com", "email_verified": True}
+
+
+def _fake_http_ok(url, form=None, timeout=15.0):
+    if url == bot.GOOGLE_DEVICE_URL:
+        return {"device_code": "dev-code-2", "user_code": "WXYZ-1234",
+                "verification_url": "https://www.google.com/device",
+                "expires_in": 1800, "interval": 5}
+    return {"access_token": "at", "id_token": _fake_tok(_claims)}
+
+
+bot._http_json = _fake_http_ok
+bot.start_google_auth(USER, USER)
+bot._PENDING_AUTH[USER]["next_try"] = 0
+_pro_until_before = bot.is_user_pro(USER)[1]
+_state, _payload = bot.poll_google_auth(USER)
+check("توکن گوگل → تأیید کامل", _state == "verified", f"{_state} {_payload}")
+check("ایمیل نمایش داده می‌شود ولی ماسک‌شده",
+      _payload.get("mail") == "T***@Gmail.com", str(_payload.get("mail")))
+check("پاداش پیش‌فرض ۳۰ روز پرمیوم است (بدون تمدید خودکار)",
+      bot.is_user_pro(USER)[1] - max(_pro_until_before, int(_t.time())) >= 29 * 86400)
+_status = bot.auth_status(USER)
+check("هویت گوگل در دیتابیس ثبت شد", bool(_status) and _status["sub"] == "google-sub-AAA")
+with _sq.connect(bot.DB_PATH) as _c:
+    _row = _c.execute("SELECT email_hash, granted_days FROM google_auth WHERE user_id = ?", (USER,)).fetchone()
+    _raw = _c.execute("SELECT group_concat(sub || email_hash || verified_at) FROM google_auth").fetchone()[0]
+check("ایمیل خام ذخیره نمی‌شود؛ فقط هش آن",
+      _row[0] == bot.email_hash("trader@gmail.com") and "trader@gmail.com" not in str(_raw), str(_row))
+check("پاداش یک‌بار ثبت می‌شود", int(_row[1]) == 30, str(_row[1]))
+check("ژورنال برای کاربر تأییدشده باز است", bot.journal_gate(USER) is None)
+
+# ── قواعد ضدسوءاستفاده ──
+_other = 888000333
+_ok2, _why2, _ = bot.link_google_identity(_other, _claims)
+check("همان حساب گوگل به اکانت دوم وصل نمی‌شود",
+      _ok2 is False and "اکانت تلگرام دیگری" in _why2, _why2)
+_ok3, _why3, _ = bot.link_google_identity(_other, {**_claims, "sub": "google-sub-BBB"})
+check("همان ایمیل با اکانت دوم تأیید نمی‌شود",
+      _ok3 is False and "ایمیل قبلاً" in _why3, _why3)
+_ok4, _why4, _exp4 = bot.link_google_identity(USER, _claims)
+check("وصل‌شدن دوباره، پاداش تازه نمی‌سازد",
+      _ok4 is True and _why4 == "relink", f"{_ok4} {_why4}")
+check("حساب بدون ایمیل تأییدشده رد می‌شود",
+      bot.link_google_identity(999, {"sub": "x", "email": "a@b.c", "email_verified": False})[0] is False)
+
+# ── ژورنال: محاسبهٔ R ──
+_ok, _reply, _tid = bot.journal_add(USER, "btc", "long", 65000, 63500, 69000, 50)
+check("ثبت ستاپ با شناسه و پیام قابل‌فهم", _ok and _tid > 0 and f"#{_tid}" in _reply, _reply[:120])
+check("لانگ با حد ضرر بالای ورود رد می‌شود",
+      bot.journal_add(USER, "ETH", "long", 3000, 3100)[0] is False)
+check("شورت با حد ضرر زیر ورود رد می‌شود",
+      bot.journal_add(USER, "ETH", "short", 3000, 2900)[0] is False)
+check("نمادهای عجیب پاک می‌شوند و ورود=حد ضرر رد می‌شود",
+      bot.journal_add(USER, "B$T@C!", "long", 100, 100)[0] is False)
+_ok, _cmsg = bot.journal_close(USER, _tid, 69000)
+check("بستن معامله، R واقعی را حساب می‌کند (+2.67R)",
+      _ok and "+2.67R" in _cmsg, _cmsg[:160])
+_ok2b, _r2, _tid2 = bot.journal_add(USER, "SOL", "short", 200, 210, 180, 0)
+_ok3b, _cmsg2 = bot.journal_close(USER, _tid2, 205)
+check("شورت هم درست حساب می‌شود (−0.50R)", _ok3b and "-0.50R" in _cmsg2, _cmsg2[:120])
+check("بستن دوبارهٔ همان پوزیشن رد می‌شود", bot.journal_close(USER, _tid, 70000)[0] is False)
+check("بستن پوزیشنِ کاربر دیگر ممکن نیست",
+      bot.journal_close(_other, _tid, 1)[0] is False)
+_stats = bot.journal_stats(USER)
+check("آمار واقعی: ۲ بسته، ۱ برد، نرخ برد ۵۰٪",
+      _stats["closed_count"] == 2 and _stats["wins"] == 1
+      and abs(_stats["win_rate"] - 50.0) < 0.01, str(_stats))
+_stxt = bot.journal_stats_text(USER)
+check("گزارش ژورنال نرخ برد و میانگین R را نشان می‌دهد",
+      "نرخ برد" in _stxt and "میانگین" in _stxt and "50%" in _stxt, _stxt[:160])
+_js = bot.journal_export_json(USER)
+check("خروجی JSON قابل‌خواندن است و R را شامل می‌شود",
+      "```json" in _js and '"r":' in _js and json.loads(_js.split("```json")[1].split("```")[0])["trades"],
+      _js[:120])
+check("حذف پوزیشنِ خودِ کاربر کار می‌کند و پوزیشن غریبه نه",
+      bot.journal_delete(USER, _tid2)[0] is True and bot.journal_delete(USER, _tid2)[0] is False)
+
+# ── تحلیل روزانه ──
+check("تحلیل خیلی کوتاه رد می‌شود", bot.note_add(USER, "ok")[0] is False)
+_okN, _nmsg = bot.note_add(USER, "بایاس لانگ تا ۶۸٬۰۰۰؛ فقط لبه و ریسک ۰٫۵٪")
+check("تحلیل روزانه ثبت و تاریخ‌دار می‌شود",
+      _okN and bot._utc_date(int(_t.time())) in _nmsg, _nmsg[:120])
+check("خواندن تحلیل‌ها متن امروز را نشان می‌دهد",
+      "بایاس لانگ" in bot.notes_text(USER) and bot.journal_stats(USER)["notes_today"] == 1)
+check("کاربر تأییدنشده نمی‌تواند تحلیل بنویسد",
+      "تأییدشده" in (bot.journal_gate(_other) or ""))
+
+# ── انقضا، قطع اتصال، ادمین ──
+bot._http_json = _fake_http_device
+bot.start_google_auth(USER, USER)
+bot._PENDING_AUTH[USER]["expires_at"] = int(_t.time()) - 1
+_state, _payload = bot.poll_google_auth(USER)
+check("کد منقضی‌شده، پیام روشن می‌دهد و نشست پاک می‌شود",
+      _state == "error" and _payload.get("error") == "expired" and USER not in bot._PENDING_AUTH)
+
+with _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE google_auth SET revoked = 1 WHERE user_id = ?", (USER,))
+check("پس از قطع اتصال، ژورنال دوباره قفل می‌شود",
+      bot.is_verified(USER) is False and bot.journal_gate(USER) is not None)
+with _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("UPDATE google_auth SET revoked = 0 WHERE user_id = ?", (USER,))
+bot.ADMIN_USER_ID = "123456789"
+check("ادمین برای آزمایش به احراز هویت نیاز ندارد (بقیه نه)",
+      bot.is_verified(123456789) is True and bot.is_verified(_other) is False)
+
+# بازگرداندن وضعیت
+bot.ADMIN_USER_ID = _old_admin_g
+bot._http_json = _old_http_g
+bot._PENDING_AUTH.clear()
+bot.set_setting("GOOGLE_CLIENT_ID", _old_gid)
+bot.set_setting("GOOGLE_CLIENT_SECRET", _old_gsecret)
+bot.set_setting("AUTH_GRANT_DAYS", _old_gdays)
+check("تست هیچ نشست باز یا کلید جعلی جا نمی‌گذارد",
+      not bot._PENDING_AUTH and not bot.get_setting("GOOGLE_CLIENT_ID"))
+
+# ── مسیر واقعی دستورات در چت (نه فقط توابع) ──
+# توجه: در این فایل bot.tg_send_message با یک نسخهٔ تقلبی جایگزین شده که
+# پیام‌ها را در _posts می‌ریزد؛ پس همین‌جا را می‌خوانیم، نه SENT را.
+def _last_post() -> str:
+    return str(_posts[-1][1]) if _posts else ""
+
+
+bot.set_setting("GOOGLE_CLIENT_ID", "1234567890-abc.apps.googleusercontent.com")
+bot.set_setting("GOOGLE_CLIENT_SECRET", "GOCSPX-fake-secret-for-tests")
+bot._http_json = _fake_http_ok
+bot.handle_message(msg("/login"))
+check("دستور /login در چت کد گوگل را می‌فرستد",
+      "ABCD" in _last_post() or "WXYZ" in _last_post(), _last_post()[:120])
+bot._PENDING_AUTH.clear()
+
+bot.handle_message(msg("/journal", uid=_other))
+check("/journal برای کاربر تأییدنشده قفل است", "تأییدشده" in _last_post(), _last_post()[:120])
+bot.handle_message(msg("/note چیزی", uid=_other))
+check("/note هم برای کاربر تأییدنشده قفل است", "تأییدشده" in _last_post(), _last_post()[:120])
+
+bot.handle_message(msg("/jadd BTC long 65000 63500 69000 50"))
+check("/jadd در چت پوزیشن ثبت می‌کند و شماره می‌دهد",
+      "ثبت شد" in _last_post() and "#" in _last_post(), _last_post()[:140])
+bot.handle_message(msg("/journal", uid=USER))
+check("/journal در چت آمار را نشان می‌دهد", "ژورنال" in _last_post(), _last_post()[:120])
+bot.handle_message(msg("/notes"))
+check("/notes در چت فهرست تحلیل‌ها را می‌آورد", "تحلیل" in _last_post(), _last_post()[:120])
+bot.handle_message(msg("/journal json"))
+check("/journal json خروجی قابل‌خواندن می‌دهد", "```json" in _last_post(), _last_post()[:80])
+
+# ادمین: راهنمای تنظیم کلیدها + ماسک‌شدن Secret
+bot.ADMIN_USER_ID = str(USER)
+bot.handle_message(msg("/google"))
+_g = _last_post()
+check("/google برای ادمین وضعیت کلیدها را می‌دهد", "Client ID" in _g and "30" in _g, _g[:160])
+check("/google هرگز Secret را برنمی‌گرداند", "GOCSPX-fake-secret-for-tests" not in _g)
+bot.handle_message(msg("/google days 0"))
+check("/google days پاداش را خاموش می‌کند", bot.auth_grant_days() == 0)
+bot.handle_message(msg("/google days 30"))
+bot.handle_message(msg("/google id not-a-valid-id"))
+check("/google id ورودی نامعتبر را رد می‌کند", "apps.googleusercontent.com" in _last_post())
+_dels = []
+_old_dms = bot.delete_message_safe
+bot.delete_message_safe = lambda chat, mid: _dels.append((chat, mid))
+bot.handle_message(msg("/google secret GOCSPX-another-secret-value"))
+bot.delete_message_safe = _old_dms
+check("/google secret پیام حاوی کلید را پاک می‌کند (تا در چت نماند)",
+      bool(_dels) and _dels[0][0] == USER and bot.get_setting("GOOGLE_CLIENT_SECRET") == "GOCSPX-another-secret-value",
+      str(_dels))
+bot.handle_message(msg("/google id 999999-xyz.apps.googleusercontent.com"))
+check("/google id مقدار درست را ذخیره می‌کند",
+      bot.get_setting("GOOGLE_CLIENT_ID") == "999999-xyz.apps.googleusercontent.com")
+bot.ADMIN_USER_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
