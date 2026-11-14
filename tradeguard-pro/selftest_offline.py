@@ -994,6 +994,20 @@ check("برنامهٔ فارسی به نسخهٔ انگلیسی اشاره می�
       "/channelplan en" in _plan_fa, _plan_fa[-160:])
 check("زمان پست بعدی نسخهٔ انگلیسی، انگلیسی است",
       not _fa_re.search(bot.next_post_eta_en()), bot.next_post_eta_en())
+
+_posts.clear()
+bot.ADMIN_USER_ID = str(USER)
+bot.handle_message(msg("/adkit"))
+_kit = _posts[-1][1] if _posts else ""
+check("/adkit هر سه کد کمپین را می‌دهد",
+      all(c in _kit for c in ("start=ad_radar", "start=ad_risk", "start=ad_reward")), _kit[:200])
+check("/adkit مسیر بنرها را نشان می‌دهد",
+      "docs/assets/ads/ad_radar.png" in _kit, _kit[-200:])
+check("/adkit کاربر را به اندازه‌گیری با /sources می‌فرستد", "/sources" in _kit, _kit[-160:])
+_posts.clear()
+bot.handle_message(msg("/adkit", uid=BUYER))
+check("غیرادمین به /adkit دسترسی ندارد",
+      bool(_posts) and "فقط ادمین" in _posts[-1][1], str(_posts[-1:])[:100])
 bot.ADMIN_USER_ID = ""
 
 print("\n" + "─" * 46)

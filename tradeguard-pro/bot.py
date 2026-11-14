@@ -2456,6 +2456,33 @@ def handle_message(msg: dict) -> None:
         )
         return
 
+    if text.startswith("/adkit"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        bot_user = BOT_USERNAME or "TradeGuard1_bot"
+        kits = [
+            ("A · رادار", "ad_radar", "docs/assets/ads/ad_radar.png", "هدف: آگاهی — کانال‌های آموزشی"),
+            ("B · ریسک", "ad_risk", "docs/assets/ads/ad_risk.png", "هدف: مخاطب پراپ — قانون ۱٪"),
+            ("C · هدیه", "ad_reward", "docs/assets/ads/ad_reward.png", "هدف: تبدیل ارزان — ۷ روز پرو"),
+        ]
+        lines = ["📣 *کیت تبلیغ — لینک‌های آماده*", ""]
+        for title, code, banner, goal in kits:
+            lines += [
+                f"*{title}* — {goal}",
+                f"`https://t.me/{bot_user}?start={code}`",
+                f"بنر: `{banner}`",
+                "",
+            ]
+        lines += [
+            "🧭 *کجا بگذاریم*: کانال‌های آموزش ترید، گروه‌های پراپ، توییتر/X.",
+            "📊 *اندازه‌گیری*: هر کد جدا شمرده می‌شود → `/sources`",
+            "⏱ *تصمیم*: بعد از ۷۲ ساعت. کاربر زیاد + عضویت کم = مشکل پیام؛ کاربر و عضویت خوب = بودجه را دو برابر کن.",
+            "📄 متن‌های کامل: `ADS_FA.md` · دستور کار کانال: `CHANNEL_LAUNCH_FA.md`",
+        ]
+        tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
+        return
+
     if text.startswith("/sources"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
