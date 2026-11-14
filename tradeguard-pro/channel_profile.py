@@ -127,6 +127,30 @@ def api_upload_photo(chat_id: str, path: Path, token: str) -> dict:
         return {"ok": False, "description": str(exc)}
 
 
+def debug_db() -> None:
+    """گزارش تشخیصی امن: فقط کلیدهای تنظیمات، بدون مقدار حساس."""
+    print(f"🔍 DEBUG · DB: {DB_PATH} · exists={DB_PATH.exists()}")
+    if not DB_PATH.exists():
+        base = HERE / ".dbcache"
+        print(f"🔍 DEBUG · .dbcache: {'موجود' if base.exists() else 'خالی'}")
+        if base.exists():
+            for f in sorted(base.iterdir()):
+                print(f"   • {f.name} ({f.stat().st_size} bytes)")
+        return
+    try:
+        with sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            print(f"🔍 DEBUG · جدول‌ها: {', '.join(tables)}")
+            if "settings" in tables:
+                keys = [r[0] for r in conn.execute("SELECT key FROM settings ORDER BY key")]
+                print(f"🔍 DEBUG · کلیدهای settings ({len(keys)}): {', '.join(keys[:40])}")
+                for k in ("PUBLIC_CHANNEL_ID", "PUBLIC_CHANNEL_EN_ID"):
+                    row = conn.execute("SELECT value FROM settings WHERE key = ?", (k,)).fetchone()
+                    print(f"🔍 DEBUG · {k} = {row[0] if row else '—'}")
+    except Exception as exc:
+        print(f"🔍 DEBUG · خطای خواندن دیتابیس: {exc}")
+
+
 def setting(key: str) -> str:
     """خواندن تنظیمات از دیتابیس رمزگشایی‌شده (اگر وجود داشته باشد)."""
     if not DB_PATH.exists():
@@ -215,6 +239,8 @@ def main() -> int:
         print("::error title=بدون توکن::BOT_TOKEN تنظیم نشده است.")
         return 2
 
+    if env("DEBUG", "0") in ("1", "true", "yes"):
+        debug_db()
     channel, source = resolve_channel(lang)
     bot_id = (api("getMe", {}, token).get("result") or {}).get("id")
     if "," in channel or (source == "ورودی workflow" and not channel.startswith("@")):
