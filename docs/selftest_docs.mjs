@@ -148,6 +148,33 @@ check("صفحهٔ فرود با شناسهٔ ناشناس شریک جعلی نم
   /showFallback/.test(landing) && /notReady/.test(landing));
 check("صفحهٔ فرود ایندکس نمی‌شود و افشای کمیسیون دارد",
   /name="robots" content="noindex/.test(landing) && /کمیسیون/.test(landing));
+/* ── ۸) صفحهٔ B2B و مستندات فید داده ──────────────────────────── */
+const biz = read("business.html");
+const apiDoc = read("api/index.html");
+check("صفحهٔ B2B برای بروکرها وجود دارد و خودبسنده است",
+  biz.includes("TradeGuard") && !/<script[^>]+src=/.test(biz));
+check("B2B اعداد را از فید واقعی می‌خواند (نه عدد هاردکد)",
+  /fetch\("api\/stats\.json"/.test(biz) && /data-k="users_total"/.test(biz));
+check("B2B نسخهٔ انگلیسی هم دارد",
+  biz.includes("For brokers & exchanges") && /dir = "ltr"/.test(biz));
+check("B2B افشای همکاری و خطوط سرخ را می‌گوید",
+  /افشای همکاری|Partnership disclosure/.test(biz) && /سود تضمینی|guaranteed profit/.test(biz));
+check("B2B به کد رهگیری اختصاصی و تأیید واقعی عضویت اشاره می‌کند",
+  /p_&lt;id&gt;/.test(biz) && /getChatMember/.test(biz));
+check("B2B لینک استارت با کد قابل‌شمارش دارد",
+  /start=biz_inquiry/.test(biz));
+check("مستندات فید داده مسیرها و شکل JSON را می‌دهد",
+  apiDoc.includes("api/radar.json") && apiDoc.includes("api/stats.json")
+  && apiDoc.includes("funding_pct_8h") && apiDoc.includes("fear_greed"));
+check("مستندات فید، بدون‌کلید بودن و سقف نرخ را شفاف می‌گوید",
+  /No API key|no API key/.test(apiDoc) && /generated_at/.test(apiDoc) && /۳۰ ثانیه|30 seconds/.test(apiDoc));
+check("مستندات فید ادعای سیگنال/سود نمی‌کند",
+  /not a signal|نه سیگنال/.test(apiDoc) && !/guaranteed profit/i.test(apiDoc));
+check("هر دو صفحه به هم لینک می‌دهند",
+  /business\.html/.test(apiDoc) && /api\/index\.html/.test(biz));
+const siteHtml = read("index.html");
+check("فوتر صفحهٔ اصلی به B2B و API لینک می‌دهد",
+  /href="business\.html"/.test(siteHtml) && /href="api\/index\.html"/.test(siteHtml));
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
 

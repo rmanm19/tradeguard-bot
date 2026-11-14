@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070c16" />
+<title>TradeGuard — Public data feed (no API key)</title>
+<meta name="description" content="Free, key-less JSON feed of perpetual funding, open interest and Fear & Greed from TradeGuard. Built for developers, bots and partners." />
+<meta name="robots" content="index, follow" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="TradeGuard — Public data feed" />
+<meta property="og:description" content="Funding, open interest and sentiment as plain JSON. No key, no signup, no tracking." />
+<!--
+  فید دادهٔ عمومی — مستندات
+  ------------------------------------------------------------------
+  همین فایل‌ها را ربات هر ~۱۰ دقیقه بازنویسی می‌کند (docs/api/radar.json و stats.json).
+  هیچ کلید/توکنی لازم نیست و هیچ دادهٔ شخصی منتشر نمی‌شود؛ فقط دادهٔ بازار + شمارنده‌های تجمیعی.
+-->
+<style>
+  :root{
+    --bg:#070c16; --bg2:#0b1a20; --card:#0f1626; --line:rgba(120,200,180,.16);
+    --mint:#38e0b2; --mint-soft:#8ff0d2; --txt:#eef8f5; --dim:#9db3b3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1100px 520px at 82% -8%, rgba(30,140,120,.28), transparent 60%),
+    linear-gradient(180deg,var(--bg),var(--bg2));color:var(--txt);min-height:100vh;
+    font-family:Vazirmatn,"Segoe UI",Roboto,system-ui,sans-serif;line-height:1.75;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:26px 18px 64px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:26px;flex-wrap:wrap}
+  .mark{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(145deg,#0e2b2a,#0a1524);border:1px solid var(--line);color:var(--mint)}
+  .brand b{display:block;font-size:17px}
+  .brand small{color:var(--dim);font-size:12px}
+  .back{margin-inline-start:auto;color:var(--mint-soft);text-decoration:none;font-size:13px}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 8px}
+  .lead{color:var(--dim);font-size:14.5px;margin:0 0 22px}
+  h2{font-size:16px;margin:30px 0 10px;color:#cfe6e1}
+  .card{background:linear-gradient(180deg,rgba(20,32,50,.9),rgba(14,22,38,.9));
+    border:1px solid var(--line);border-radius:18px;padding:18px;margin:12px 0}
+  .badge{display:inline-block;font-size:11px;font-weight:800;color:#06231d;background:var(--mint);
+    border-radius:999px;padding:3px 9px;margin-inline-end:8px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+  code{background:#08131c;border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--mint-soft)}
+  pre{background:#08131c;border:1px solid var(--line);border-radius:12px;padding:14px;overflow:auto;
+    direction:ltr;text-align:left;color:#d7e7e4;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:start;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+  th{color:#9db3b3;font-weight:700;font-size:12px}
+  .muted{color:var(--dim);font-size:12.5px}
+  .warn{border:1px solid rgba(255,196,107,.25);background:rgba(255,196,107,.07);color:#ffd9a1;
+    border-radius:12px;padding:11px 13px;font-size:12.5px;margin-top:14px}
+  .cta{display:inline-block;margin-top:16px;background:var(--mint);color:#06231d;font-weight:800;
+    text-decoration:none;border-radius:12px;padding:12px 18px;font-size:14px}
+  footer{margin-top:36px;color:#6d8383;font-size:12px;text-align:center}
+  footer a{color:var(--mint-soft);text-decoration:none}
+  .fa{direction:rtl;text-align:start}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:640px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="mark" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/><path d="M8.7 12.2l2.2 2.2 4.4-4.4"/></svg>
+    </span>
+    <span class="brand"><b>TradeGuard</b><small>Public data feed · v1</small></span>
+    <a class="back" href="../index.html">← Home</a>
+  </header>
+
+  <h1>Free market data, as plain JSON</h1>
+  <p class="lead">
+    Perpetual <b>funding</b>, <b>open interest</b> and <b>Fear &amp; Greed</b> — refreshed by our bot roughly every
+    10 minutes. <b>No API key. No signup. No tracking.</b> Use it in your own tool, bot, sheet or dashboard.
+  </p>
+
+  <div class="card">
+    <span class="badge">ENDPOINTS</span>
+    <table>
+      <tr><th>File</th><th>What you get</th></tr>
+      <tr><td><code>api/radar.json</code></td><td>Funding %, annualised APR, open interest in USD millions, mark price per symbol + Fear &amp; Greed</td></tr>
+      <tr><td><code>api/stats.json</code></td><td>Aggregated counters only: total users, channel-join rewards, active PRO. <b>No personal data.</b></td></tr>
+    </table>
+    <div class="muted" style="margin-top:10px">
+      Base URL: this site’s root. Example:
+      <code>https://&lt;your-app-host&gt;/api/radar.json</code>
+    </div>
+  </div>
+
+  <h2>radar.json — shape</h2>
+  <div class="card">
+<pre>{
+  "generated_at": "2026-11-14T11:58:03Z",
+  "live": true,
+  "source": "TradeGuard — public funding &amp; open-interest feed",
+  "homepage": "https://t.me/tradeguard1",
+  "disclaimer": "Informational data only. Not investment advice. No guarantees.",
+  "fear_greed": { "value": 13, "label": "Extreme Fear" },
+  "funding": [
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.027,
+      "apr_pct": 29.6,
+      "oi_usd_m": 38.0,
+      "mark_price": 0.19
+    }
+  ]
+}</pre>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <b style="font-size:13px">Fetch from the browser</b>
+<pre style="margin-top:8px">fetch("api/radar.json")
+  .then(r =&gt; r.json())
+  .then(d =&gt; {
+    const fg = d.fear_greed;
+    const hot = d.funding
+      .filter(x =&gt; Math.abs(x.funding_pct_8h) &gt; 0.02)
+      .slice(0, 3);
+    console.log(fg.value, hot);
+  });</pre>
+    </div>
+    <div class="card">
+      <b style="font-size:13px">Send it to a Telegram chat</b>
+<pre style="margin-top:8px">import json, urllib.request
+d = json.load(urllib.request.urlopen(
+  "https://YOUR-HOST/api/radar.json"))
+top = d["funding"][:3]
+text = "\\n".join(
+  f'{x["symbol"]}: {x["funding_pct_8h"]:+.3f}%/8h'
+  for x in top)
+# send `text` via your bot API</pre>
+    </div>
+  </div>
+
+  <h2>Rules of the road</h2>
+  <div class="card fa"><div lang="fa">
+    <b>۱)</b> داده «اطلاعاتی» است؛ نه توصیهٔ سرمایه‌گذاری، نه سیگنال. هیچ سود یا نتیجه‌ای تضمین نمی‌شود.<br />
+    <b>۲)</b> بازهٔ به‌روزرسانی حدوداً ۱۰ دقیقه است؛ اگر ربات در حال ری‌استارت باشد، فایل قدیمی می‌ماند — همیشه <code>generated_at</code> را بخوان.<br />
+    <b>۳)</b> اگر عمومی منتشر می‌کنی، منبع را ذکر کن: «داده: TradeGuard — t.me/tradeguard1».<br />
+    <b>۴)</b> محدودیت نرخ: کش سمت خودت را ۳۰ ثانیه بگذار؛ درخواست پشت‌سرهم لازم نیست.<br />
+    <b>۵)</b> فید هیچ شناسهٔ کاربر، آیدی چت یا توکنی ندارد و هرگز نخواهد داشت.
+  </div></div>
+
+  <div class="warn">
+    ⚠️ This feed is <b>not</b> an exchange order book and not a signal service. Funding/OI come from public
+    Hyperliquid endpoints; sentiment from Alternative.me. If the network fails, we publish nothing rather than
+    invent numbers.
+  </div>
+
+  <a class="cta" href="https://t.me/TradeGuard1_bot?start=api_inquiry">Data partnership → @TradeGuard1_bot</a>
+
+  <footer>
+    TradeGuard · <a href="https://t.me/tradeguard1">channel</a> ·
+    <a href="../business.html">for brokers &amp; exchanges</a> ·
+    <a href="https://github.com/rmanm19/tradeguard-bot">source</a>
+  </footer>
+</div>
+</body>
+</html>

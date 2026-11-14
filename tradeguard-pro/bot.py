@@ -895,6 +895,123 @@ def save_pro_status(data: dict) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------
+#  فید عمومی داده (برای توسعه‌دهنده‌ها، ربات‌های دیگر و شرکا)
+# ---------------------------------------------------------------------
+PUBLIC_FEED_DIR = Path(os.environ.get("PUBLIC_FEED_DIR") or (REPO_ROOT / "docs" / "api"))
+
+
+def public_feed_stats() -> Dict[str, int]:
+    """آمار واقعی و تجمیعی برای فید عمومی (بدون هیچ دادهٔ شخصی)."""
+    now = int(time.time())
+    out = {"users_total": 0, "join_rewards": 0, "active_pro": 0}
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            out["users_total"] = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+            try:
+                out["join_rewards"] = int(conn.execute("SELECT COUNT(*) FROM join_rewards").fetchone()[0] or 0)
+            except Exception:
+                out["join_rewards"] = 0
+            out["active_pro"] = int(
+                conn.execute("SELECT COUNT(*) FROM users WHERE pro_until > ?", (now,)).fetchone()[0] or 0
+            )
+    except Exception as exc:
+        logger.warning("آمار فید عمومی خوانده نشد: %s", exc)
+    return out
+
+
+def build_public_feed(rates: List[Dict]) -> Optional[Dict]:
+    """فید JSON عمومی — فقط اگر دادهٔ زنده باشد ساخته می‌شود (هیچ عدد ساختگی)."""
+    if not rates:
+        return None
+    fng_val, fng_lbl = fetch_fear_greed()
+    rows = []
+    for r in rates[:20]:
+        rows.append({
+            "symbol": r.get("sym"),
+            "funding_pct_8h": round(float(r.get("rate_pct") or 0), 4),
+            "apr_pct": round(abs(float(r.get("rate_pct") or 0)) * 3 * 365, 1),
+            "oi_usd_m": round(float(r.get("oi_m") or 0), 2),
+            "mark_price": r.get("price"),
+        })
+    return {
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "live": True,
+        "source": "TradeGuard — public funding & open-interest feed",
+        "homepage": "https://t.me/tradeguard1",
+        "disclaimer": "Informational data only. Not investment advice. No guarantees.",
+        "fear_greed": {"value": int(fng_val), "label": str(fng_lbl)},
+        "funding": rows,
+        "docs": "https://github.com/rmanm19/tradeguard-bot/blob/main/docs/api/index.html",
+    }
+
+
+def publish_public_feed(rates: Optional[List[Dict]] = None) -> Optional[Dict]:
+    """docs/api/radar.json + docs/api/stats.json را می‌نویسد و (در اجرای واقعی) پوش می‌کند.
+
+    چرا؟ چون یک «فید دادهٔ عمومی و بدون کلید» هم برای تریدرها (مصرف در ابزار خودشان)
+    و هم برای شرکا (بروکر/صرافی/ربات‌های دیگر) ارزش دارد و هزینهٔ زیرساختی ندارد.
+    """
+    try:
+        live = rates if rates is not None else fetch_live_funding_and_oi()
+        feed = build_public_feed(live or [])
+        if not feed:
+            logger.info("فید عمومی نوشته نشد: دادهٔ زنده در دسترس نیست")
+            return None
+        PUBLIC_FEED_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = feed["generated_at"]
+        _st = public_feed_stats()
+        stats = {
+            "generated_at": stamp,
+            "languages": 6,
+            "users_total": _st["users_total"],
+            "join_rewards": _st["join_rewards"],
+            "active_pro": _st["active_pro"],
+            "channel": PUBLIC_CHANNEL_ID or "",
+            "channel_en": PUBLIC_CHANNEL_EN or "",
+            "note": "Aggregated counters only — no personal data is ever published.",
+        }
+        (PUBLIC_FEED_DIR / "radar.json").write_text(
+            json.dumps(feed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        (PUBLIC_FEED_DIR / "stats.json").write_text(
+            json.dumps(stats, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        rels: List[str] = []
+        for f in (PUBLIC_FEED_DIR / "radar.json", PUBLIC_FEED_DIR / "stats.json"):
+            try:
+                rels.append(str(f.relative_to(REPO_ROOT)))
+            except ValueError:
+                logger.info("فید عمومی بیرون از ریپو است؛ پوش انجام نمی‌شود (%s)", f)
+        _git_commit_paths(rels, "chore(api): refresh public data feed [skip ci]")
+        return feed
+    except Exception as exc:
+        logger.warning("انتشار فید عمومی ناموفق: %s", exc)
+        return None
+
+
+def _git_commit_paths(rel_paths: List[str], message: str) -> None:
+    """کامیت/پوش فایل‌های مشخص (فقط وقتی PRO_STATUS_PUSH روشن است)."""
+    if not PRO_STATUS_PUSH or not rel_paths:
+        return
+    try:
+        subprocess.run(["git", "add", *rel_paths], cwd=str(REPO_ROOT), capture_output=True, timeout=60)
+        commit = subprocess.run(
+            ["git", "-c", "user.name=github-actions[bot]",
+             "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+             "commit", "-m", message],
+            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=60,
+        )
+        if commit.returncode != 0:
+            return
+        for _attempt in (1, 2):
+            subprocess.run(["git", "pull", "--rebase", "--autostash"], cwd=str(REPO_ROOT),
+                           capture_output=True, timeout=120)
+            push = subprocess.run(["git", "push"], cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=120)
+            if push.returncode == 0:
+                return
+    except Exception as exc:
+        logger.warning("پوش فید عمومی ناموفق: %s", exc)
+
+
 def _git_publish_status_file() -> None:
     """کامیت و پوش فایل وضعیت (فقط وقتی PRO_STATUS_PUSH روشن است)."""
     if not PRO_STATUS_PUSH:
@@ -2483,11 +2600,24 @@ def handle_message(msg: dict) -> None:
         tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
         return
 
+    if text.startswith("/biz"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        args = text.split(maxsplit=1)
+        code = args[1].strip().lower() if len(args) > 1 else ""
+        tg_send_message(chat_id, biz_report_text(code), reply_markup=admin_back_keyboard())
+        return
+
     if text.startswith("/sources"):
         if not is_admin(uid):
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
-        tg_send_message(chat_id, funnel_text(), reply_markup=admin_back_keyboard())
+        tg_send_message(
+            chat_id,
+            funnel_text() + "\n\n🤝 گزارش قیف برای بروکر/صرافی: `/biz <identifier>`",
+            reply_markup=admin_back_keyboard(),
+        )
         return
 
     if text.startswith("/partnerlink"):
@@ -3377,6 +3507,122 @@ def source_summary(limit: int = 10) -> List[Tuple[str, int]]:
     return out[:limit]
 
 
+# ---------------------------------------------------------------------
+#  گزارش قیف برای شریک (بروکر / صرافی) — /biz
+# ---------------------------------------------------------------------
+PARTNER_SOURCE_PREFIX = "p_"
+BIZ_INBOUND_SOURCES = ("biz_inquiry", "api_inquiry", "partner_inquiry")
+
+
+def _partner_id_from_source(code: str) -> str:
+    """`p_okx_ab12` → `okx` (subid را جدا می‌کند تا کلیک‌ها گم نشوند)."""
+    code = str(code or "").strip().lower()
+    if not code.startswith(PARTNER_SOURCE_PREFIX):
+        return ""
+    rest = code[len(PARTNER_SOURCE_PREFIX):]
+    if not rest:
+        return ""
+    return rest.split("_")[0]
+
+
+def partner_funnel_rows() -> List[Dict]:
+    """قیف هر شریک — همهٔ subidها (`p_okx`, `p_okx_ab12`) در یک ردیف جمع می‌شوند.
+
+    دلیل: بروکر به «قیف کل یک کمپین» نگاه می‌کند، نه به تکه‌تکهٔ subid.
+    کلیک‌ها هم فقط یک‌بار شمرده می‌شوند تا نرخ کلیک‌به‌استارت واقعی بماند.
+    """
+    clicks = dict(partner_click_summary())
+    agg: Dict[str, Dict] = {}
+    for row in funnel_rows():
+        src = str(row.get("source") or "")
+        pid = _partner_id_from_source(src)
+        if not pid and src not in BIZ_INBOUND_SOURCES:
+            continue
+        key = pid or src
+        item = agg.setdefault(key, {
+            "partner": key, "sources": [], "clicks": int(clicks.get(key) or 0),
+            "starts": 0, "joined": 0, "pro": 0,
+        })
+        item["sources"].append(src)
+        item["starts"] += int(row.get("users") or 0)
+        item["joined"] += int(row.get("joined") or 0)
+        item["pro"] += int(row.get("pro") or 0)
+    out: List[Dict] = []
+    for key, it in agg.items():
+        starts = int(it["starts"])
+        out.append({
+            "source": key,
+            "partner": key,
+            "sources": sorting_stable_uniq(it["sources"]),
+            "clicks": int(it["clicks"]),
+            "starts": starts,
+            "click_to_start": (starts / it["clicks"] * 100) if it["clicks"] else 0.0,
+            "joined": int(it["joined"]),
+            "join_rate": (it["joined"] / starts * 100) if starts else 0.0,
+            "pro": int(it["pro"]),
+            "pro_rate": (it["pro"] / starts * 100) if starts else 0.0,
+        })
+    out.sort(key=lambda r: (r["starts"], r["clicks"]), reverse=True)
+    return out
+
+
+def sorting_stable_uniq(items: List[str]) -> List[str]:
+    """جداکردن تکراری‌ها با حفظ ترتیب (پایتون ۳٫۷+ dict مرتب است؛ این صریح‌تر است)."""
+    seen, out = set(), []
+    for x in items:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
+def biz_report_text(code: str = "") -> str:
+    """گزارش صادقانهٔ قیف برای شرکا؛ هرچه ربات نمی‌داند (KYC/دپوزیت) صریح می‌گوید."""
+    code = str(code or "").strip().lower()
+    rows = partner_funnel_rows()
+    if code:
+        rows = [r for r in rows if r["partner"] == code or code in (r.get("sources") or [])]
+    head = "🤝 *گزارش قیف شرکا*" + (f" — `{code}`" if code else "")
+    lines = [head, ""]
+    if not rows:
+        return "\n".join(lines + [
+            "برای این کد هنوز داده‌ای نیست.",
+            "",
+            "لینک با کد بسازید: `?start=p_<partner-id>`",
+            "مثال: `https://t.me/%s?start=p_okx`" % BOT_USERNAME,
+        ])
+    for r in rows[:12]:
+        subs = r.get("sources") or []
+        extra = f" (کدها: {', '.join('`%s`' % x for x in subs)})" if len(subs) > 1 else ""
+        lines.append(f"• `{r['partner']}`{extra}")
+        if r["clicks"]:
+            lines.append(
+                f"   👆 کلیک: *{r['clicks']}* → استارت: *{r['starts']}* ({r['click_to_start']:.0f}%)"
+            )
+        else:
+            lines.append(f"   👤 استارت: *{r['starts']}*")
+        lines.append(
+            f"   ✅ عضویت تأییدشدهٔ کانال: *{r['joined']}* ({r['join_rate']:.0f}%) · "
+            f"💎 پرو فعال: *{r['pro']}* ({r['pro_rate']:.0f}%)"
+        )
+    lines += [
+        "",
+        "*چه چیزی را ربات نمی‌داند؟*",
+        "دپوزیت، KYC و حجم معامله در سمت بروکر است. برای CPA باید postback از CRM شما به ما وصل شود؛ "
+        "تا آن روز فقط تا «استارت + عضویت + پرو» را با عدد واقعی گزارش می‌کنیم — نه بیشتر.",
+        "",
+        "*شِمای پیشنهادی رهگیری* (بدون تغییر کد ربات):",
+        "۱) در صفحهٔ فرود خودتان click-id بسازید و در لینک بگذارید:",
+        "   `https://t.me/%s?start=p_<id>_<clickid>`" % BOT_USERNAME,
+        "۲) شناسهٔ تلگرام کاربر را در ثبت‌نام ذخیره کنید (فیلد `tg_id`).",
+        "۳) رویدادهای `kyc`، `ftd`، `deposit` را با همان `tg_id` + مبلغ به ما postback کنید.",
+        "۴) ما تجمیع را در همین `/biz` و فید `api/stats.json` نشان می‌دهیم (بدون دادهٔ شخصی).",
+        "",
+        "📄 صفحهٔ عمومی: `business.html` — مستندات فید: `api/index.html`",
+    ]
+    return "\n".join(lines)
+
+
 def sources_text() -> str:
     rows = source_summary(15)
     lines = ["🔗 *منابع ورود کاربران*", ""]
@@ -4174,6 +4420,7 @@ def auto_channel_loop() -> None:
             if PUBLIC_CHANNEL_ID:
                 validate_channel_target(silent=True)
             post_due_slots()
+            publish_public_feed()
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)
         time.sleep(CHANNEL_LOOP_SLEEP_SEC)

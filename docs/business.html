@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070c16" />
+<title>TradeGuard — برای بروکرها و صرافی‌ها</title>
+<meta name="description" content="همکاری با TradeGuard: کارت شریک در مینی‌اپ، صفحهٔ فرود اختصاصی با رهگیری واقعی، اسپانسری پست کانال، و فید دادهٔ عمومی. همه با افشای شفاف و اندازه‌گیری قابل بررسی." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="TradeGuard — for brokers & exchanges" />
+<meta property="og:description" content="Partner placements with honest, verifiable tracking: click → start → channel join → retention." />
+<!--
+  صفحهٔ B2B — «چرا با TradeGuard همکاری کنیم»
+  ------------------------------------------------------------------
+  اعداد این صفحه از docs/api/stats.json خوانده می‌شود (شمارنده‌های تجمیعی واقعی ربات).
+  اگر فایل نبود یا قدیمی بود، خط تیره نشان داده می‌شود — هیچ عدد ساختگی‌ای نمایش داده نمی‌شود.
+-->
+<style>
+  :root{
+    --bg:#070c16; --bg2:#0b1a20; --card:#0f1626; --line:rgba(120,200,180,.16);
+    --mint:#38e0b2; --mint-soft:#8ff0d2; --txt:#eef8f5; --dim:#9db3b3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1100px 520px at 18% -8%, rgba(30,140,120,.30), transparent 60%),
+    linear-gradient(180deg,var(--bg),var(--bg2));color:var(--txt);min-height:100vh;
+    font-family:Vazirmatn,"Segoe UI",Tahoma,"Noto Sans Arabic",system-ui,sans-serif;line-height:1.8;
+    -webkit-font-smoothing:antialiased}
+  body[dir="ltr"]{font-family:Vazirmatn,"Segoe UI",Roboto,system-ui,sans-serif;line-height:1.7}
+  .wrap{max-width:860px;margin:0 auto;padding:26px 18px 64px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+  .mark{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(145deg,#0e2b2a,#0a1524);border:1px solid var(--line);color:var(--mint)}
+  .brand b{display:block;font-size:17px}
+  .brand small{color:var(--dim);font-size:12px}
+  .lang{margin-inline-start:auto;background:transparent;border:1px solid var(--line);color:var(--dim);
+    border-radius:999px;padding:6px 13px;font:inherit;font-size:12px;cursor:pointer}
+  h1{font-size:27px;letter-spacing:-.4px;margin:0 0 10px}
+  .lead{color:var(--dim);font-size:15px;margin:0 0 22px}
+  h2{font-size:16px;margin:32px 0 12px;color:#cfe6e1}
+  .card{background:linear-gradient(180deg,rgba(20,32,50,.9),rgba(14,22,38,.9));
+    border:1px solid var(--line);border-radius:18px;padding:18px;margin:12px 0}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .stat{border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;background:rgba(9,16,26,.7)}
+  .stat b{display:block;font-size:22px;letter-spacing:-.5px;color:var(--mint-soft)}
+  .stat span{font-size:11.5px;color:var(--dim)}
+  .items{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .item{border:1px solid var(--line);border-radius:16px;padding:15px;background:rgba(9,16,26,.6)}
+  .item h3{margin:0 0 6px;font-size:14px}
+  .item p{margin:0;font-size:12.5px;color:#c5d8d5}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;color:#06231d;background:var(--mint);
+    border-radius:999px;padding:2px 8px;margin-bottom:8px}
+  .funnel{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px;color:#cfe6e1}
+  .funnel span{border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:rgba(9,16,26,.7)}
+  .funnel i{color:var(--mint);font-style:normal}
+  ul{margin:8px 0 0;padding-inline-start:18px;font-size:13px;color:#c5d8d5}
+  li{margin:4px 0}
+  .note{border:1px solid rgba(255,196,107,.22);background:rgba(255,196,107,.07);color:#ffd9a1;
+    border-radius:12px;padding:11px 13px;font-size:12.5px;margin-top:14px}
+  .cta-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .cta{display:inline-block;background:var(--mint);color:#06231d;font-weight:800;text-decoration:none;
+    border-radius:12px;padding:12px 18px;font-size:14px}
+  .cta.ghost{background:transparent;color:var(--mint-soft);border:1px solid var(--line)}
+  footer{margin-top:34px;color:#6d8383;font-size:12px;text-align:center}
+  footer a{color:var(--mint-soft);text-decoration:none}
+  @media (max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}.items{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="mark" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/><path d="M8.7 12.2l2.2 2.2 4.4-4.4"/></svg>
+    </span>
+    <span class="brand"><b>TradeGuard</b><small id="brandTag">برای بروکرها و صرافی‌ها</small></span>
+    <button class="lang" id="langBtn" type="button">EN</button>
+  </header>
+
+  <h1 id="h1">تریدرِ آماده، نه کلیکِ ارزان</h1>
+  <p class="lead" id="lead">
+    TradeGuard یک مینی‌اپ تلگرامی ۶ زبانه است که تریدرها هر روز بازش می‌کنند: رادار فاندینگ و OI،
+    نقشهٔ لیکوئیدیشن، گارد دراودان پراپ و اسکنر امنیت توکن. مخاطب ما کسی است که حساب واقعی دارد،
+    نه رهگذری که بنر دیده است.
+  </p>
+
+  <div class="card">
+    <div class="stats" id="stats">
+      <div class="stat"><b data-k="users_total">—</b><span id="s1">کاربر ثبت‌شده</span></div>
+      <div class="stat"><b data-k="active_pro">—</b><span id="s2">پرو فعال</span></div>
+      <div class="stat"><b data-k="join_rewards">—</b><span id="s3">عضویت تأییدشدهٔ کانال</span></div>
+      <div class="stat"><b data-k="languages">6</b><span id="s4">زبان</span></div>
+    </div>
+    <div class="note" id="statsNote">
+      اعداد بالا از فید عمومی خود محصول خوانده می‌شوند (<code>api/stats.json</code>)؛ اگر «—» بود یعنی هنوز منتشر نشده‌اند.
+      ما هیچ‌وقت عدد بزرگ‌تر از واقعیت نشان نمی‌دهیم.
+    </div>
+  </div>
+
+  <h2 id="h2a">چه چیزی در اختیار شریک می‌گذاریم</h2>
+  <div class="items">
+    <div class="item">
+      <span class="tag" id="t1">جایگاه ۱</span>
+      <h3 id="i1h">کارت شریک داخل مینی‌اپ</h3>
+      <p id="i1p">کارت شما در بخش شرکا با آیکن، توضیح یک‌خطی و افشای «لینک همکاری» نمایش داده می‌شود.
+        هر کلیک از مسیر ربات رد می‌شود، پس کلیک واقعی از کلیکِ تقلبی جدا است.</p>
+    </div>
+    <div class="item">
+      <span class="tag" id="t2">جایگاه ۲</span>
+      <h3 id="i2h">صفحهٔ فرود اختصاصی</h3>
+      <p id="i2p">هر شریک یک آدرس مستقل دارد (<code>p.html?id=…</code>) با کارت اختصاصی، افشای کمیسیون و
+        کد رهگیری. مناسب بایو اینستاگرام، توییتر و کمپین‌های پولی.</p>
+    </div>
+    <div class="item">
+      <span class="tag" id="t3">جایگاه ۳</span>
+      <h3 id="i3h">اسپانسری پست کانال</h3>
+      <p id="i3p">حداکثر یک پست در روز، با برچسب صریح «همکاری» و بدون ادعای سود. محتوای آموزشی کانال
+        هرگز با تبلیغ قاطی نمی‌شود.</p>
+    </div>
+    <div class="item">
+      <span class="tag" id="t4">جایگاه ۴</span>
+      <h3 id="i4h">فید دادهٔ عمومی</h3>
+      <p id="i4p">اگر محصول داده‌ای دارید، می‌توانید در فید عمومی/همکار ما حاضر باشید؛ فید بدون کلید و
+        بدون دادهٔ شخصی منتشر می‌شود و منبع ذکر می‌ماند.</p>
+    </div>
+  </div>
+
+  <h2 id="h2b">اندازه‌گیری: همان چیزی که برای CPA لازم است</h2>
+  <div class="card">
+    <div class="funnel">
+      <span>کلیک لینک</span><i>→</i>
+      <span>استارت ربات</span><i>→</i>
+      <span>عضویت کانال (تأیید واقعی تلگرام)</span><i>→</i>
+      <span>مدت ماندگاری / پرو</span>
+    </div>
+    <ul id="funnelList">
+      <li>هر شریک کد خودش را دارد (<code>p_&lt;id&gt;</code>)؛ آمار جدا شمرده می‌شود.</li>
+      <li>عضویت کانال فقط با بررسی واقعی <code>getChatMember</code> تأیید می‌شود — عضویت فیک در آمار نیست.</li>
+      <li>گزارش قیف برای هر منبع: کاربر، نرخ عضویت، پرو فعال. قابل مقایسه با کلیک‌های همان منبع.</li>
+      <li>پیام‌ها و پست‌ها کد رهگیری جدا دارند تا «کدام پیام» فروش آورد، نه فقط «کدام کانال».</li>
+    </ul>
+  </div>
+
+  <h2 id="h2c">خطوط سرخ ما (که به نفع شما هم هست)</h2>
+  <ul id="redlines">
+    <li>هیچ‌جا «سود تضمینی»، «پاس چالش ۱۰۰٪» یا «بدون ریسک» نمی‌نویسیم.</li>
+    <li>افشای همکاری همیشه روی کارت شریک و صفحهٔ فرود دیده می‌شود.</li>
+    <li>دادهٔ کاربران به شرکا فروخته نمی‌شود؛ فید عمومی فقط دادهٔ بازار و شمارنده‌های تجمیعی دارد.</li>
+    <li>محدودیت‌های جغرافیایی و قوانین تبلیغات مالی کشورها را رعایت می‌کنیم.</li>
+  </ul>
+
+  <div class="cta-row">
+    <a class="cta" id="cta1" href="https://t.me/TradeGuard1_bot?start=biz_inquiry">شروع گفت‌وگو با ما</a>
+    <a class="cta ghost" id="cta2" href="api/index.html">مستندات فید داده</a>
+    <a class="cta ghost" id="cta3" href="https://t.me/tradeguard1">دیدن کانال</a>
+  </div>
+
+  <footer>
+    <span id="foot">TradeGuard — افشای شفاف، اندازه‌گیری واقعی، بدون وعدهٔ سود.</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var params = new URLSearchParams(location.search);
+  var lang = (params.get("lang") || "").toLowerCase().indexOf("en") === 0 ? "en" : "fa";
+
+  var COPY = {
+    en: {
+      brandTag: "For brokers & exchanges",
+      h1: "Traders who already trade — not cheap clicks",
+      lead: "TradeGuard is a 6-language Telegram mini app traders open daily: funding & OI radar, liquidation map, prop drawdown guard and token safety scanner. Our audience has real accounts, not banner impressions.",
+      stats: ["Registered users", "Active PRO", "Verified channel joins", "Languages"],
+      statsNote: "These numbers come from the product's own public feed (api/stats.json). If it shows —, nothing has been published yet. We never inflate numbers.",
+      h2a: "What a partner gets",
+      h2b: "Measurement that maps to CPA",
+      h2c: "Our red lines (they protect you too)",
+      t1: "Slot 1", t2: "Slot 2", t3: "Slot 3", t4: "Slot 4",
+      i1h: "Partner card inside the mini app",
+      i1p: "Your card with icon, one-line note and an explicit affiliate disclosure. Every click goes through the bot, so real clicks are separated from noise.",
+      i2h: "Dedicated landing page",
+      i2p: "Each partner gets its own page (p.html?id=…) with a dedicated card, commission disclosure and tracking code — perfect for bio links and paid campaigns.",
+      i3h: "Channel post sponsorship",
+      i3p: "At most one sponsored post per day, clearly labelled as a partnership, with no profit claims. The educational feed never mixes with ads.",
+      i4h: "Public data feed",
+      i4p: "If you have a data product, it can appear in our public/partner feed: key-less, no personal data, attribution preserved.",
+      funnelList: [
+        "Every partner has its own code (p_<id>), so numbers never blend.",
+        "Channel joins are verified with a real getChatMember call — fake joins are never counted.",
+        "Per-source funnel: users, join rate, active PRO — directly comparable to clicks.",
+        "Each post and message has its own code, so you see which message converts, not just which channel."
+      ],
+      redlines: [
+        "No \"guaranteed profit\", no \"100% challenge pass\", no \"risk-free\".",
+        "Partnership disclosure is always visible on the partner card and landing page.",
+        "We never sell user data; the public feed carries market data and aggregated counters only.",
+        "We respect regional restrictions and financial-advertising rules."
+      ],
+      cta1: "Talk to us", cta2: "Feed documentation", cta3: "See the channel",
+      foot: "TradeGuard — honest disclosure, verifiable measurement, zero profit promises."
+    }
+  };
+  var ca = COPY[lang] || {};
+  if (lang === "en") {
+    document.documentElement.lang = "en";
+    document.documentElement.dir = "ltr";
+    document.getElementById("langBtn").textContent = "فا";
+    var map = {
+      brandTag: "brandTag", h1: "h1", lead: "lead", statsNote: "statsNote",
+      h2a: "h2a", h2b: "h2b", h2c: "h2c",
+      i1h: "i1h", i2h: "i2h", i3h: "i3h", i4h: "i4h",
+      i1p: "i1p", i2p: "i2p", i3p: "i3p", i4p: "i4p",
+      cta1: "cta1", cta2: "cta2", cta3: "cta3", foot: "foot",
+      t1: "t1", t2: "t2", t3: "t3", t4: "t4"
+    };
+    Object.keys(map).forEach(function (k) { if (ca[k]) document.getElementById(map[k]).textContent = ca[k]; });
+    var spans = document.querySelectorAll("#stats .stat span");
+    (ca.stats || []).forEach(function (txt, i) { if (spans[i]) spans[i].textContent = txt; });
+    var ul = document.getElementById("funnelList");
+    if (ca.funnelList) ul.innerHTML = ca.funnelList.map(function (x) { return "<li>" + x + "</li>"; }).join("");
+    var rl = document.getElementById("redlines");
+    if (ca.redlines) rl.innerHTML = ca.redlines.map(function (x) { return "<li>" + x + "</li>"; }).join("");
+  }
+
+  document.getElementById("langBtn").addEventListener("click", function () {
+    var u = new URL(location.href);
+    u.searchParams.set("lang", lang === "fa" ? "en" : "fa");
+    location.href = u.toString();
+  });
+
+  /* اعداد واقعی از فید عمومی محصول — بدون هیچ عدد جعلی */
+  fetch("api/stats.json", { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) return;
+      document.querySelectorAll("#stats b[data-k]").forEach(function (el) {
+        var k = el.getAttribute("data-k");
+        var v = d[k];
+        if (typeof v === "number" && v >= 0) el.textContent = v.toLocaleString(lang === "fa" ? "fa-IR" : "en-US");
+        else if (v === 6) el.textContent = "6";
+      });
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

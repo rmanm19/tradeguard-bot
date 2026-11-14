@@ -1971,4 +1971,65 @@ window.TG_I18N = {
   Object.keys(EXTRA4).forEach(function (k) {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA4[k]);
   });
+
+  /* ── نقشهٔ لیکوئیدیشن (تخمینی) ───────────────────────────────── */
+  var EXTRA5 = {
+    fa: {
+      liqTitle: "🕳 نقشهٔ لیکوئیدیشن (تخمینی)",
+      liqNote: "فاصله تا لیکوئید = ۱ ÷ اهرم (کارمزد نگهداری ۰٫۵٪). تخمین از OI و اهرم رایج، نه دفتر سفارش صرافی.",
+      liqLong: "لانگ‌های اهرمی می‌سوزند ↓",
+      liqShort: "شورت‌های اهرمی می‌سوزند ↑",
+      liqCrowdedLong: "لانگ‌ها شلوغ‌اند (فاندینگ مثبت) ↓",
+      liqCrowdedShort: "شورت‌ها شلوغ‌اند (فاندینگ منفی) ↑",
+      liqNone: "دادهٔ کافی برای تخمین نیست."
+    },
+    en: {
+      liqTitle: "🕳 Liquidation map (estimated)",
+      liqNote: "Distance to liquidation = 1 ÷ leverage (0.5% maintenance margin). Estimated from OI and common leverage, not the exchange order book.",
+      liqLong: "Leveraged longs get liquidated ↓",
+      liqShort: "Leveraged shorts get liquidated ↑",
+      liqCrowdedLong: "Crowded longs (positive funding) ↓",
+      liqCrowdedShort: "Crowded shorts (negative funding) ↑",
+      liqNone: "Not enough data to estimate."
+    },
+    ru: {
+      liqTitle: "🕳 Карта ликвидаций (оценка)",
+      liqNote: "Расстояние до ликвидации = 1 ÷ плечо (поддерживающая маржа 0,5%). Оценка по OI и типичному плечу, а не по стакану биржи.",
+      liqLong: "Ликвидация лонгов с плечом ↓",
+      liqShort: "Ликвидация шортов с плечом ↑",
+      liqCrowdedLong: "Перегруженные лонги (положительный фандинг) ↓",
+      liqCrowdedShort: "Перегруженные шорты (отрицательный фандинг) ↑",
+      liqNone: "Недостаточно данных для оценки."
+    },
+    ar: {
+      liqTitle: "🕳 خريطة التصفية (تقديرية)",
+      liqNote: "المسافة إلى التصفية = 1 ÷ الرافعة (هامش صيانة 0.5%). تقدير من OI والرافعة الشائعة، وليس من دفتر أوامر المنصة.",
+      liqLong: "تصفية مراكز الشراء بالرافعة ↓",
+      liqShort: "تصفية مراكز البيع بالرافعة ↑",
+      liqCrowdedLong: "شراء مزدحم (تمويل موجب) ↓",
+      liqCrowdedShort: "بيع مزدحم (تمويل سالب) ↑",
+      liqNone: "لا توجد بيانات كافية للتقدير."
+    },
+    tr: {
+      liqTitle: "🕳 Likidasyon haritası (tahmini)",
+      liqNote: "Likidasyona mesafe = 1 ÷ kaldıraç (%0,5 sürdürme marjı). OI ve yaygın kaldıraçtan tahmin; borsa emir defteri değil.",
+      liqLong: "Kaldıraçlı longlar likide olur ↓",
+      liqShort: "Kaldıraçlı shortlar likide olur ↑",
+      liqCrowdedLong: "Kalabalık long (pozitif funding) ↓",
+      liqCrowdedShort: "Kalabalık short (negatif funding) ↑",
+      liqNone: "Tahmin için yeterli veri yok."
+    },
+    es: {
+      liqTitle: "🕳 Mapa de liquidaciones (estimado)",
+      liqNote: "Distancia a la liquidación = 1 ÷ apalancamiento (margen de mantenimiento 0,5%). Estimación por OI y apalancamiento habitual, no por el libro de órdenes.",
+      liqLong: "Los longs apalancados se liquidan ↓",
+      liqShort: "Los shorts apalancados se liquidan ↑",
+      liqCrowdedLong: "Longs saturados (funding positivo) ↓",
+      liqCrowdedShort: "Shorts saturados (funding negativo) ↑",
+      liqNone: "Datos insuficientes para estimar."
+    }
+  };
+  Object.keys(EXTRA5).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA5[k]);
+  });
 })();

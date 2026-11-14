@@ -174,6 +174,90 @@
     </svg>`;
   }
 
+  /* ── نقشهٔ لیکوئیدیشن (تخمینی) ───────────────────────────────────────
+     فاصله تا لیکوئید هر پوزیشن ≈ ۱ ÷ اهرم (منهای کارمزد نگهداری).
+     این یک «تخمین از روی OI و اهرم رایج» است، نه دفتر سفارش صرافی —
+     هیچ ادعای دقیق‌بودن میلی‌متری دربارهٔ دادهٔ خصوصی صرافی نمی‌کنیم. */
+  const LIQ_LEVS = [10, 25, 50];
+  const LIQ_MMR = 0.005;
+
+  function liqPrice(price, lev, side) {
+    const p = Number(price) || 0;
+    if (!(p > 0) || !(lev > 0)) return 0;
+    const keep = 1 / lev - LIQ_MMR;
+    return side === "long" ? Math.max(0, p * (1 - keep)) : p * (1 + keep);
+  }
+
+  function liqShortNum(v) {
+    const n = Number(v) || 0;
+    if (n >= 1000) return "$" + (n / 1000).toFixed(1) + "k";
+    if (n >= 100) return "$" + n.toFixed(0);
+    if (n >= 1) return "$" + n.toFixed(2);
+    return "$" + n.toFixed(6);
+  }
+
+  function liqCandidates() {
+    const src = (marketState.top_extremes || []).concat(marketState.majors || []);
+    const seen = Object.create(null);
+    const out = [];
+    src.forEach((c) => {
+      if (!c || !c.sym || seen[c.sym]) return;
+      if (!(Number(c.price) > 0)) return;
+      if (!(Number(c.oi_m) > 0)) return;
+      seen[c.sym] = 1;
+      out.push(c);
+    });
+    out.sort((a, b) => b.oi_m - a.oi_m);
+    return out.slice(0, 5);
+  }
+
+  function renderLiquidationMap() {
+    const box = $("#liqMap");
+    const rows = $("#liqRows");
+    if (!box || !rows) return;
+    const d = t();
+    const title = $("#liqTitle");
+    const note = $("#liqNote");
+    if (title && d.liqTitle) title.textContent = d.liqTitle;
+    if (note && d.liqNote) note.textContent = d.liqNote;
+
+    const coins = liqCandidates();
+    if (!coins.length) {
+      box.classList.add("hidden");
+      rows.innerHTML = "";
+      return;
+    }
+    box.classList.remove("hidden");
+
+    rows.innerHTML = coins
+      .map((c) => {
+        const price = Number(c.price) || 0;
+        const longSide = (c.rate_8h || 0) >= 0;
+        const crowded = longSide ? d.liqCrowdedLong || "" : d.liqCrowdedShort || "";
+        const sideClass = longSide ? "is-long" : "is-short";
+        const levels = LIQ_LEVS.map((lev) => {
+          const lp = liqPrice(price, lev, "long");
+          const sp = liqPrice(price, lev, "short");
+          return (
+            `<span class="liq-cell"><b>${lev}×</b>` +
+            `<span class="liq-px liq-px-long">${liqShortNum(lp)}</span>` +
+            `<span class="liq-px liq-px-short">${liqShortNum(sp)}</span></span>`
+          );
+        }).join("");
+        return (
+          `<div class="liq-card" data-sym="${c.sym}">` +
+          `<div class="liq-top"><b>$${c.sym}</b>` +
+          `<span class="liq-spot">$${Number(price).toLocaleString("en-US")}</span>` +
+          `<span class="liq-oi">OI $${fmt(c.oi_m, 1, 1)}M</span>` +
+          `<span class="liq-crowd ${sideClass}">${crowded}</span></div>` +
+          `<div class="liq-grid"><span class="liq-grid-head">${d.liqLong || ""}</span>` +
+          `<span class="liq-grid-head liq-grid-head-short">${d.liqShort || ""}</span></div>` +
+          `<div class="liq-cells">${levels}</div></div>`
+        );
+      })
+      .join("");
+  }
+
   function renderRadar() {
     const radarList = $("#radarList");
     if (!radarList) return;
@@ -182,6 +266,8 @@
     if (xrayBox) xrayBox.classList.toggle("hidden", radarMode !== "whales");
 
     if (radarMode === "whales") {
+      const liqBox = $("#liqMap");
+      if (liqBox) liqBox.classList.add("hidden");
       radarList.innerHTML = "";
       whalesList.forEach((w) => {
         const card = document.createElement("div");
@@ -282,6 +368,7 @@
       });
     }
 
+    renderLiquidationMap();
     renderOppCard();
   }
 
