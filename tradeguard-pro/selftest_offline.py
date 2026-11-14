@@ -1133,6 +1133,24 @@ check("مسیر نسبی PUBLIC_FEED_DIR نسبت به ریشهٔ ریپو حل 
       and bot.resolve_repo_path("", Path("/x")) == Path("/x")
       and bot.resolve_repo_path("/tmp/z", Path("/x")) == Path("/tmp/z"),
       str(bot.resolve_repo_path("docs/api", Path("/x"))))
+# اندازهٔ کانال: عدد تجمیعی واقعی، و اگر تلگرام جواب نداد هیچ کلیدی ساخته نمی‌شود
+_real_call_feed = bot.tg_call
+bot.PUBLIC_CHANNEL_ID = "@testchannel_feed"
+bot.tg_call = lambda m, payload=None, timeout=15.0: ({"ok": True, "result": 137}
+                                                     if m == "getChatMemberCount" else _real_call_feed(m, payload, timeout))
+bot.publish_public_feed(_fake_rates(), force=True)
+_members_stats = _json.loads((bot.PUBLIC_FEED_DIR / "stats.json").read_text(encoding="utf-8"))
+check("اندازهٔ کانال به‌صورت عدد تجمیعی در stats.json منتشر می‌شود",
+      _members_stats.get("channel_members") == 137, str(_members_stats))
+bot.tg_call = lambda m, payload=None, timeout=15.0: ({"ok": False, "description": "nope"}
+                                                     if m == "getChatMemberCount" else _real_call_feed(m, payload, timeout))
+bot.publish_public_feed(_fake_rates(), force=True)
+_members_stats2 = _json.loads((bot.PUBLIC_FEED_DIR / "stats.json").read_text(encoding="utf-8"))
+check("اگر تلگرام شمارش را نداد، هیچ عدد ساختگی در stats.json نمی‌نشیند",
+      "channel_members" not in _members_stats2, str(_members_stats2))
+bot.tg_call = _real_call_feed
+bot.PUBLIC_CHANNEL_ID = ""
+
 check("آیدی عددی کانال هرگز در فید عمومی نمی‌رود",
       bot._public_channel_handle("-1001234567") == ""
       and bot._public_channel_handle("@tradeguard1") == "@tradeguard1")

@@ -1670,6 +1670,15 @@ def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False)
             "channel_en": _public_channel_handle(PUBLIC_CHANNEL_EN),
             "note": "Aggregated counters only — no personal data is ever published.",
         }
+        # اندازهٔ کانال (فقط عدد تجمیعی) — بدون این، معلوم نیست مشکل «ترافیک» است
+        # یا «تبدیل». اگر تلگرام جواب نداد، کلید حذف می‌شود؛ هیچ عدد ساختگی نه.
+        try:
+            _mc = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID}, timeout=8.0) \
+                if PUBLIC_CHANNEL_ID else {}
+            if _mc.get("ok") and int(_mc.get("result") or 0) > 0:
+                stats["channel_members"] = int(_mc["result"])
+        except Exception as exc:
+            logger.info("شمارش اعضای کانال ناموفق: %s", exc)
         (PUBLIC_FEED_DIR / "radar.json").write_text(
             json.dumps(feed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (PUBLIC_FEED_DIR / "stats.json").write_text(
