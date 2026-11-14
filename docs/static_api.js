@@ -19,7 +19,8 @@
   var CHAIN_GOPLUS_ID = { ethereum: "1", bsc: "56", polygon: "137", arbitrum: "42161", base: "8453", optimism: "10" };
   var HL_INFO = "https://api.hyperliquid.xyz/info";
   var CACHE_MS = 25000;
-  var cache = { radar: { ts: 0, data: null }, whales: { ts: 0, data: null } };
+  var cache = {
+    matrix: { data: null, ts: 0 }, radar: { ts: 0, data: null }, whales: { ts: 0, data: null } };
 
   /* ---------------- helpers ---------------- */
   function jpost(url, body, timeoutMs) {
@@ -86,6 +87,98 @@
         };
       })
       .catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
+  }
+
+  /* ---------------- funding matrix (چند صرافی) ----------------
+     هدف: یک جدول واقعی از فاندینگ همان دارایی در چند صرافی، تا
+     تریدر آربیتراژ فاندینگ را با چشم خودش ببیند. هر عدد از API
+     عمومی همان صرافی می‌آید و اگر صرافی جواب ندهد، null می‌ماند.
+  ------------------------------------------------------------ */
+  var MATRIX_SYMS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI"];
+  var MATRIX_MS = 60000;
+
+  function buildFundingMatrix() {
+    var now = Date.now();
+    if (cache.matrix.data && now - cache.matrix.ts < MATRIX_MS) {
+      return Promise.resolve(cache.matrix.data);
+    }
+    var okxCalls = MATRIX_SYMS.map(function (sym) {
+      return jget("https://www.okx.com/api/v5/public/funding-rate?instId=" + sym + "-USDT-SWAP", 6000)
+        .catch(function () { return null; });
+    });
+    return Promise.all([
+      jpost(HL_INFO, { type: "metaAndAssetCtxs" }, 9000).catch(function () { return null; }),
+      Promise.all(okxCalls),
+      jget("https://fapi.binance.com/fapi/v1/premiumIndex", 7000).catch(function () { return null; })
+    ]).then(function (res) {
+      var hl = res[0], okxArr = res[1] || [], bn = res[2];
+      var hlRates = {};
+      if (hl && hl[0] && hl[1]) {
+        var universe = hl[0].universe || [], ctxs = hl[1] || [];
+        for (var i = 0; i < Math.min(universe.length, ctxs.length); i++) {
+          var nm = (universe[i] || {}).name || "";
+          var f = Number((ctxs[i] || {}).funding || 0);
+          if (nm) hlRates[nm] = f * 8 * 100;
+        }
+      }
+      var okxRates = {};
+      MATRIX_SYMS.forEach(function (sym, idx) {
+        var r = okxArr[idx];
+        var arr = (r && r.data) || [];
+        if (arr.length) {
+          var v = Number(arr[0].fundingRate);
+          if (isFinite(v)) okxRates[sym] = v * 100;
+        }
+      });
+      var bnRates = {};
+      if (bn && bn.length) {
+        bn.forEach(function (row) {
+          var bnSym = String(row.symbol || "");
+          var base = bnSym.replace(/USDT$/, "");
+          if (MATRIX_SYMS.indexOf(base) < 0) return;
+          var v = Number(row.lastFundingRate);
+          if (isFinite(v) && row.lastFundingRate !== undefined) bnRates[base] = v * 100;
+        });
+      }
+
+      var rows = [];
+      MATRIX_SYMS.forEach(function (sym) {
+        var rates = {
+          hyperliquid: hlRates.hasOwnProperty(sym) ? rnd(hlRates[sym], 4) : null,
+          okx: okxRates.hasOwnProperty(sym) ? rnd(okxRates[sym], 4) : null,
+          binance: bnRates.hasOwnProperty(sym) ? rnd(bnRates[sym], 4) : null
+        };
+        var vals = [];
+        Object.keys(rates).forEach(function (k) {
+          if (rates[k] !== null) vals.push({ venue: k, v: rates[k] });
+        });
+        if (vals.length < 2) return;
+        vals.sort(function (a, b) { return a.v - b.v; });
+        var spread = vals[vals.length - 1].v - vals[0].v;
+        rows.push({
+          sym: sym,
+          rates: rates,
+          venues: vals.length,
+          spread_pct: rnd(spread, 4),
+          carry_apr: rnd(spread * 3 * 365, 1),
+          best_long: vals[0].venue,
+          best_short: vals[vals.length - 1].venue
+        });
+      });
+      rows.sort(function (a, b) { return b.carry_apr - a.carry_apr; });
+
+      var out = {
+        ok: rows.length > 0,
+        live: rows.length > 0,
+        updated_iso: new Date().toISOString(),
+        venues: ["hyperliquid", "okx", "binance"],
+        unit: "funding_pct_8h",
+        note: "Public funding rates per venue. A positive rate means longs pay shorts. Spread is not a guaranteed profit — fees, slippage and liquidity are yours to check.",
+        rows: rows
+      };
+      cache.matrix = { data: out, ts: Date.now() };
+      return out;
+    });
   }
 
   /* ---------------- live radar ---------------- */
@@ -401,6 +494,7 @@
   window.fetch = function (input, init) {
     var url = (typeof input === "string") ? input : ((input && input.url) || "");
     if (url.indexOf("/api/live-radar") >= 0) return buildRadar().then(jsonResponse);
+    if (url.indexOf("/api/funding-matrix") >= 0) return buildFundingMatrix().then(jsonResponse);
     if (url.indexOf("/api/live-whales") >= 0) return buildWhales().then(jsonResponse);
     if (url.indexOf("/api/token-scan") >= 0) {
       var q = "";
