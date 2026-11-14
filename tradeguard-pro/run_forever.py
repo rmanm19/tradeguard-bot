@@ -13,11 +13,13 @@ TradeGuard — Supervisor / نگهبان ربات
 """
 
 import argparse
+import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -40,6 +42,16 @@ READY_MARKERS = ("آماده است", "connected as", "متصل شد", "ready")
 CRASH_WINDOW = 30.0          # اگر کمتر از این ثانیه زنده ماند = کرش سریع
 MAX_FAST_CRASHES = 6
 ALERT_COOLDOWN = 600.0
+
+# ── انتشار بدون انتظار ──────────────────────────────────────────
+# هر جاب GitHub Actions تا ~۵ ساعت و ۴۰ دقیقه زنده می‌ماند و concurrency
+# اجازه نمی‌دهد جاب تازه شروع شود. بدون این بررسی، یک push روی main تا
+# ۶ ساعت روی «کد قدیمی» اجرا می‌شد. اینجا هر چند دقیقه فهرست فایل‌های
+# tradeguard-pro روی main را از API می‌گیریم؛ اگر یکی از فایل‌های زمانِ
+# اجرا عوض شده باشد، تمیز خارج می‌شویم تا جابِ در صف با کد تازه بالا بیاید.
+RESTART_FLAG = BASE / "restart.flag"
+PROBE_SEC_DEFAULT = 240      # ۴ دقیقه
+RUNTIME_FILES = ("bot.py", "run_forever.py", "db_crypt.py")
 
 
 MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -93,6 +105,160 @@ def tg_notify(env: dict, text: str) -> None:
         log(f"(هشدار تلگرام ارسال نشد: {exc})")
 
 
+def _git_blob_sha(data: bytes) -> str:
+    """SHA-1 همان چیزی که گیت برای محتوای فایل می‌سازد (blob).
+
+    با این کار می‌توان محتوای فایل محلی را با «sha» برگشتی از API گیت‌هاب
+    مقایسه کرد، بدون دانلود فایل.
+    """
+    h = hashlib.sha1()
+    h.update(b"blob %d\0" % len(data))
+    h.update(data)
+    return h.hexdigest()
+
+
+def _gh_get(url: str, env: dict, accept: str, timeout: float = 10.0) -> bytes:
+    tok = (env.get("GITHUB_TOKEN") or "").strip()
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "tradeguard-supervisor", "Accept": accept},
+    )
+    if tok:
+        req.add_header("Authorization", f"Bearer {tok}")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def remote_code_changed(env: dict, files=RUNTIME_FILES, timeout: float = 10.0):
+    """آیا فایل‌های زمانِ اجرا روی main عوض شده‌اند؟
+
+    برمی‌گرداند (changed, names):
+      True/False  → پاسخ قطعی
+      None        → نشد بررسی کرد (شبکه/توکن/سهمیه) — هیچ کاری نکن
+
+    فقط تغییر *کد* باعث ری‌استارت می‌شود؛ کامیت‌های [skip ci] مثل
+    همگام‌سازی تنظیمات مینی‌اپ (که هر چند دقیقه یک‌بار است) SHA شاخه را
+    جلو می‌برند ولی این فایل‌ها را دست نمی‌زنند، پس ربات را بی‌دلیل
+    ری‌استارت نمی‌کنند.
+    """
+    if not (env.get("GITHUB_TOKEN") or "").strip():
+        # بدون توکن، سهمیهٔ ۶۰ درخواست در ساعتِ IP مشترک رانر را نسوزان
+        return None, []
+    repo = (env.get("GITHUB_REPOSITORY") or "").strip()
+    if not repo:
+        return None, []
+    branch = (env.get("DEPLOY_BRANCH") or "main").strip() or "main"
+    try:
+        listing = json.loads(
+            _gh_get(
+                f"https://api.github.com/repos/{repo}/contents/tradeguard-pro?ref={branch}",
+                env,
+                "application/vnd.github+json",
+                timeout,
+            ).decode("utf-8", "replace")
+        )
+    except Exception:
+        return None, []
+    if not isinstance(listing, list):
+        return None, []
+
+    remote = {
+        e.get("name"): e.get("sha")
+        for e in listing
+        if isinstance(e, dict) and e.get("type") == "file"
+    }
+
+    suspects = []
+    for name in files:
+        local = BASE / name
+        if not local.exists() or not remote.get(name):
+            continue
+        try:
+            if _git_blob_sha(local.read_bytes()) != remote[name]:
+                suspects.append(name)
+        except Exception:
+            return None, []
+    if not suspects:
+        return False, []
+
+    # تأیید با محتوای واقعی: اگر فقط پایان خط (CRLF) فرق کند، ری‌استارت
+    # بی‌پایان می‌شد. یک بار دانلود می‌کنیم و بعد از یکسان‌سازی مقایسه می‌کنیم.
+    confirmed = []
+    for name in suspects:
+        try:
+            body = _gh_get(
+                f"https://api.github.com/repos/{repo}/contents/tradeguard-pro/{name}?ref={branch}",
+                env,
+                "application/vnd.github.raw",
+                timeout,
+            )
+        except Exception:
+            return None, []
+        local = (BASE / name).read_bytes()
+        if body.replace(b"\r\n", b"\n") != local.replace(b"\r\n", b"\n"):
+            confirmed.append(name)
+    return bool(confirmed), confirmed
+
+
+def read_restart_request() -> str:
+    """درخواست ری‌استارت دستی (دستور /restart در ربات) را می‌خواند."""
+    try:
+        if not RESTART_FLAG.exists():
+            return ""
+        raw = RESTART_FLAG.read_text(encoding="utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+    return raw or "دستور ادمین"
+
+
+def clear_restart_request() -> None:
+    try:
+        if RESTART_FLAG.exists():
+            RESTART_FLAG.unlink()
+    except Exception:
+        pass
+
+
+def start_deploy_probe(env: dict, probe_sec: float, stopping: dict, stop_info: dict,
+                       child_ref: dict) -> None:
+    """ترد پس‌زمینه: هر probe_sec یک‌بار چک می‌کند کد main جلو رفته یا نه."""
+    if probe_sec <= 0:
+        return
+
+    def loop() -> None:
+        while not stopping["flag"]:
+            waited = 0.0
+            while waited < probe_sec:
+                if stopping["flag"]:
+                    return
+                time.sleep(0.5)
+                waited += 0.5
+
+            reason = read_restart_request()
+            if reason:
+                stop_info["why"] = f"درخواست ری‌استارت ({reason})"
+            else:
+                changed, names = remote_code_changed(env)
+                if changed:
+                    stop_info["why"] = "کد جدید روی main: " + "، ".join(names)
+                elif changed is None:
+                    log("… بررسی کد جدید ممکن نشد (شبکه/توکن) — دور بعد دوباره")
+            if not stop_info["why"]:
+                continue
+
+            log("↻ " + stop_info["why"] + " — خروج تمیز تا اجرای صف با کد تازه شروع کند")
+            stopping["flag"] = True
+            proc = child_ref.get("p")
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+            return
+
+    threading.Thread(target=loop, name="deploy-probe", daemon=True).start()
+
+
 def write_state(**kw) -> None:
     data = {}
     if STATE.exists():
@@ -142,6 +308,8 @@ def main() -> int:
                     help="بعد از این مدت با خیال راحت خارج شو (برای GitHub Actions)")
     ap.add_argument("--no-alert", action="store_true", help="بدون پیام تلگرام")
     ap.add_argument("--once", action="store_true", help="فقط یک بار اجرا کن (بدون ری‌استارت)")
+    ap.add_argument("--probe-seconds", type=float, default=None,
+                    help="هر چند ثانیه کد main را چک کن (۰ = خاموش؛ پیش‌فرض ۲۴۰)")
     args = ap.parse_args()
 
     if args.status:
@@ -170,6 +338,17 @@ def main() -> int:
         except Exception:
             pass
 
+    probe_sec = args.probe_seconds
+    if probe_sec is None:
+        try:
+            probe_sec = float(env.get("RESTART_PROBE_SEC", PROBE_SEC_DEFAULT))
+        except Exception:
+            probe_sec = float(PROBE_SEC_DEFAULT)
+
+    stop_info = {"why": ""}          # "" یعنی خروج عادی/کرشی، نه به‌روزرسانی
+    child_ref = {"p": None}
+    probe_stop = {"flag": False}     # تردِ بررسی را خاموش می‌کند
+
     t_start = time.time()
     restarts = 0
     fatal_reason = ""        # خطای «خودش درست نمی‌شود» → تلاش مجدد بی‌فایده است
@@ -179,7 +358,17 @@ def main() -> int:
 
     log("═" * 56)
     log("🛡  نگهبان TradeGuard فعال شد — ربات را زنده نگه می‌دارم")
+    _sha = (env.get("GITHUB_SHA") or "").strip()
+    log(f"🧩 کد در حال اجرا: {_sha[:7] or 'نامشخص (اجرای محلی)'}")
+    if probe_sec > 0 and (env.get("GITHUB_TOKEN") or "").strip():
+        log(f"🔄 بررسی کد جدید هر {int(probe_sec)} ثانیه — بعد از push، ربات خودش "
+            f"تمیز خارج می‌شود تا کد تازه بالا بیاید")
+    elif probe_sec > 0:
+        log("ℹ️  بررسی خودکار کد جدید خاموش است (GITHUB_TOKEN نیست) — "
+            "ری‌استارت دستی با ساخت فایل restart.flag")
     log("═" * 56)
+
+    start_deploy_probe(env, probe_sec, probe_stop, stop_info, child_ref)
 
     while not stopping["flag"]:
         if args.max_seconds and (time.time() - t_start) >= args.max_seconds:
@@ -204,6 +393,7 @@ def main() -> int:
                 errors="replace",
                 bufsize=1,
             )
+            child_ref["p"] = child
             write_state(pid=child.pid, status="running")
             started = time.time()
 
@@ -244,6 +434,11 @@ def main() -> int:
                         pass
 
         if stopping["flag"]:
+            break
+
+        # خروج به‌خاطر کد جدید یا درخواست ادمین: ری‌استارت نکن؛ بگذار جابِ
+        # در صف (که با تازه‌ترین کد main شروع می‌شود) جایش را بگیرد.
+        if stop_info["why"]:
             break
 
         lived = time.time() - (started if 'started' in dir() else time.time())
@@ -302,6 +497,24 @@ def main() -> int:
                 break
             time.sleep(0.5)
         backoff = min(backoff * 2, 300)
+
+    clear_restart_request()
+    if stop_info["why"]:
+        uptime = int(time.time() - t_start)
+        write_state(status="restart-for-deploy", pid=None,
+                    last_exit=f"deploy: {stop_info['why']}", started=None)
+        log(f"■  خروج برای به‌روزرسانی پس از {uptime} ثانیه — «{stop_info['why']}»")
+        print(f"::notice title=ری‌استارت برای کد جدید::{stop_info['why']}", flush=True)
+        if not args.no_alert:
+            tg_notify(
+                env,
+                "♻️ <b>TradeGuard</b>\n"
+                "کد جدید روی <code>main</code> منتشر شد؛ ربات تمیز خارج شد تا "
+                "اجرای بعدی با کد تازه بالا بیاید.\n"
+                f"دلیل: {stop_info['why']}\n"
+                f"مدت این اجرا: {uptime // 60} دقیقه",
+            )
+        return 0
 
     write_state(status="stopped", pid=None)
     log("■  نگهبان خاموش شد.")
