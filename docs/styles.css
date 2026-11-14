@@ -343,13 +343,13 @@ input[type=range]::-moz-range-thumb{
 
 /* tabbar */
 .tabbar{
-  display:grid;grid-template-columns:repeat(5,1fr);
+  display:grid;grid-template-columns:repeat(6,1fr);
   background:rgba(10,16,28,.96);border-top:1px solid rgba(30,44,69,.9);
   padding:8px 4px 12px;position:relative;
 }
 .tab-btn{
   display:flex;flex-direction:column;align-items:center;gap:3px;
-  font-size:10.5px;font-weight:800;color:#5E7397;position:relative;padding:5px 2px;transition:.18s;
+  font-size:9.5px;font-weight:800;color:#5E7397;position:relative;padding:5px 1px;transition:.18s;
 }
 .tab-btn.is-on{color:var(--blue)}
 .tab-btn.is-on svg{filter:drop-shadow(0 3px 8px rgba(42,171,238,.55))}
@@ -969,3 +969,49 @@ section{scroll-margin-top:84px}
 .liq-px-long{color:#ffb4a2}
 .liq-px-short{color:#9df0c8}
 @media (max-width:380px){.liq-cells{grid-template-columns:repeat(2,1fr)}}
+
+/* ── ژورنال تریدر (ریسک/حجم/آمار) ─────────────────────────────── */
+.jr-card{padding:14px}
+.jr-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.jr-title{font-weight:900;font-size:14px}
+.jr-private{font-size:10px;color:#8ba3a3;border:1px solid rgba(120,200,180,.2);border-radius:999px;padding:2px 8px}
+.jr-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.jr-field{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:#9db3b3}
+.jr-field input{width:100%;background:#0a1520;border:1px solid rgba(120,200,180,.18);border-radius:10px;
+  padding:9px 10px;color:#eef8f5;font:inherit;font-size:13px;font-variant-numeric:tabular-nums;direction:ltr;text-align:start}
+.jr-field input:focus{outline:none;border-color:rgba(56,224,178,.55);box-shadow:0 0 0 3px rgba(56,224,178,.10)}
+.jr-calc{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 10px}
+.jr-cell{border:1px solid rgba(120,200,180,.12);border-radius:12px;padding:9px 10px;background:rgba(9,16,26,.75)}
+.jr-cell span{display:block;font-size:10px;color:#8ba3a3;margin-bottom:2px}
+.jr-cell b{font-size:14px;font-variant-numeric:tabular-nums}
+.jr-cell.is-bad{border-color:rgba(255,120,90,.4);background:rgba(255,120,90,.08)}
+.jr-cell.is-good{border-color:rgba(60,220,170,.35);background:rgba(60,220,170,.07)}
+.jr-hint{grid-column:1/-1;font-size:11px;color:#ffb4a2;line-height:1.6}
+.jr-actions{display:grid;gap:8px}
+.jr-note{font-size:10px;color:#7f9797;line-height:1.65;margin-top:10px}
+.jr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.jr-stat{border:1px solid rgba(120,200,180,.14);border-radius:12px;padding:9px;text-align:center;background:rgba(9,16,26,.7)}
+.jr-stat b{display:block;font-size:15px;color:#9df0c8;font-variant-numeric:tabular-nums}
+.jr-stat span{font-size:9.5px;color:#8ba3a3}
+.jr-list-head{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;
+  font-size:12px;font-weight:800;color:#cfe6e1}
+.jr-mini-btn{background:transparent;border:1px solid rgba(120,200,180,.22);color:#9df0c8;
+  border-radius:999px;padding:4px 10px;font:inherit;font-size:10.5px;font-weight:700}
+.jr-list{display:grid;gap:8px;padding-bottom:16px}
+.jr-item{border:1px solid rgba(120,200,180,.12);border-radius:12px;padding:10px 11px;background:rgba(9,16,26,.8)}
+.jr-item-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+.jr-item-top b{font-size:13px}
+.jr-pill{font-size:10px;font-weight:800;border-radius:999px;padding:2px 8px}
+.jr-pill.long{color:#9df0c8;background:rgba(60,220,170,.13);border:1px solid rgba(60,220,170,.28)}
+.jr-pill.short{color:#ffb4a2;background:rgba(255,120,90,.13);border:1px solid rgba(255,120,90,.28)}
+.jr-pill.r-pos{color:#06231d;background:#38e0b2;border:none}
+.jr-pill.r-neg{color:#fff;background:#ff6f5e;border:none}
+.jr-pill.r-open{color:#cfe6e1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.jr-item-meta{font-size:10.5px;color:#8ba3a3;margin-top:4px;font-variant-numeric:tabular-nums;direction:ltr;text-align:start}
+.jr-item-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.jr-item-actions button{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#cfe6e1;
+  border-radius:8px;padding:4px 9px;font:inherit;font-size:10.5px}
+.jr-item-actions button.is-win{color:#9df0c8}
+.jr-item-actions button.is-loss{color:#ffb4a2}
+.jr-empty{font-size:11.5px;color:#8ba3a3;line-height:1.7;text-align:center;padding:14px 6px}
+@media (max-width:360px){.jr-grid{grid-template-columns:1fr}.jr-calc{grid-template-columns:1fr}.jr-stats{grid-template-columns:repeat(2,1fr)}}

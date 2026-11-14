@@ -1194,6 +1194,40 @@ bot.handle_message(msg("/biz", uid=BUYER))
 _biz_txt2 = _posts[-1][1] if _posts else ""
 check("/biz برای غیر ادمین مسدود است", "⛔" in _biz_txt2, _biz_txt2[:60])
 
+print("\n۹٫۱۷) ماشین‌حساب ریسک و حجم در چت (/rr)")
+_rr = bot.rr_text("1000 1 64000 62500 67500", "fa")
+check("/rr ریسک دلاری را حساب می‌کند (۱۰۰۰ × ۱٪ = ۱۰ دلار)", "$10.00" in _rr, _rr[:80])
+check("/rr حجم پوزیشن را از فاصلهٔ ورود تا حد ضرر می‌دهد (۰٫۰۰۶۶۶۷)",
+      "0.00666667" in _rr, _rr[:160])
+check("/rr نسبت R/R را می‌دهد (۳۵۰۰ ÷ ۱۵۰۰ = ۲٫۳۳)", "2.33" in _rr, _rr[:200])
+check("/rr سود در هدف را هم می‌دهد (۰٫۰۰۶۶۶۶ × ۳۵۰۰ ≈ ۲۳٫۳۳ دلار)",
+      "23.33" in _rr, _rr[:220])
+check("/rr جهت را از محل حد ضرر می‌فهمد (لانگ)", "لانگ" in _rr, _rr[:40])
+_rr_short = bot.rr_text("1000 1 64000 65500 61000", "fa")
+check("/rr شورت را هم تشخیص می‌دهد و R/R درست است",
+      "شورت" in _rr_short and "2.00" in _rr_short, _rr_short[:120])
+check("/rr بدون آرگومان راهنمای استفاده می‌دهد", "بالانس" in bot.rr_text("", "fa"))
+check("/rr ورودی خراب را با پیام روشن رد می‌کند", "عدد" in bot.rr_text("abc def ghi jkl", "fa"))
+check("/rr حد ضرر مساوی ورود را رد می‌کند", "یکی" in bot.rr_text("1000 1 100 100", "fa"))
+check("/rr هدف در جهت اشتباه را هشدار می‌دهد (بدون R/R جعلی)",
+      "جهت اشتباه" in bot.rr_text("1000 1 100 90 80", "fa"))
+check("/rr بدون هدف هم کار می‌کند و R/R نمی‌سازد",
+      "هدف را هم بفرست" in bot.rr_text("1000 1 100 90", "fa"))
+_rr_en = bot.rr_text("1000 1 64000 62500 67500", "en")
+check("/rr در انگلیسی هم درست است و حرف فارسی ندارد",
+      "Position size" in _rr_en and not any("\u0600" <= ch <= "\u06ff" for ch in _rr_en), _rr_en[:80])
+check("رشته‌های /rr در هر ۶ زبان کامل است",
+      all(set(bot.BOT_STRINGS_RR["fa"]) <= set(bot.BOT_STRINGS_RR[l]) for l in ("en", "ru", "ar", "tr", "es")),
+      str([l for l in bot.BOT_STRINGS_RR if len(bot.BOT_STRINGS_RR[l]) < 7]))
+_posts.clear()
+bot.handle_message(msg("/rr 1000 1 64000 62500 67500"))
+_rr_msg = _posts[-1][1] if _posts else ""
+check("دستور /rr در چت پیام می‌دهد", "2.33" in _rr_msg, _rr_msg[:80])
+_posts.clear()
+bot.handle_message(msg("/rr", lang="en", uid=BUYER + 2468))
+check("/rr برای کاربر انگلیسی، راهنمای انگلیسی می‌دهد",
+      "Position size" in (_posts[-1][1] if _posts else ""), (_posts[-1][1][:60] if _posts else ""))
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

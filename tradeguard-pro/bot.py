@@ -526,6 +526,221 @@ for _lang, _label in _CHANNEL_BTN.items():
     if _lang in BOT_STRINGS:
         BOT_STRINGS[_lang]["btn_channel"] = _label
 
+# ---------------------------------------------------------------------
+#  ماشین‌حساب ریسک/حجم در چت (/rr) — ۶ زبان
+# ---------------------------------------------------------------------
+BOT_STRINGS_RR = {
+    "fa": {
+        "rr_usage": (
+            "🧮 *محاسبه‌گر ریسک و حجم پوزیشن*\n\n"
+            "`/rr <بالانس> <ریسک٪> <ورود> <حد ضرر> [هدف]`\n\n"
+            "مثال:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "همین را در مینی‌اپ، تب *ژورنال* هم داری — آنجا ستاپ‌ها ذخیره و R واقعی‌ات ثبت می‌شود."
+        ),
+        "rr_bad": "❌ عددها را درست بفرست. مثال:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ حد ضرر و ورود نمی‌توانند یکی باشند.",
+        "rr_target_side": "⚠️ هدف در جهت اشتباه است (لانگ باید بالای ورود باشد) — پس R/R نمایش داده نشد.",
+        "rr_result": (
+            "🧮 *ستاپ {dir}*\n\n"
+            "• ریسک: *{risk}* ({pct}% از {balance})\n"
+            "• فاصلهٔ ورود تا حد ضرر: {dist}\n"
+            "• حجم پوزیشن: *{size}*\n"
+            "• ارزش پوزیشن: {notional}\n"
+            "• ورود {entry} · حد ضرر {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_ریسک و R از قیمت‌های خودت حساب شده؛ این توصیهٔ معامله نیست._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (سود در هدف: {reward})",
+        "rr_no_target": "• R/R: برای دیدنش هدف را هم بفرست.",
+    },
+    "en": {
+        "rr_usage": (
+            "🧮 *Position size & risk calculator*\n\n"
+            "`/rr <balance> <risk%> <entry> <stop> [target]`\n\n"
+            "Example:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "The same tool lives in the mini app → *Journal* tab, where setups and real R are stored."
+        ),
+        "rr_bad": "❌ Couldn't read those numbers. Example:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ Stop and entry can't be equal.",
+        "rr_target_side": "⚠️ Target is on the wrong side (longs above entry) — R/R omitted.",
+        "rr_result": (
+            "🧮 *{dir} setup*\n\n"
+            "• Risk: *{risk}* ({pct}% of {balance})\n"
+            "• Entry → stop: {dist}\n"
+            "• Position size: *{size}*\n"
+            "• Notional: {notional}\n"
+            "• Entry {entry} · Stop {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_Risk and R come from your own prices; this is not trade advice._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (profit at target: {reward})",
+        "rr_no_target": "• R/R: send a target to see it.",
+    },
+    "ru": {
+        "rr_usage": (
+            "🧮 *Калькулятор риска и объёма*\n\n"
+            "`/rr <баланс> <риск%> <вход> <стоп> [тейк]`\n\n"
+            "Пример:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "То же есть в мини-приложении → вкладка *Журнал*."
+        ),
+        "rr_bad": "❌ Не удалось прочитать числа. Пример:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ Стоп и вход не могут совпадать.",
+        "rr_target_side": "⚠️ Тейк не с той стороны (лонг выше входа) — R/R не показан.",
+        "rr_result": (
+            "🧮 *Сделка {dir}*\n\n"
+            "• Риск: *{risk}* ({pct}% от {balance})\n"
+            "• Вход → стоп: {dist}\n"
+            "• Размер позиции: *{size}*\n"
+            "• Объём: {notional}\n"
+            "• Вход {entry} · Стоп {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_Риск и R посчитаны по вашим ценам; это не рекомендация._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (прибыль на тейке: {reward})",
+        "rr_no_target": "• R/R: пришлите тейк, чтобы увидеть.",
+    },
+    "ar": {
+        "rr_usage": (
+            "🧮 *حاسبة المخاطرة وحجم المركز*\n\n"
+            "`/rr <الرصيد> <المخاطرة٪> <الدخول> <الوقف> [الهدف]`\n\n"
+            "مثال:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "نفس الأداة في التطبيق المصغّر ← تبويب *السجل*."
+        ),
+        "rr_bad": "❌ لم أستطع قراءة الأرقام. مثال:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ لا يمكن أن يتساوى الوقف والدخول.",
+        "rr_target_side": "⚠️ الهدف في الاتجاه الخطأ (الشراء فوق الدخول) — لم يُحسب R/R.",
+        "rr_result": (
+            "🧮 *صفقة {dir}*\n\n"
+            "• المخاطرة: *{risk}* ({pct}% من {balance})\n"
+            "• الدخول ← الوقف: {dist}\n"
+            "• حجم المركز: *{size}*\n"
+            "• قيمة المركز: {notional}\n"
+            "• الدخول {entry} · الوقف {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_المخاطرة و R محسوبتان من أسعارك؛ هذه ليست توصية._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (الربح عند الهدف: {reward})",
+        "rr_no_target": "• R/R: أرسل الهدف لرؤيته.",
+    },
+    "tr": {
+        "rr_usage": (
+            "🧮 *Risk ve pozisyon büyüklüğü hesaplayıcı*\n\n"
+            "`/rr <bakiye> <risk%> <giriş> <stop> [hedef]`\n\n"
+            "Örnek:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "Aynı araç mini uygulamada → *Günlük* sekmesi."
+        ),
+        "rr_bad": "❌ Sayıları okuyamadım. Örnek:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ Stop ve giriş aynı olamaz.",
+        "rr_target_side": "⚠️ Hedef yanlış tarafta (long girişin üstünde) — R/R gösterilmedi.",
+        "rr_result": (
+            "🧮 *{dir} işlemi*\n\n"
+            "• Risk: *{risk}* ({balance} bakiyesinin %{pct})\n"
+            "• Giriş → stop: {dist}\n"
+            "• Pozisyon büyüklüğü: *{size}*\n"
+            "• Pozisyon değeri: {notional}\n"
+            "• Giriş {entry} · Stop {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_Risk ve R sizin fiyatlarınızdan hesaplandı; yatırım tavsiyesi değildir._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (hedefte kâr: {reward})",
+        "rr_no_target": "• R/R: görmek için hedef gönderin.",
+    },
+    "es": {
+        "rr_usage": (
+            "🧮 *Calculadora de riesgo y tamaño*\n\n"
+            "`/rr <balance> <riesgo%> <entrada> <stop> [objetivo]`\n\n"
+            "Ejemplo:\n`/rr 1000 1 64000 62500 67500`\n\n"
+            "La misma herramienta está en la mini app → pestaña *Diario*."
+        ),
+        "rr_bad": "❌ No pude leer esos números. Ejemplo:\n`/rr 1000 1 64000 62500 67500`",
+        "rr_same": "❌ El stop y la entrada no pueden ser iguales.",
+        "rr_target_side": "⚠️ El objetivo está en el lado equivocado (largo por encima de la entrada) — sin R/R.",
+        "rr_result": (
+            "🧮 *Setup {dir}*\n\n"
+            "• Riesgo: *{risk}* ({pct}% de {balance})\n"
+            "• Entrada → stop: {dist}\n"
+            "• Tamaño de posición: *{size}*\n"
+            "• Valor de posición: {notional}\n"
+            "• Entrada {entry} · Stop {stop}{target_line}\n"
+            "{rr_line}"
+            "\n_El riesgo y la R salen de tus precios; no es consejo de inversión._"
+        ),
+        "rr_line": "• R/R: *{rr}*  (beneficio en objetivo: {reward})",
+        "rr_no_target": "• R/R: envía un objetivo para verlo.",
+    },
+}
+for _lang, _extra in BOT_STRINGS_RR.items():
+    if _lang in BOT_STRINGS:
+        BOT_STRINGS[_lang].update(_extra)
+
+RR_DIRS = {
+    "fa": ("لانگ", "شورت"), "en": ("Long", "Short"), "ru": ("Лонг", "Шорт"),
+    "ar": ("شراء", "بيع"), "tr": ("Long", "Short"), "es": ("Largo", "Corto"),
+}
+
+
+def _rr_num(v: float) -> str:
+    a = abs(v)
+    if a >= 1000:
+        return f"{v:,.2f}"
+    if a >= 1:
+        return f"{v:.4f}".rstrip("0").rstrip(".")
+    return f"{v:.8f}".rstrip("0").rstrip(".")
+
+
+def rr_text(args: str, lang: str = "fa") -> str:
+    """`/rr 1000 1 64000 62500 67500` → ریسک، حجم پوزیشن و R/R.
+
+    همهٔ اعداد از ورودی خود کاربر می‌آید؛ هیچ توصیهٔ معامله‌ای ساخته نمی‌شود.
+    """
+    lang = lang if lang in BOT_STRINGS else "en"
+    parts = [x for x in str(args or "").replace("،", " ").replace(",", " ").split() if x]
+    if len(parts) < 4:
+        return tr(lang, "rr_usage")
+    try:
+        balance, risk_pct, entry, stop = (float(parts[i]) for i in range(4))
+        target = float(parts[4]) if len(parts) > 4 else 0.0
+    except (TypeError, ValueError):
+        return tr(lang, "rr_bad")
+    if not (balance > 0 and risk_pct > 0 and entry > 0 and stop > 0):
+        return tr(lang, "rr_bad")
+    if abs(entry - stop) < 1e-12:
+        return tr(lang, "rr_same")
+
+    is_long = stop < entry
+    per_unit = abs(entry - stop)
+    risk_amt = balance * risk_pct / 100.0
+    size = risk_amt / per_unit
+    notional = size * entry
+    target_ok = target > 0 and ((is_long and target > entry) or ((not is_long) and target < entry))
+    long_txt, short_txt = RR_DIRS.get(lang, RR_DIRS["en"])
+    target_line = ""
+    rr_line = tr(lang, "rr_no_target")
+    if target > 0:
+        target_line = f" · {'TP' if lang != 'fa' else 'هدف'} {_rr_num(target)}"
+    if target_ok:
+        rr = abs(target - entry) / per_unit
+        reward = abs(target - entry) * size
+        rr_line = tr(lang, "rr_line", rr=f"{rr:.2f}", reward=f"${reward:,.2f}")
+    elif target > 0:
+        rr_line = tr(lang, "rr_target_side")
+    return tr(
+        lang,
+        "rr_result",
+        dir=(long_txt if is_long else short_txt),
+        risk=f"${risk_amt:,.2f}",
+        pct=f"{risk_pct:g}",
+        balance=f"${balance:,.0f}",
+        dist=f"{_rr_num(per_unit)}",
+        size=_rr_num(size),
+        notional=f"${notional:,.2f}",
+        entry=_rr_num(entry),
+        stop=_rr_num(stop),
+        target_line=target_line,
+        rr_line=rr_line,
+    )
+
+
 for _lang, _extra in BOT_STRINGS_EXTRA.items():
     if _lang in BOT_STRINGS:
         BOT_STRINGS[_lang].update(_extra)
@@ -1449,6 +1664,7 @@ def sync_telegram_menus() -> None:
         {"command": "start", "description": "🚀 Main Dashboard & Mini-App"},
         {"command": "lang", "description": "🌐 Change Language (6 Languages)"},
         {"command": "lot", "description": "🧮 Prop Lot Calculator (XAUUSD/Forex/BTC)"},
+        {"command": "rr", "description": "📐 Position size & R/R calculator"},
         {"command": "scan", "description": "🛡️ Token Anti-Rug & Honeypot Scanner"},
         {"command": "wallet", "description": "🐋 Hyperliquid Whale Wallet X-Ray"},
         {"command": "consistency", "description": "⚖️ Prop Firm Consistency Check"},
@@ -1464,6 +1680,7 @@ def sync_telegram_menus() -> None:
         {"command": "start", "description": "🚀 منوی اصلی و اجرای مینی‌اپ"},
         {"command": "lang", "description": "🌐 تغییر زبان (۶ زبان دنیا)"},
         {"command": "lot", "description": "🧮 محاسبه حجم لات پراپ (طلا/فارکس/کریپتو)"},
+        {"command": "rr", "description": "📐 محاسبه ریسک، حجم پوزیشن و R/R"},
         {"command": "scan", "description": "🛡️ اسکن هانی‌پات و امنیت ارزها"},
         {"command": "wallet", "description": "🐋 ردیاب کیف پول نهنگ‌ها"},
         {"command": "consistency", "description": "⚖️ تست قانون Consistency پراپ"},
@@ -2636,6 +2853,12 @@ def handle_message(msg: dict) -> None:
             "📄 متن‌های کامل: `ADS_FA.md` · دستور کار کانال: `CHANNEL_LAUNCH_FA.md`",
         ]
         tg_send_message(chat_id, "\n".join(lines), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/rr"):
+        lang = get_user_lang(uid, tg_lang)
+        tg_send_message(chat_id, rr_text(text[3:], lang), reply_markup=main_keyboard(
+            is_user_pro(uid)[0], lang, is_admin_user=is_admin(uid)))
         return
 
     if text.startswith("/biz"):

@@ -405,6 +405,51 @@
       </div>
     </section>
 
+
+    <!-- ===== TAB: JOURNAL (ریسک، حجم، ژورنال) ===== -->
+    <section class="tab-pane" data-pane="journal">
+      <div class="card jr-card">
+        <div class="jr-head">
+          <span class="jr-title" data-i18n="jrTitle">🧮 ریسک، حجم و ژورنال</span>
+          <span class="jr-private" data-i18n="jrPrivate">🔒 فقط روی همین گوشی</span>
+        </div>
+        <div class="jr-grid">
+          <label class="jr-field"><span data-i18n="jrBalance">بالانس حساب ($)</span>
+            <input id="jrBalance" type="number" inputmode="decimal" min="0" step="any" placeholder="1000" />
+          </label>
+          <label class="jr-field"><span data-i18n="jrRiskPct">ریسک هر معامله (%)</span>
+            <input id="jrRiskPct" type="number" inputmode="decimal" min="0" step="any" placeholder="1" />
+          </label>
+          <label class="jr-field"><span data-i18n="jrSym">نماد (اختیاری)</span>
+            <input id="jrSym" type="text" maxlength="12" placeholder="BTC" dir="ltr" />
+          </label>
+          <label class="jr-field"><span data-i18n="jrEntry">قیمت ورود</span>
+            <input id="jrEntry" type="number" inputmode="decimal" min="0" step="any" placeholder="64000" />
+          </label>
+          <label class="jr-field"><span data-i18n="jrStop">حد ضرر</span>
+            <input id="jrStop" type="number" inputmode="decimal" min="0" step="any" placeholder="62500" />
+          </label>
+          <label class="jr-field"><span data-i18n="jrTarget">هدف (اختیاری)</span>
+            <input id="jrTarget" type="number" inputmode="decimal" min="0" step="any" placeholder="67500" />
+          </label>
+        </div>
+        <div id="jrCalc" class="jr-calc"></div>
+        <div class="jr-actions">
+          <button id="jrSaveBtn" class="btn-block btn-primary" type="button" data-i18n="jrSave">افزودن به ژورنال</button>
+          <button id="jrResetBtn" class="btn-block btn-ghost-dark" type="button" data-i18n="jrReset">پاک کردن فرم</button>
+        </div>
+        <div class="jr-note" data-i18n="jrNote"></div>
+      </div>
+
+      <div id="jrStats" class="jr-stats hidden"></div>
+
+      <div class="jr-list-head">
+        <span data-i18n="jrListHead">معاملات من</span>
+        <button id="jrExportBtn" class="jr-mini-btn" type="button" data-i18n="jrExport">خروجی JSON</button>
+      </div>
+      <div id="jrList" class="jr-list"></div>
+    </section>
+
   </div>
 
   <!-- bottom tab bar -->
@@ -425,6 +470,10 @@
       <span class="tab-badge" id="alertTabBadge">3</span>
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6.4 16.5V11a5.6 5.6 0 0 1 11.2 0v5.5l1.5 2H4.9l1.5-2z" stroke-linejoin="round"/><path d="M10.2 20.8a2 2 0 0 0 3.6 0" stroke-linecap="round"/></svg>
       <span data-i18n="tabAlerts">هشدارها</span>
+    </button>
+    <button class="tab-btn" data-tab="journal">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5.5 4.2h9.2a3 3 0 0 1 3 3v12.6H8.4a2.9 2.9 0 0 1-2.9-2.9V4.2z" stroke-linejoin="round"/><path d="M8.8 8.4h5.6M8.8 12h5.6" stroke-linecap="round"/><path d="M5.5 16.2c0-1 .8-1.8 1.8-1.8h10.4" stroke-linecap="round"/></svg>
+      <span data-i18n="tabJournal">ژورنال</span>
     </button>
     <button class="tab-btn" data-tab="sub">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3.4l2.5 5.1 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8L12 3.4z" stroke-linejoin="round"/></svg>

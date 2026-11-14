@@ -1107,6 +1107,366 @@
   });
 
   /* =======================================================
+     3.5) ژورنال تریدر: ریسک، حجم پوزیشن و R
+     -------------------------------------------------------
+     فلسفه: هیچ عددی از سرور نمی‌آید و هیچ «سود ادعایی» ثبت
+     نمی‌شود. هرچه می‌بینی از قیمت‌هایی است که خودِ کاربر
+     وارد کرده (ورود/حد ضرر/هدف) و فقط روی همین دستگاه
+     ذخیره می‌شود.
+  ======================================================= */
+  const JRN_KEY = "tg_journal_v1";
+  const JRN_MAX = 200;
+
+  function jrnRead() {
+    try {
+      const raw = localStorage.getItem(JRN_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((t) => t && typeof t === "object" && t.id) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function jrnWrite(list) {
+    try {
+      localStorage.setItem(JRN_KEY, JSON.stringify(list.slice(0, JRN_MAX)));
+    } catch (_) {}
+  }
+
+  function jrnVal(id) {
+    const el = $("#" + id);
+    if (!el) return 0;
+    const n = parseFloat(String(el.value).replace(",", "."));
+    return isFinite(n) ? n : 0;
+  }
+
+  function jrnMoney(v) {
+    if (!isFinite(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 10000) return "$" + Math.round(v).toLocaleString("en-US");
+    if (a >= 1) return "$" + v.toFixed(2);
+    return "$" + v.toFixed(4);
+  }
+
+  function jrnSize(v) {
+    if (!isFinite(v) || v === 0) return "—";
+    const a = Math.abs(v);
+    if (a >= 1000) return v.toFixed(0);
+    if (a >= 1) return v.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    return v.toPrecision(4);
+  }
+
+  /* محاسبهٔ کامل یک ستاپ: ریسک، حجم، نسبت R */
+  function jrnCalc(v) {
+    const entry = Number(v.entry) || 0;
+    const stop = Number(v.stop) || 0;
+    const target = Number(v.target) || 0;
+    const balance = Number(v.balance) || 0;
+    const riskPct = Number(v.riskPct) || 0;
+    const errs = [];
+    if (!(entry > 0) || !(stop > 0)) errs.push("fill");
+    if (!(balance > 0)) errs.push("balance");
+    if (!(riskPct > 0)) errs.push("risk");
+    if (entry > 0 && stop > 0 && entry === stop) errs.push("sameStop");
+    const dir = stop > 0 && entry > 0 && stop < entry ? "long" : "short";
+    if (target > 0 && entry > 0) {
+      if (dir === "long" && target <= entry) errs.push("targetSide");
+      if (dir === "short" && target >= entry) errs.push("targetSide");
+    }
+    const perUnit = Math.abs(entry - stop);
+    const riskAmt = (balance * riskPct) / 100;
+    const units = perUnit > 0 ? riskAmt / perUnit : 0;
+    const notional = units * entry;
+    const rr = perUnit > 0 && target > 0 ? Math.abs(target - entry) / perUnit : 0;
+    const reward = units > 0 && target > 0 ? Math.abs(target - entry) * units : 0;
+    return { dir, perUnit, riskAmt, units, notional, rr, reward, errs, entry, stop, target, balance, riskPct };
+  }
+
+  function jrnCell(label, value, cls) {
+    return (
+      '<div class="jr-cell' + (cls ? " " + cls : "") + '"><span>' + label + "</span><b>" + value + "</b></div>"
+    );
+  }
+
+  function renderJournalCalc() {
+    const box = $("#jrCalc");
+    if (!box) return;
+    const d = t();
+    const c = jrnCalc({
+      balance: jrnVal("jrBalance"),
+      riskPct: jrnVal("jrRiskPct"),
+      entry: jrnVal("jrEntry"),
+      stop: jrnVal("jrStop"),
+      target: jrnVal("jrTarget"),
+    });
+    const errMap = {
+      fill: d.jrErrFill,
+      balance: d.jrErrBalance,
+      risk: d.jrErrRisk,
+      sameStop: d.jrErrSameStop,
+      targetSide: d.jrErrTarget,
+    };
+    let html = "";
+    html += jrnCell(d.jrRiskAmount || "Risk", jrnMoney(c.riskAmt), c.riskAmt > 0 ? "is-good" : "");
+    html += jrnCell(d.jrUnits || "Size", jrnSize(c.units));
+    html += jrnCell(d.jrNotional || "Notional", jrnMoney(c.notional));
+    html += jrnCell(
+      d.jrRR || "R:R",
+      c.rr > 0 ? "1 : " + c.rr.toFixed(2) : "—",
+      c.rr >= 1.5 ? "is-good" : c.rr > 0 && c.rr < 1 ? "is-bad" : ""
+    );
+    if (c.reward > 0) html += jrnCell(d.jrReward || "Reward", jrnMoney(c.reward), "is-good");
+    if (c.entry > 0 && c.stop > 0 && !c.errs.includes("sameStop")) {
+      html += jrnCell(d.jrDir || "Side", c.dir === "long" ? d.jrLong || "Long" : d.jrShort || "Short");
+    }
+    const errs = c.errs.filter((e) => errMap[e]);
+    if (errs.length) {
+      html += '<div class="jr-hint">' + errs.map((e) => errMap[e]).join("<br>") + "</div>";
+    }
+    box.innerHTML = html;
+  }
+
+  function jrnStats(list) {
+    const closed = list.filter((x) => x.status && x.status !== "open");
+    const wins = closed.filter((x) => x.status === "win");
+    const losses = closed.filter((x) => x.status === "loss");
+    const withR = closed.filter((x) => typeof x.r === "number" && isFinite(x.r));
+    const sumR = withR.reduce((a, x) => a + x.r, 0);
+    const posR = withR.filter((x) => x.r > 0).reduce((a, x) => a + x.r, 0);
+    const negR = withR.filter((x) => x.r < 0).reduce((a, x) => a + x.r, 0);
+    const good = list.filter(
+      (x) => Number(x.stop) > 0 && Number(x.riskPct) > 0 && Number(x.riskPct) <= 1 && Number(x.rr) >= 1.5
+    );
+    return {
+      total: list.length,
+      closed: closed.length,
+      open: list.length - closed.length,
+      wins: wins.length,
+      losses: losses.length,
+      winRate: closed.length ? (wins.length / closed.length) * 100 : 0,
+      expectancy: withR.length ? sumR / withR.length : null,
+      pf: negR < 0 ? posR / Math.abs(negR) : posR > 0 ? Infinity : null,
+      best: withR.length ? Math.max.apply(null, withR.map((x) => x.r)) : null,
+      worst: withR.length ? Math.min.apply(null, withR.map((x) => x.r)) : null,
+      discipline: list.length ? (good.length / list.length) * 100 : 0,
+    };
+  }
+
+  function renderJournalStats(list) {
+    const box = $("#jrStats");
+    if (!box) return;
+    const d = t();
+    const s = jrnStats(list);
+    if (!s.total) {
+      box.classList.add("hidden");
+      box.innerHTML = "";
+      return;
+    }
+    box.classList.remove("hidden");
+    const rTxt = (v) => (v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "R");
+    const pfTxt = s.pf === null ? "—" : s.pf === Infinity ? "∞" : s.pf.toFixed(2);
+    box.innerHTML = [
+      '<div class="jr-stat"><b>' + s.closed + "</b><span>" + (d.jrStatClosed || "Closed") + "</span></div>",
+      '<div class="jr-stat"><b>' + (s.closed ? s.winRate.toFixed(0) + "%" : "—") + "</b><span>" + (d.jrStatWinRate || "Win rate") + "</span></div>",
+      '<div class="jr-stat"><b>' + rTxt(s.expectancy) + "</b><span>" + (d.jrStatExp || "Expectancy") + "</span></div>",
+      '<div class="jr-stat"><b>' + pfTxt + "</b><span>" + (d.jrStatPF || "Profit factor") + "</span></div>",
+      '<div class="jr-stat"><b>' + rTxt(s.best) + "</b><span>" + (d.jrStatBest || "Best") + "</span></div>",
+      '<div class="jr-stat"><b>' + rTxt(s.worst) + "</b><span>" + (d.jrStatWorst || "Worst") + "</span></div>",
+      '<div class="jr-stat" style="grid-column:1/-1"><b>' + s.discipline.toFixed(0) + '%</b><span>' +
+        (d.jrStatDisc || "Discipline") + " · " + (d.jrStatDiscHint || "") + "</span></div>",
+    ].join("");
+  }
+
+  function renderJournalList(list) {
+    const box = $("#jrList");
+    if (!box) return;
+    const d = t();
+    if (!list.length) {
+      box.innerHTML = '<div class="jr-empty">' + (d.jrEmpty || "") + "</div>";
+      return;
+    }
+    box.innerHTML = list
+      .map((x) => {
+        const status = x.status || "open";
+        let pill = '<span class="jr-pill r-open">' + (d.jrOpen || "Open") + "</span>";
+        if (status === "win") pill = '<span class="jr-pill r-pos">+' + (Number(x.r) || 0).toFixed(2) + "R</span>";
+        if (status === "loss") pill = '<span class="jr-pill r-neg">' + (Number(x.r) || -1).toFixed(2) + "R</span>";
+        if (status === "be") pill = '<span class="jr-pill r-open">0.00R</span>';
+        const dirPill =
+          '<span class="jr-pill ' + (x.dir === "short" ? "short" : "long") + '">' +
+          (x.dir === "short" ? d.jrShort || "Short" : d.jrLong || "Long") + "</span>";
+        const meta =
+          "E " + jrnSize(x.entry) + " · SL " + jrnSize(x.stop) +
+          (Number(x.target) > 0 ? " · TP " + jrnSize(x.target) : "") +
+          " · " + jrnSize(x.units) + " × " + jrnMoney(x.entry) + " · R:R " +
+          (Number(x.rr) > 0 ? "1:" + Number(x.rr).toFixed(2) : "—");
+        const acts =
+          status === "open"
+            ? '<button class="is-win" data-act="win" data-id="' + x.id + '">' + (d.jrWin || "Win") + "</button>" +
+              '<button class="is-loss" data-act="loss" data-id="' + x.id + '">' + (d.jrLoss || "Loss") + "</button>" +
+              '<button data-act="be" data-id="' + x.id + '">' + (d.jrBE || "Break-even") + "</button>"
+            : "";
+        return (
+          '<div class="jr-item">' +
+          '<div class="jr-item-top"><b>' + (x.sym ? "$" + String(x.sym).toUpperCase() : "—") + "</b>" +
+          dirPill + pill + "</div>" +
+          '<div class="jr-item-meta">' + meta + "</div>" +
+          '<div class="jr-item-actions">' + acts +
+          '<button data-act="del" data-id="' + x.id + '">' + (d.jrDelete || "Delete") + "</button></div>" +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderJournal() {
+    const list = jrnRead();
+    renderJournalCalc();
+    renderJournalStats(list);
+    renderJournalList(list);
+  }
+
+  function jrnUpdate(id, patch) {
+    const list = jrnRead().map((x) => (x.id === id ? Object.assign({}, x, patch) : x));
+    jrnWrite(list);
+    renderJournal();
+  }
+
+  function jrnRemove(id) {
+    jrnWrite(jrnRead().filter((x) => x.id !== id));
+    renderJournal();
+  }
+
+  function jrnAddFromForm() {
+    const d = t();
+    const c = jrnCalc({
+      balance: jrnVal("jrBalance"),
+      riskPct: jrnVal("jrRiskPct"),
+      entry: jrnVal("jrEntry"),
+      stop: jrnVal("jrStop"),
+      target: jrnVal("jrTarget"),
+    });
+    if (c.errs.length) {
+      appToast(d.jrErrFill || "Fill the form");
+      renderJournalCalc();
+      return;
+    }
+    const symEl = $("#jrSym");
+    const trade = {
+      id: "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      sym: symEl ? String(symEl.value || "").trim().toUpperCase().slice(0, 12) : "",
+      dir: c.dir,
+      entry: c.entry,
+      stop: c.stop,
+      target: c.target,
+      units: Number(c.units.toFixed(8)),
+      riskPct: c.riskPct,
+      rr: Number(c.rr.toFixed(4)),
+      status: "open",
+      opened: Date.now(),
+      closed: null,
+      r: null,
+    };
+    const list = [trade].concat(jrnRead()).slice(0, JRN_MAX);
+    jrnWrite(list);
+    if (symEl) symEl.value = "";
+    ["jrEntry", "jrStop", "jrTarget"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) el.value = "";
+    });
+    renderJournal();
+    appToast(d.jrSaved || "Saved");
+    haptic("medium");
+  }
+
+  function jrnBind() {
+    /* بالانس و درصد ریسک را نگه می‌داریم تا هر بار تایپ نشوند (فقط روی دستگاه) */
+    const JRN_PREFS = "tg_jr_prefs";
+    try {
+      const prefs = JSON.parse(localStorage.getItem(JRN_PREFS) || "{}");
+      if (prefs.balance) $("#jrBalance").value = prefs.balance;
+      if (prefs.riskPct) $("#jrRiskPct").value = prefs.riskPct;
+    } catch (_) {}
+    ["jrBalance", "jrRiskPct"].forEach((id) => {
+      const el = $("#" + id);
+      if (!el) return;
+      el.addEventListener("change", () => {
+        try {
+          localStorage.setItem(
+            JRN_PREFS,
+            JSON.stringify({ balance: jrnVal("jrBalance") || "", riskPct: jrnVal("jrRiskPct") || "" })
+          );
+        } catch (_) {}
+      });
+    });
+    ["jrBalance", "jrRiskPct", "jrEntry", "jrStop", "jrTarget"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) el.addEventListener("input", renderJournalCalc);
+    });
+    $("#jrSaveBtn")?.addEventListener("click", jrnAddFromForm);
+    $("#jrResetBtn")?.addEventListener("click", () => {
+      ["jrSym", "jrEntry", "jrStop", "jrTarget"].forEach((id) => {
+        const el = $("#" + id);
+        if (el) el.value = "";
+      });
+      renderJournalCalc();
+    });
+    $("#jrList")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const act = btn.dataset.act;
+      if (act === "del") {
+        jrnRemove(id);
+        return;
+      }
+      const item = jrnRead().find((x) => x.id === id);
+      if (!item) return;
+      const rr = Number(item.rr) || 0;
+      if (act === "win") jrnUpdate(id, { status: "win", closed: Date.now(), r: rr > 0 ? Number(rr.toFixed(4)) : null });
+      if (act === "loss") jrnUpdate(id, { status: "loss", closed: Date.now(), r: -1 });
+      if (act === "be") jrnUpdate(id, { status: "be", closed: Date.now(), r: 0 });
+      haptic("light");
+    });
+    $("#jrExportBtn")?.addEventListener("click", () => {
+      const d = t();
+      try {
+        const payload = {
+          app: "TradeGuard journal",
+          exported_at: new Date().toISOString(),
+          note: "R multiples are derived from the prices you entered, not from claimed PnL.",
+          trades: jrnRead(),
+        };
+        const json = JSON.stringify(payload, null, 2);
+        let url = "";
+        try {
+          if (typeof URL !== "undefined" && URL.createObjectURL) {
+            url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+          }
+        } catch (_) {}
+        if (!url) {
+          // بازگشتی برای WebViewهای قدیمی/محیط‌های بدون Blob URL
+          url = "data:application/json;charset=utf-8," + encodeURIComponent(json);
+        }
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "tradeguard-journal.json";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (url.indexOf("blob:") === 0) setTimeout(() => URL.revokeObjectURL(url), 4000);
+        appToast(d.jrExported || "Exported");
+      } catch (_) {
+        appToast(d.jrExportFail || "Export failed");
+      }
+    });
+    renderJournal();
+  }
+
+  jrnBind();
+
+  /* =======================================================
      4) TABS, STARS BILLING & VIRAL REFERRAL
   ======================================================= */
   $$(".tab-btn").forEach((btn) => {
@@ -1119,6 +1479,7 @@
       );
       $(".screen-body").scrollTop = 0;
       if (btn.dataset.tab === "radar") renderRadar();
+      if (btn.dataset.tab === "journal") renderJournal();
     });
   });
 
