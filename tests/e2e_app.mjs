@@ -143,7 +143,7 @@ function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proU
   w.addEventListener("unhandledrejection", (e) => errors.push("rejection: " + ((e.reason && e.reason.stack) || e.reason)));
 
   w.eval(`window.TG_CONFIG = { generatedAt: "t", repo: "rmanm19/tradeguard-bot", botUsername: "TradeGuard1_bot", channel: ${JSON.stringify(channel)}, adminHashes: ${JSON.stringify(adminHashes)} };`);
-  for (const f of ["i18n.js", "static_api.js", "app.js", "app_tg.js", "admin.js"]) {
+  for (const f of ["i18n.js", "static_api.js", "app.js", "app_tg.js", "admin.js", "space.js"]) {
     try { w.eval(read(f)); } catch (e) { errors.push(`eval ${f}: ${e.stack}`); }
     // static_api.js خودش window.fetch را جایگزین می‌کند؛ در حالت آفلاین بعد از آن دوباره قطع می‌کنیم
     if (f === "static_api.js" && offline) w.fetch = () => offlineFetch();
@@ -1171,6 +1171,51 @@ check("صفحهٔ فرود: وقتی دادهٔ زنده نیست، بلوک ب�
   j4.querySelector("#liveRows").textContent);
 check("صفحهٔ فرود: با کد نامعتبر ?src= همان lp_fa می‌ماند",
   /start=lp_fa/.test((bootJoin({ search: "?src=BAD CODE!" }).w.document.querySelector("#ctaMain").getAttribute("href") || "")));
+
+/* ===== لایهٔ فضایی: صحنهٔ سه‌بعدی، تزئین کارت‌ها، اندیکاتور تب ===== */
+const DES1 = boot({ userId: ADMIN_ID });
+await wait(240);
+const des1 = DES1.w.document;
+const scene = des1.getElementById("spaceScene");
+check("صحنهٔ فضایی ساخته می‌شود", !!scene);
+check("صحنه اولین فرزند اپ است (زیر همهٔ محتوا می‌ماند)",
+  !!scene && des1.getElementById("tgApp").firstElementChild === scene);
+check("سه سحابی رنگی در صحنه هست", des1.querySelectorAll("#spaceScene .sp-neb").length === 3);
+check("شبکهٔ پرسپکتیو (حس عمق سه‌بعدی) ساخته می‌شود", !!des1.querySelector("#spaceScene .sp-grid i"));
+const starsN = des1.querySelectorAll("#spaceScene .sp-star").length;
+check("آسمان حداقل ۳۰ ستاره دارد", starsN >= 30, String(starsN));
+check("شهاب‌سنگ‌ها اضافه شده‌اند", des1.querySelectorAll("#spaceScene .sp-shoot").length === 3);
+check("پردهٔ عمق روی صحنه هست", !!des1.querySelector("#spaceScene .sp-veil"));
+check("صحنه برای صفحه‌خوان پنهان است",
+  !!scene && scene.getAttribute("aria-hidden") === "true");
+check("کارت قهرمان هستهٔ سه‌بعدی با سه حلقه دارد",
+  des1.querySelectorAll(".opp-card .sp-core i").length === 3);
+check("کارت قهرمان هالهٔ چرخان و حلقهٔ HUD دارد",
+  !!des1.querySelector(".opp-card .sp-aurora") && !!des1.querySelector(".opp-card .sp-hud"));
+check("نوار تب اندیکاتور لغزنده دارد", !!des1.querySelector("#tgApp .tabbar .tab-glow"));
+const tabBtns = [...des1.querySelectorAll("#tgApp .tabbar .tab-btn")];
+check("اندیکاتور تب جای دکمه‌های تب را تنگ نمی‌کند (۶ تب + تب ادمین سالم می‌ماند)",
+  tabBtns.length >= 6 && tabBtns.every((b) => !!b.getAttribute("data-tab")),
+  tabBtns.map((b) => b.getAttribute("data-tab")).join(","));
+
+DES1.w.__spaceBoot();
+DES1.w.__spaceBoot();
+check("اجرای دوبارهٔ لایه تزئین‌ها را تکرار نمی‌کند",
+  des1.querySelectorAll(".opp-card .sp-aurora").length === 1
+  && des1.querySelectorAll(".opp-card .sp-hud").length === 1
+  && des1.querySelectorAll(".opp-card .sp-core").length === 1);
+check("لایهٔ فضایی بدون هیچ خطای جاوااسکریپت اجرا می‌شود",
+  DES1.errors.length === 0, DES1.errors.slice(0, 2).join(" | "));
+
+const DES2 = boot({ userId: ADMIN_ID });
+await wait(240);
+const tabGuard = DES2.w.document.querySelector('#tgApp .tab-btn[data-tab="guard"]');
+if (tabGuard) tabGuard.click();
+await wait(180);
+check("بعد از تغییر تب، صحنه و تزئین‌ها پاک نمی‌شوند",
+  !!DES2.w.document.getElementById("spaceScene")
+  && !!DES2.w.document.querySelector("#tgApp .tabbar .tab-glow")
+  && DES2.errors.length === 0, DES2.errors.slice(0, 2).join(" | "));
 
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }

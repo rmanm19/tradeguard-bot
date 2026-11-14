@@ -436,6 +436,45 @@ check("متن معرفی تب پیشنهادها ادعای کش‌بک تضمی
 check("کارت قفل‌شدهٔ پرو تراکنش یا عدد ساختگی ندارد",
   /type: "pro"/.test(read("static_api.js")) || /type:\s*"pro"/.test(read("static_api.js")));
 
+/* ---------- لایهٔ طراحی «فضا» (space.css / space.js) ---------- */
+const SPACE_CSS = read("space.css");
+const SPACE_JS = read("space.js");
+const spaceHtml = read("app.html");
+const cssOrder = ["styles.css", "app.css", "admin.css", "space.css"].map((f) => spaceHtml.indexOf(`href="${f}"`));
+check("لایهٔ فضایی بعد از همهٔ استایل‌ها بارگذاری می‌شود (اولویت طراحی)",
+  cssOrder.every((i) => i > -1) && cssOrder[3] > cssOrder[2] && cssOrder[2] > cssOrder[1]);
+check("اسکریپت فضا آخر از همه اجرا می‌شود",
+  /admin\.js"><\/script>\s*<script src="space\.js"><\/script>/.test(appHtml.replace(/\n/g, "")));
+check("صحنهٔ ستاره‌ای/سحابی/شبکهٔ سه‌بعدی تعریف شده است",
+  /#spaceScene\s*\{/.test(SPACE_CSS)
+  && /\.sp-neb\b/.test(SPACE_CSS)
+  && /\.sp-grid i\s*\{/.test(SPACE_CSS)
+  && /rotateX\(66deg\)/.test(SPACE_CSS));
+check("هستهٔ هولوگرافیک سه‌بعدی کارت قهرمان تعریف شده است",
+  /\.sp-core\b/.test(SPACE_CSS) && /preserve-3d|perspective/.test(SPACE_CSS)
+  && /spRingA/.test(SPACE_CSS) && /spRingB/.test(SPACE_CSS) && /spRingC/.test(SPACE_CSS));
+check("تیلت سه‌بعدی و بازتاب نور کارت‌ها فقط با اشاره‌گر فعال می‌شود",
+  /\.card\.is-tilting\s*\{/.test(SPACE_CSS)
+  && /rotateX\(var\(--sp-rx/.test(SPACE_CSS)
+  && /\.card::after\s*\{/.test(SPACE_CSS));
+check("نوار تب شناور با اندیکاتور لغزنده و ستون‌های خودکار (۶ تب + تب ادمین)",
+  /\.tab-glow\s*\{/.test(SPACE_CSS) && /grid-auto-columns:\s*1fr/.test(SPACE_CSS)
+  && /translate3d\(var\(--sp-tab-x/.test(SPACE_CSS));
+check("کاهش حرکت با prefers-reduced-motion خاموش می‌شود",
+  /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]{0,4000}?animation:\s*none\s*!important/.test(SPACE_CSS)
+  && /prefers-reduced-motion/.test(SPACE_JS));
+check("حالت روشن تلگرام برای لایهٔ جدید هم استایل دارد",
+  /body\.tg-light #tgApp \.card,/.test(SPACE_CSS) && /body\.tg-light #spaceScene/.test(SPACE_CSS));
+check("لایهٔ فضا هیچ منبع بیرونی (فونت/تصویر/CDN) نمی‌خواهد",
+  !/url\(\s*['"]?https?:/i.test(SPACE_CSS) && !/https?:\/\//.test(SPACE_JS));
+check("space.js بدون وابستگی، بدون canvas (بدون حلقهٔ rAF دائم) کار می‌کند",
+  !/\bgetContext\b/.test(SPACE_JS) && !/\bimport\s/.test(SPACE_JS) && !/document\.write/.test(SPACE_JS));
+check("صحنه برای صفحه‌خوان پنهان است و کلیک‌ها را نمی‌گیرد",
+  /setAttribute\("aria-hidden",\s*"true"\)/.test(SPACE_JS) && /pointer-events:\s*none/.test(SPACE_CSS));
+check("موشن‌گرافیک اعداد زنده و ورود پله‌ای کارت‌ها پیاده شده است",
+  /MutationObserver/.test(SPACE_JS) && /sp-pop/.test(SPACE_CSS)
+  && /\.tab-pane\.is-active > \*\s*\{/.test(SPACE_CSS));
+
 const revenue = readRepo("REVENUE_FA.md");
 check("پلی‌بوک درآمد وجود دارد و موتورهای واقعی را نام می‌برد",
   revenue.length > 2500 && /\/income/.test(revenue) && /\/trial/.test(revenue)
