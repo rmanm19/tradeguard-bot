@@ -10,11 +10,17 @@ on:
     paths:
       - 'docs/**'
       - 'tests/**'
+      - 'tradeguard-pro/**'
+      - 'REVENUE_FA.md'
+      - 'OUTREACH_KIT_FA.md'
       - '.github/workflows/selftest-app.yml'
   pull_request:
     paths:
       - 'docs/**'
       - 'tests/**'
+      - 'tradeguard-pro/**'
+      - 'REVENUE_FA.md'
+      - 'OUTREACH_KIT_FA.md'
 
 permissions:
   contents: read
@@ -44,6 +50,27 @@ jobs:
       - name: سلف‌تست استاتیک (بدون مرورگر)
         working-directory: docs
         run: node selftest_docs.mjs
+
+      # ربات تک‌فایلی است و بدون این مرحله، تغییرات bot.py هیچ تستی روی PR
+      # نمی‌گرفتند (فقط بعد از مرج و روی main اجرا می‌شدند). این تست آفلاین است:
+      # صفر تماس تلگرام، صفر شبکه.
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: سلف‌تست آفلاین ربات
+        working-directory: tradeguard-pro
+        shell: bash
+        run: |
+          set +e
+          python3 selftest_offline.py > selftest_bot_out.txt 2>&1
+          code=$?
+          tail -n 60 selftest_bot_out.txt
+          if [ "$code" -ne 0 ]; then
+            grep -a '❌' selftest_bot_out.txt | head -n 10 | while IFS= read -r line; do echo "::error title=سنجهٔ ربات ناموفق::$line"; done
+          fi
+          exit "$code"
 
       # در صورت شکست، خروجی تست به‌صورت annotation منتشر می‌شود تا بدون
       # دانلود لاگ هم قابل خواندن باشد (بخش‌های ناموفق + انتهای خروجی).
