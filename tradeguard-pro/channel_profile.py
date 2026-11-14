@@ -129,26 +129,26 @@ def api_upload_photo(chat_id: str, path: Path, token: str) -> dict:
 
 def debug_db() -> None:
     """گزارش تشخیصی امن: فقط کلیدهای تنظیمات، بدون مقدار حساس."""
-    print(f"🔍 DEBUG · DB: {DB_PATH} · exists={DB_PATH.exists()}")
+    print(f"::notice::DEBUG DB: {DB_PATH.name} exists={DB_PATH.exists()}")
     if not DB_PATH.exists():
         base = HERE / ".dbcache"
-        print(f"🔍 DEBUG · .dbcache: {'موجود' if base.exists() else 'خالی'}")
+        print(f"::notice::DEBUG .dbcache exists={base.exists()}")
         if base.exists():
             for f in sorted(base.iterdir()):
-                print(f"   • {f.name} ({f.stat().st_size} bytes)")
+                print(f"::notice::DEBUG file {f.name} {f.stat().st_size}B")
         return
     try:
         with sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True) as conn:
             tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-            print(f"🔍 DEBUG · جدول‌ها: {', '.join(tables)}")
+            print(f"::notice::DEBUG tables: {','.join(tables)}")
             if "settings" in tables:
                 keys = [r[0] for r in conn.execute("SELECT key FROM settings ORDER BY key")]
-                print(f"🔍 DEBUG · کلیدهای settings ({len(keys)}): {', '.join(keys[:40])}")
+                print(f"::notice::DEBUG settings keys({len(keys)}): {','.join(keys[:20])}")
                 for k in ("PUBLIC_CHANNEL_ID", "PUBLIC_CHANNEL_EN_ID"):
                     row = conn.execute("SELECT value FROM settings WHERE key = ?", (k,)).fetchone()
-                    print(f"🔍 DEBUG · {k} = {row[0] if row else '—'}")
+                    print(f"::notice::DEBUG {k}={row[0] if row else 'NONE'}")
     except Exception as exc:
-        print(f"🔍 DEBUG · خطای خواندن دیتابیس: {exc}")
+        print(f"::error title=DEBUG DB read failed::{exc}")
 
 
 def setting(key: str) -> str:
