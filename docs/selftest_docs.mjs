@@ -324,6 +324,48 @@ check("فوتر صفحهٔ اصلی به صفحهٔ زندهٔ نمادها لی
 check("اپ هم canonical دارد (جلوگیری از ایندکس تکراری با پارامترها)",
   read("app.html").includes(`<link rel="canonical" href="${siteBase}/app.html"`));
 
+/* ── ۱۲) کیت رسانه‌ای + پک معرفی + پلی‌بوک Outreach ───────────────── */
+const press = fs.existsSync(path.join(ROOT, "press.html")) ? read("press.html") : "";
+check("صفحهٔ رسانه‌ای وجود دارد و canonical/OG دارد",
+  press.length > 3000 && press.includes(`<link rel="canonical" href="${siteBase}/press.html"`)
+  && /og:image/.test(press));
+check("اعداد صفحهٔ رسانه‌ای از فید عمومی خوانده می‌شوند (نه هاردکد)",
+  /api\/stats\.json/.test(press) && /api\/radar\.json/.test(press)
+  && /users_total/.test(press) && /active_pro/.test(press));
+check("صفحهٔ رسانه‌ای boilerplate ۶ زبانه دارد",
+  ["fa", "en", "ru", "ar", "tr", "es"].every((l) => new RegExp("\\b" + l + ":\\s*\"").test(press)));
+check("صفحهٔ رسانه‌ای می‌گوید چه چیزی را نمی‌فروشیم",
+  /ممبر فیک|فالوور فیک/.test(press) && /تضمینی/.test(press));
+check("صفحهٔ رسانه‌ای لینک بنرها و فید و B2B دارد",
+  /assets\/ads\/ad_radar\.png/.test(press) && /api\/index\.html/.test(press)
+  && /business\.html/.test(press) && /PARTNER_KIT_FA\.md/.test(press));
+check("فوتر صفحهٔ اصلی به کیت رسانه‌ای لینک می‌دهد", /href="press\.html"/.test(read("index.html")));
+check("sitemap صفحهٔ رسانه‌ای را هم لیست می‌کند", /press\.html<\/loc>/.test(sitemap));
+
+const outreachPath = path.join(ROOT, "..", "OUTREACH_FA.md");
+const outreach = fs.existsSync(outreachPath) ? fs.readFileSync(outreachPath, "utf8") : "";
+check("پلی‌بوک Outreach وجود دارد", outreach.length > 4000, String(outreach.length));
+check("پلی‌بوک، صفحه‌های رسمی affiliate صرافی‌ها را دارد",
+  /okx\.com\/affiliates/.test(outreach) && /affiliates\.bybit\.com/.test(outreach)
+  && /binance\.com\/en\/affiliate/.test(outreach));
+check("پلی‌بوک، متن ایمیل انگلیسی و پیام فارسی دارد",
+  /Subject:/.test(outreach) && /سلام 👋/.test(outreach) && /Cross-promo/.test(outreach));
+check("پلی‌بوک، آهنگ پیگیری و KPI واقعی دارد",
+  /Cadence|آهنگ اجرا/.test(outreach) && /نرخ پاسخ/.test(outreach) && /ماندگاری/.test(outreach));
+check("پلی‌بوک، قاعدهٔ ضد اسپم/ضد ممبر فیک را صریح می‌گوید",
+  /تضمین عضو|ممبر فیک/.test(outreach) && /DM انبوه/.test(outreach));
+check("پلی‌بوک ادعای «تضمین» مثبت نمی‌فروشد (فقط در قاعدهٔ ممنوعیت)",
+  !/(سود تضمینی می‌دهیم|دقت ۹۰|guaranteed profit of)/i.test(outreach));
+
+const promoPath = path.join(ROOT, "..", "promo", "CAPTIONS.md");
+const captions = fs.existsSync(promoPath) ? fs.readFileSync(promoPath, "utf8") : "";
+check("پک کپشن چندزبانه وجود دارد", captions.length > 3500, String(captions.length));
+check("پک کپشن هر ۶ زبان را دارد",
+  ["فارسی", "English", "Русский", "العربية", "Türkçe", "Español"].every((l) => captions.includes("**" + l + "**")));
+check("پک کپشن لینک واقعی ربات دارد و خودش ادعای سود نمی‌کند",
+  /t\.me\/TradeGuard1_bot/.test(captions) && /هیچ‌وقت ادعای/.test(captions)
+  && !/(ما دقت|our accuracy is|کسب سود تضمینی)/i.test(captions));
+
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
 

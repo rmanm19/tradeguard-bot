@@ -4278,7 +4278,8 @@ def _write_symbol_pages(feed: Optional[Dict] = None, out_dir: Optional[Path] = N
 
         # sitemap + robots
         urls = [f"{SITE_BASE_URL}/", f"{SITE_BASE_URL}/app.html",
-                f"{SITE_BASE_URL}/business.html", f"{SITE_BASE_URL}/api/index.html"]
+                f"{SITE_BASE_URL}/business.html", f"{SITE_BASE_URL}/api/index.html",
+                f"{SITE_BASE_URL}/press.html"]
         urls += [f"{SITE_BASE_URL}/s/{slug}.html" for _n, slug in names]
         lastmod = stamp[:10] if len(stamp) >= 10 else time.strftime("%Y-%m-%d")
         sitemap = ['<?xml version="1.0" encoding="UTF-8"?>',
