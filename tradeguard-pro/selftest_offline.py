@@ -1760,6 +1760,74 @@ bot.PUBLIC_FEED_DIR = _old_feed
 bot.set_free_mode(False)
 bot.set_free_mode_until(0)
 
+print("\n۱۴) لحظه‌های مهم: اولین درآمد + پایان دورهٔ رایگان + قیمت پایدار")
+
+
+def _admin_msgs() -> str:
+    return "\n".join(str(pp[1]) for pp in _posts if str(pp[0]) == str(bot.ADMIN_USER_ID))
+
+
+# ── اولین درآمد: فقط پرداخت واقعی استارز، فقط یک‌بار ──
+_prev_admin = bot.ADMIN_USER_ID
+bot.ADMIN_USER_ID = str(USER)
+with _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("DELETE FROM settings WHERE key = 'first_income_notified'")
+    _c.execute("DELETE FROM settings WHERE key = 'first_income_at'")
+_first = bot.first_paid_payment()
+check("اولین پرداخت واقعی پیدا می‌شود و هدیه حساب نمی‌شود",
+      _first is not None and int(_first["stars"]) > 0, str(_first))
+_clear_sent()
+check("پیام اولین درآمد ارسال می‌شود", bot.maybe_announce_first_income() is True)
+_msg1 = _admin_msgs()
+check("پیام اولین درآمد عدد واقعی و منبع را می‌گوید",
+      "اولین درآمد واقعی" in _msg1 and "Stars" in _msg1 and "منبع ورود" in _msg1, _msg1[:160])
+check("تاریخ اولین درآمد ذخیره می‌شود",
+      (bot.get_setting("first_income_at") or "").isdigit(), bot.get_setting("first_income_at"))
+_clear_sent()
+check("پیام اولین درآمد دوباره تکرار نمی‌شود", bot.maybe_announce_first_income() is False)
+
+# ── پایان دورهٔ رایگان: یک‌بار به ادمین، با تاریخ واقعی ──
+with _sq.connect(bot.DB_PATH) as _c:
+    _c.execute("DELETE FROM settings WHERE key = 'free_ended_notice'")
+_old_until = bot.FREE_MODE_UNTIL
+_old_mode = bot.FREE_MODE
+bot.FREE_MODE = True
+bot.set_free_mode_until(int(_t.time()) + 3 * 86400)
+_clear_sent()
+check("تا وقتی تاریخ پایان نرسیده، هیچ پیامی نمی‌آید",
+      bot.maybe_notify_free_mode_ended() is False and not _posts)
+bot.set_free_mode_until(int(_t.time()) - 60)
+_clear_sent()
+check("گذشتن تاریخ پایان، پیام «تمام شد» می‌دهد", bot.maybe_notify_free_mode_ended() is True)
+_msg2 = _admin_msgs()
+check("پیام پایان دورهٔ رایگان تاریخ و قدم بعدی را می‌گوید",
+      "دورهٔ رایگان تمام شد" in _msg2 and bot._utc_date(bot.FREE_MODE_UNTIL) in _msg2
+      and "/income" in _msg2, _msg2[:180])
+_clear_sent()
+check("پیام پایان دورهٔ رایگان تکرار نمی‌شود", bot.maybe_notify_free_mode_ended() is False)
+check("پس از پایان، رایگان فعال نیست (قفل‌ها بسته‌اند)", bot.free_mode_active() is False)
+bot.set_free_mode_until(_old_until)
+bot.FREE_MODE = _old_mode
+
+# ── قیمت: هر جریان تازه (کرون فید) باید همان قیمت دیتابیس را منتشر کند ──
+_prev_raw = bot.get_setting("SUBSCRIPTION_STARS")
+bot.set_setting("SUBSCRIPTION_STARS", "450")
+bot.forget_persisted_price()
+check("قیمت ذخیره‌شدهٔ ادمین بر پیش‌فرض env مقدّم است", bot.plan_price(30) == 450,
+      f"plan_price(30)={bot.plan_price(30)}")
+check("قیمت ذخیره‌شده در payload انتشار هم می‌آید",
+      bot.build_plans_payload()["plans"][0]["stars"] == 450)
+check("قیمت پلن‌های بلندمدت با قیمت ذخیره‌شده قاطی نمی‌شود",
+      bot.plan_price(90) == bot.SUBSCRIPTION_STARS_90
+      and bot.plan_price(365) == bot.SUBSCRIPTION_STARS_365)
+bot.set_setting("SUBSCRIPTION_STARS", _prev_raw or "")
+bot.forget_persisted_price()
+check("بازگشت قیمت، دوباره از پیش‌فرض می‌خواند",
+      bot.plan_price(30) == bot.SUBSCRIPTION_STARS, str(bot.plan_price(30)))
+bot.FREE_MODE = False
+bot.set_free_mode_until(0)
+bot.ADMIN_USER_ID = _prev_admin
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")
