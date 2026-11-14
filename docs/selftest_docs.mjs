@@ -388,6 +388,12 @@ check("کارت پیشنهادها دیگر از آرایهٔ هاردکد i18n 
 check("همهٔ آرایه‌های deals در ۶ زبان خالی‌اند",
   (i18nSrc.match(/deals:\s*\[\]/g) || []).length === 6,
   String((i18nSrc.match(/deals:\s*\[\]/g) || []).length));
+check("کلید شمارش معکوس دورهٔ رایگان در ۶ زبان هست",
+  LANGS.every((l) => /\{date\}/.test((I18N[l] || {}).freeUntilTpl || "")
+    && /\{days\}/.test((I18N[l] || {}).freeUntilTpl || "")));
+check("مینی‌اپ تاریخ پایان رایگان را از فایل ربات می‌خواند (نه عدد هاردکد)",
+  /freeUntil/.test(appJs) && /freeUntilTs/.test(appJs)
+  && /freeUntilTs \? new Date\(freeUntilTs \* 1000\) : null/.test(appJs));
 check("کلیدهای «جایگاه خالی» در ۶ زبان هست",
   LANGS.every((l) => I18N[l].dealsEmptyTitle && I18N[l].dealsEmptyText
     && I18N[l].dealsEmptyCta && I18N[l].dealsOpenCta));
