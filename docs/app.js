@@ -2084,9 +2084,19 @@
     }
     const freeNote = $("#freeNote");
     if (freeNote) freeNote.classList.toggle("hidden", !isFreeMode);
+    // 🎁 دورهٔ رایگان: اگر ربات تاریخ پایان داده باشد، شمارش معکوس نشان می‌دهیم
+    // (به‌جای «رایگان» بی‌تاریخ که هیچ فوریتی برای تصمیم‌گرفتن نمی‌سازد).
     if (isFreeMode) {
-      const dateEl = $("#proActiveDate");
-      if (dateEl) dateEl.textContent = d.freeBadge;
+      const el = $("#proActiveDate");
+      if (el) {
+        const when = freeUntilTs ? new Date(freeUntilTs * 1000) : null;
+        if (when && when.getTime() > Date.now()) {
+          const days = Math.max(1, Math.ceil((when.getTime() - Date.now()) / 86400000));
+          el.textContent = tpl(d.freeUntilTpl, { date: when.toLocaleDateString(), days: fmt(days) });
+        } else {
+          el.textContent = d.freeBadge;
+        }
+      }
     }
 
     // 📣 دکمهٔ کانال (فقط اگر کانال عمومی در config باشد)
@@ -2115,9 +2125,14 @@
 
     renderInviteCard();
     const expEl = $("#proActiveDate");
-    if (expEl) expEl.textContent = proExpiryDate ? tpl(d.proExpiryTpl, { d: proExpiryDate }) : d.proActiveDate;
-    $("#planStarsNum") && ($("#planStarsNum").textContent = fmt(300));
-    $("#invPriceNum") && ($("#invPriceNum").textContent = fmt(300));
+    // در دورهٔ رایگان، خط تاریخ همان شمارش معکوس بالا است و بازنویسی نمی‌شود.
+    if (expEl && !isFreeMode) {
+      expEl.textContent = proExpiryDate ? tpl(d.proExpiryTpl, { d: proExpiryDate }) : d.proActiveDate;
+    }
+    // قیمت از همان PLAN_LISTِ plans.json می‌آید؛ عدد ثابت ۳۰۰ فقط پشتیبان است.
+    const base30 = PLAN_LIST.find((p) => Number(p.days) === 30) || PLAN_LIST[0];
+    $("#planStarsNum") && ($("#planStarsNum").textContent = fmt(base30.stars));
+    $("#invPriceNum") && ($("#invPriceNum").textContent = fmt(base30.stars));
     $("#alertTabBadge") && ($("#alertTabBadge").textContent = fmt(3));
   }
 
@@ -2298,6 +2313,7 @@
   /* ---------- وضعیت واقعی اشتراک (منبع: pro_users.json که ربات می‌نویسد) ---------- */
   let proExpiryDate = "";
   let isFreeMode = false;
+  let freeUntilTs = 0;   // تاریخ پایان دورهٔ رایگان از pro_users.json (۰ = بی‌پایان)
   let channelUrl = "";
 
   /* ---------- دیده‌بان (Watchlist) + کش برای رندر آنی ---------- */
@@ -2349,6 +2365,7 @@
       const data = await res.json();
       // 🎁 دورهٔ رشد: پرچم سراسری از ربات — همه‌چیز رایگان
       isFreeMode = !!(data && data.freeMode);
+      freeUntilTs = Number((data && data.freeUntil) || 0) || 0;
       const entry = (data && data.users && data.users[key]) || null;
       const now = Math.floor(Date.now() / 1000);
       if (entry) {

@@ -1494,7 +1494,11 @@ def load_pro_status() -> dict:
 def save_pro_status(data: dict) -> bool:
     """فایل را می‌نویسد؛ True یعنی محتوا واقعاً تغییر کرد."""
     old = load_pro_status()
-    if old.get("users") == data.get("users") and bool(old.get("freeMode")) == bool(data.get("freeMode")):
+    # freeUntil هم بخشی از محتواست: بدون آن، فقط «تغییر تاریخ پایان» نادیده
+    # گرفته می‌شد و مینی‌اپ هرگز شمارش معکوس را نمی‌گرفت (باگ واقعی).
+    if (old.get("users") == data.get("users")
+            and bool(old.get("freeMode")) == bool(data.get("freeMode"))
+            and int(old.get("freeUntil") or 0) == int(data.get("freeUntil") or 0)):
         return False
     PRO_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
     PRO_STATUS_FILE.write_text(
@@ -1798,7 +1802,11 @@ def publish_pro_status(user_ids: Optional[List[int]] = None) -> None:
             if exp and exp < now - PRO_STATUS_MAX_AGE and not ref:
                 users.pop(key, None)
 
-        data = {"updated": now, "freeMode": free_mode_active(), "users": users}
+        data = {"updated": now, "freeMode": free_mode_active(),
+                # تاریخ پایان دورهٔ رایگان؛ ۰ = بی‌پایان. مینی‌اپ با همین، شمارش
+                # معکوس نشان می‌دهد تا «رایگان» یک وعدهٔ بی‌تاریخ نماند.
+                "freeUntil": int(FREE_MODE_UNTIL) if free_mode_active() else 0,
+                "users": users}
         if save_pro_status(data):
             _git_publish_status_file()
 
@@ -3539,10 +3547,12 @@ def handle_message(msg: dict) -> None:
         arg = (text.split(maxsplit=1)[1].strip().lower() if len(text.split(maxsplit=1)) > 1 else "")
         if arg in ("on", "1", "true", "روشن", "باز"):
             set_free_mode(True)
+            publish_pro_status()   # مینی‌اپ همان لحظه وضعیت/تاریخ رایگان را ببیند
             tg_send_message(chat_id, tr(lang, "free_admin_on"))
         elif arg in ("off", "0", "false", "خاموش", "بسته"):
             set_free_mode(False)
             set_free_mode_until(0)
+            publish_pro_status()
             tg_send_message(chat_id, tr(lang, "free_admin_off"))
         elif arg.startswith("until"):
             # `/freemode until 2026-11-21` — تاریخ پایان مشخص، بدون تمدید خودکار
@@ -3565,6 +3575,7 @@ def handle_message(msg: dict) -> None:
                 return
             set_free_mode(True)
             set_free_mode_until(end_ts)
+            publish_pro_status()   # شمارش معکوس در مینی‌اپ فوراً فعال شود
             days_left = free_mode_days_left()
             tg_send_message(
                 chat_id,
@@ -4749,7 +4760,8 @@ def build_channel_post(rates: List[Dict]) -> Tuple[str, dict]:
     lines.append(tip)
     lines.append("")
     if free_mode_active():
-        lines.append("🎁 *این روزها همه‌چیز رایگان است* — رادار کامل، هشدارها، مربی AI و فایل MT5/TradingView.")
+        lines.append(free_mode_countdown_line("fa")
+                     or "🎁 *این روزها همه‌چیز رایگان است* — رادار کامل، هشدارها، مربی AI و فایل MT5/TradingView.")
     else:
         lines.append("⭐ نسخهٔ کامل: رادار بی‌سقف + فایل MT5 و TradingView")
     lines.append("")
@@ -5250,6 +5262,24 @@ def free_mode_days_left(now: Optional[float] = None) -> int:
         return -1
     ts = float(now if now is not None else time.time())
     return max(0, int(round((FREE_MODE_UNTIL - ts) / 86400)))
+
+
+def free_mode_countdown_line(lang: str = "fa") -> str:
+    """جملهٔ «رایگان تا <تاریخ> — X روز مانده» برای پست‌های کانال.
+
+    فقط وقتی تاریخ پایان واقعاً ست شده باشد مقدار برمی‌گرداند؛ در رایگانِ
+    بی‌پایان رشتهٔ خالی می‌دهد تا هیچ‌وقت «۰ روز مانده» یا تاریخ ساختگی
+    منتشر نشود.
+    """
+    if not free_mode_active() or FREE_MODE_UNTIL <= 0:
+        return ""
+    left = max(1, free_mode_days_left())
+    when = _utc_date(FREE_MODE_UNTIL)
+    if lang == "en":
+        return (f"🎁 *Free until {when}* ({left} days left) — full radar, alerts, "
+                "AI copilot, MT5/TradingView files.")
+    return (f"🎁 *رایگان تا {when}* ({left} روز دیگر) — رادار کامل، هشدارها، "
+            "مربی AI و فایل MT5/TradingView.")
 
 
 def start_pro_trial(user_id: int) -> Tuple[bool, int, str]:
@@ -6107,7 +6137,8 @@ def build_channel_post_en(rates: List[Dict]) -> Tuple[str, dict]:
         "",
         f"🧭 Fear & Greed: `{fng_val}/100` ({fng_lbl})",
         "",
-        "🎁 *Free during the growth phase* — full radar, alerts, AI copilot, MT5/TradingView files.",
+        free_mode_countdown_line("en")
+        or "🎁 *Free during the growth phase* — full radar, alerts, AI copilot, MT5/TradingView files.",
         "",
         "👇 Open inside Telegram (6 languages):",
     ]

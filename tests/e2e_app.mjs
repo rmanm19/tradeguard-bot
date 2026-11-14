@@ -34,6 +34,7 @@ let PARTNERS = { partners: [], disclosure: "" };   // محتوای partners.json
 let PLANS = { plans: [] };                         // محتوای api/plans.json برای تست
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
 let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
+let PRO_FREE_UNTIL = 0;      // تاریخ پایان دورهٔ رایگان (۰ = بی‌پایان)
 
 function stubFetch(url, init) {
   const u = String(url);
@@ -65,7 +66,7 @@ function stubFetch(url, init) {
   ]);
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
-  if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, users: PRO_USERS });
+  if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, freeUntil: PRO_FREE_UNTIL, users: PRO_USERS });
   if (u.includes("partners.json")) return json(PARTNERS);
   if (u.includes("plans.json")) return json(PLANS);
   if (u.includes("api.github.com")) return json({ workflow_runs: [{ name: "TradeGuard Bot", status: "in_progress", conclusion: null, created_at: new Date().toISOString(), html_url: "https://github.com/x" }] });
@@ -75,10 +76,11 @@ function stubFetch(url, init) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false, liveHyperliquid = false, search = "" } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, freeUntil = 0, channel = "", seedStorage = {}, offline = false, liveHyperliquid = false, search = "" } = {}) {
   PRO_USERS = proUsers;
   HL_LIVE = !!liveHyperliquid;
   PRO_FREE_MODE = freeMode;
+  PRO_FREE_UNTIL = freeUntil;
   const errors = [];
   const vc = new VirtualConsole();
   vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
@@ -617,6 +619,24 @@ check("دورهٔ رایگان: نشان کارت «رایگان» است",
   /رایگان|Free|Gratis|Ücretsiz|Бесплатно|مجاني/i.test((gd.querySelector("#planChip") || {}).textContent || ""),
   (gd.querySelector("#planChip") || {}).textContent);
 check("دورهٔ رایگان: خطای جاوااسکریپت نیست", G.errors.length === 0, G.errors.slice(0, 2).join(" | "));
+
+/* ---------- ۴٫۱) شمارش معکوس دورهٔ رایگان (تاریخ پایان = فوریت واقعی) ---------- */
+const untilTs = Math.floor(Date.now() / 1000) + 4 * 86400;
+const G2 = boot({ userId: 666000333, freeMode: true, freeUntil: untilTs });
+await wait(700);
+const g2d = G2.w.document;
+const dateLine = (g2d.querySelector("#proActiveDate") || {}).textContent || "";
+check("دورهٔ رایگان با تاریخ پایان، شمارش معکوس نشان می‌دهد",
+  /\d/.test(dateLine) && /تا|until|hasta|kadar|до|حتى/i.test(dateLine), dateLine);
+check("شمارش معکوس تعداد روزهای مانده را می‌گوید",
+  /[4۴]/.test(dateLine), dateLine);
+check("شمارش معکوس خطای جاوااسکریپت ندارد", G2.errors.length === 0, G2.errors.slice(0, 2).join(" | "));
+const G3 = boot({ userId: 666000444, freeMode: true, freeUntil: 0 });
+await wait(600);
+const g3d = G3.w.document;
+check("رایگانِ بی‌تاریخ، هیچ عدد یا تاریخ ساختگی نشان نمی‌دهد",
+  !/[\d۰-۹]/.test((g3d.querySelector("#proActiveDate") || {}).textContent || ""),
+  (g3d.querySelector("#proActiveDate") || {}).textContent);
 
 check("دکمهٔ کانال با کانال تنظیم‌شده دیده می‌شود", !gd.querySelector("#joinChannelBtn").classList.contains("hidden"));
 gd.querySelector("#joinChannelBtn").dispatchEvent(new G.w.MouseEvent("click", { bubbles: true }));

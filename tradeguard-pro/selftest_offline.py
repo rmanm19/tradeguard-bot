@@ -1618,6 +1618,32 @@ bot.set_free_mode_until(_future)
 _left = bot.free_mode_days_left()
 check("تاریخ پایان رایگان ذخیره و شمرده می‌شود", 4 <= _left <= 5, str(_left))
 check("تاریخ پایان در دیتابیس می‌ماند", bot.get_setting("free_mode_until") == str(_future))
+
+# شمارش معکوس در کانال: «رایگان» باید تاریخ داشته باشد، وگرنه فوریتی نمی‌سازد
+_line_fa = bot.free_mode_countdown_line("fa")
+check("خط شمارش معکوس تاریخ پایان و روزهای مانده را می‌گوید",
+      bot._utc_date(_future) in _line_fa and "روز دیگر" in _line_fa, _line_fa[:90])
+check("نسخهٔ انگلیسی خط شمارش معکوس دارد",
+      "days left" in bot.free_mode_countdown_line("en"))
+_post_until, _ = bot.build_channel_post([])
+check("پست کانال وقتی تاریخ پایان هست، شمارش معکوس نشان می‌دهد",
+      bot._utc_date(_future) in _post_until, _post_until[-200:])
+bot.set_free_mode_until(0)
+check("رایگانِ بی‌پایان هیچ تاریخ ساختگی در کانال نمی‌گذارد",
+      bot.free_mode_countdown_line("fa") == ""
+      and "رایگان تا" not in bot.build_channel_post([])[0])
+bot.set_free_mode_until(_future)
+bot.publish_pro_status()
+_status_until = __import__("json").loads(_STATUS_TMP.read_text(encoding="utf-8"))
+check("pro_users.json تاریخ پایان را منتشر می‌کند (مینی‌اپ شمارش معکوس دارد)",
+      int(_status_until.get("freeUntil") or 0) == _future, str(_status_until)[:80])
+bot.set_free_mode(False)
+bot.publish_pro_status()
+_status_off = __import__("json").loads(_STATUS_TMP.read_text(encoding="utf-8"))
+check("با خاموش شدن رایگان، freeUntil صفر می‌شود (شمارش معکوس محو می‌شود)",
+      int(_status_off.get("freeUntil") or 0) == 0, str(_status_off)[:80])
+bot.set_free_mode(True)
+bot.set_free_mode_until(_future)
 # پلن‌های بلندمدت: قیمت، payload و روزهای واقعی
 bot.set_free_mode(False)   # برای تست خرید باید پرداخت باز باشد
 check("قیمت پلن ۹۰ روزه از قیمت ۳۰ روزه گران‌تر و از ۳ برابر ارزان‌تر است",
