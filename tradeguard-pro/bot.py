@@ -6814,6 +6814,9 @@ def main() -> None:
     sync_telegram_menus()
 
     logger.info("✅ متصل شد به ربات: @%s (id: %s)", BOT_USERNAME, BOT_ID)
+    # کدام نسخه همین حالا زنده است؟ بدون این خط، لاگ اجراها در Actions عملاً
+    # از هم قابل تفکیک نیستند (همان اشتباهی که باعث شد کد قدیمی ساعت‌ها بماند).
+    logger.info("🧩 کد در حال اجرا: %s", (RUN_CODE_SHA[:7] or "اجرای محلی (بدون SHA)"))
     load_free_mode()
     logger.info("🎁 حالت رایگان: %s", "روشن" if free_mode_active() else "خاموش")
     logger.info("📢 وضعیت کانال ویترین: %s", CHANNEL_REASON)
