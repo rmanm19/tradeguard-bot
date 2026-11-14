@@ -58,6 +58,12 @@ jobs:
       AI_API_BASE: ${{ secrets.AI_API_BASE }}
       AI_API_KEY: ${{ secrets.AI_API_KEY }}
       AI_MODEL: ${{ secrets.AI_MODEL }}
+      # 🔐 ورود با گوگل (Device Flow). اگر این دو Secret را بگذاری، ربات
+      # خودش آن‌ها را می‌بیند و `/login` بدون دست‌زدن به تلگرام کار می‌کند.
+      # نبودشان خطا نیست: مقدار خالی می‌شود و کلید ذخیره‌شده در دیتابیس
+      # (با `/google id|secret`) جای آن را می‌گیرد.
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       # اجازهٔ کامیت/پوش فایل وضعیت اشتراک برای مینی‌اپ
       PRO_STATUS_PUSH: "1"
       # خروج تمیز در دقیقه ۳۴۰ (زیر سقف ۳۵۰ دقیقه‌ای جاب)
