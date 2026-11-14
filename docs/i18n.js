@@ -2364,4 +2364,41 @@ window.TG_I18N = {
   Object.keys(EXTRA7).forEach(function (k) {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA7[k]);
   });
+
+  /* ── کارت استوری ژورنال ───────────────────────────────────── */
+  var EXTRA8 = {
+    fa: {
+      "jrShare": "کارت آمار",
+      "jrShareTitle": "ژورنال من · TradeGuard",
+      "jrShareEmpty": "اول یک معامله ثبت کن، بعد کارت بساز.",
+    },
+    en: {
+      "jrShare": "Stats card",
+      "jrShareTitle": "My journal · TradeGuard",
+      "jrShareEmpty": "Log a trade first, then build the card.",
+    },
+    ru: {
+      "jrShare": "Карточка статистики",
+      "jrShareTitle": "Мой журнал · TradeGuard",
+      "jrShareEmpty": "Сначала добавьте сделку, потом карточку.",
+    },
+    ar: {
+      "jrShare": "بطاقة الإحصاء",
+      "jrShareTitle": "سجلي · TradeGuard",
+      "jrShareEmpty": "سجّل صفقة أولاً ثم أنشئ البطاقة.",
+    },
+    tr: {
+      "jrShare": "İstatistik kartı",
+      "jrShareTitle": "Günlüğüm · TradeGuard",
+      "jrShareEmpty": "Önce bir işlem kaydedin, sonra kart oluşturun.",
+    },
+    es: {
+      "jrShare": "Tarjeta de estadísticas",
+      "jrShareTitle": "Mi diario · TradeGuard",
+      "jrShareEmpty": "Registra una operación y luego crea la tarjeta.",
+    }
+  };
+  Object.keys(EXTRA8).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA8[k]);
+  });
 })();

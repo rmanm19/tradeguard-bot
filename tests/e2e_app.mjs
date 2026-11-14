@@ -661,6 +661,19 @@ await wait(60);
 check("خروجی JSON ژورنال دانلود می‌شود",
   jw.__downloads.some((x) => x.name === "tradeguard-journal.json"), JSON.stringify(jw.__downloads).slice(0, 120));
 
+// کارت آمار ژورنال (استوری) — با آمار واقعی همان کاربر
+jClick("#jrShareBtn");
+await wait(80);
+const storyOpen = jd.querySelector("#storySheet") && !jd.querySelector("#storySheet").classList.contains("hidden");
+check("کارت آمار ژورنال باز می‌شود (استوری واقعی، بدون عدد ساختگی)", !!storyOpen);
+jClick("#dlStoryBtn");
+await wait(60);
+check("دانلود کارت ژورنال نام فایل مخصوص خودش را دارد",
+  jw.__downloads.some((x) => /TradeGuard_journal_/.test(String(x.name))),
+  JSON.stringify(jw.__downloads.slice(-2)));
+jClick("#storyBack");
+await wait(40);
+
 // بالانس/ریسک برای دفعهٔ بعد نگه داشته می‌شود
 const balEl = jd.querySelector("#jrBalance");
 balEl.dispatchEvent(new jw.Event("change", { bubbles: true }));
@@ -697,6 +710,15 @@ await wait(300);
 const jd2 = JR2.w.document;
 jd2.querySelector('.tab-btn[data-tab="journal"]')?.dispatchEvent(new JR2.w.MouseEvent("click", { bubbles: true }));
 await wait(60);
+const emptyShare = boot({ userId: 555000444 });
+await wait(300);
+const esd = emptyShare.w.document;
+esd.querySelector('.tab-btn[data-tab="journal"]')?.dispatchEvent(new emptyShare.w.MouseEvent("click", { bubbles: true }));
+await wait(50);
+esd.querySelector("#jrShareBtn")?.dispatchEvent(new emptyShare.w.MouseEvent("click", { bubbles: true }));
+await wait(60);
+check("با ژورنال خالی، کارت ساخته نمی‌شود و پیام راهنما می‌دهد (بدون کارت جعلی)",
+  !!esd.querySelector("#storySheet") && esd.querySelector("#storySheet").classList.contains("hidden"));
 check("فرم جدید بالانس ذخیره‌شده را از قبل پر می‌کند",
   String((jd2.querySelector("#jrBalance") || {}).value || "") === "" ||
   String((jd2.querySelector("#jrBalance") || {}).value) === "1000", String((jd2.querySelector("#jrBalance") || {}).value));

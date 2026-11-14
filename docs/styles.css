@@ -1037,3 +1037,5 @@ section{scroll-margin-top:84px}
 .fx-spread.hot{color:#38e0b2}
 .fx-spread.cold{color:#8ba3a3}
 .fx-empty{font-size:11px;color:#8ba3a3;text-align:center;padding:8px}
+
+.jr-head-btns{display:inline-flex;gap:6px}
