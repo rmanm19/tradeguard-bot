@@ -1217,6 +1217,59 @@ check("بعد از تغییر تب، صحنه و تزئین‌ها پاک نمی
   && !!DES2.w.document.querySelector("#tgApp .tabbar .tab-glow")
   && DES2.errors.length === 0, DES2.errors.slice(0, 2).join(" | "));
 
+/* ---------- لایهٔ «فضای صفحات» (pages.css + pages.js روی join/p/press/business) ---------- */
+function bootPages(file, { reduce = false, withIO = true } = {}) {
+  const errors = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e && e.message)));
+  const dom = new JSDOM(read(file), {
+    runScripts: "outside-only", pretendToBeVisual: true, virtualConsole: vc,
+    url: "https://example.com/" + file
+  });
+  const w = dom.window;
+  const observed = [];
+  const callbacks = [];
+  if (withIO) {
+    w.IntersectionObserver = class {
+      constructor(cb) { callbacks.push(cb); }
+      observe(el) { observed.push(el); }
+      unobserve() {}
+      disconnect() {}
+    };
+  } else {
+    delete w.IntersectionObserver;
+  }
+  try {
+    w.matchMedia = (q) => ({ media: q, matches: reduce && /reduce/.test(q),
+      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  } catch (e) {}
+  try { w.eval(read("pages.js")); } catch (e) { errors.push("eval pages.js: " + e.message); }
+  w.document.dispatchEvent(new w.Event("DOMContentLoaded"));
+  return { w, d: dom.window.document, errors, observed, callbacks };
+}
+
+const PG1 = bootPages("join.html");
+const pgD1 = PG1.d;
+check("لندینگ‌های کوتاه: ورود پله‌ای واقعاً کلاس می‌گیرد و آبزرور تنظیم می‌شود",
+  pgD1.querySelectorAll(".pg-reveal").length > 5 && PG1.observed.length > 5 && PG1.callbacks.length === 1,
+  "reveal=" + pgD1.querySelectorAll(".pg-reveal").length + " obs=" + PG1.observed.length);
+check("لندینگ‌های کوتاه: تأخیر پله‌ای سقف دارد (عناصر پایین معطل نمی‌مانند)",
+  Array.from(pgD1.querySelectorAll(".pg-reveal")).every((n) => {
+    const v = parseFloat(n.style.getPropertyValue("--pg-delay") || "0") || 0;
+    return v >= 0 && v <= 0.3;
+  }));
+PG1.callbacks[0]([{ isIntersecting: true, target: PG1.observed[0] },
+  { isIntersecting: false, target: PG1.observed[1] }]);
+check("لندینگ‌های کوتاه: فقط عنصر دیده‌شده کلاس pg-in می‌گیرد",
+  PG1.observed[0].classList.contains("pg-in") && !PG1.observed[1].classList.contains("pg-in"));
+check("لندینگ‌های کوتاه: بدون IntersectionObserver هیچ‌چیز پنهان نمی‌شود",
+  bootPages("press.html", { withIO: false }).d.querySelectorAll(".pg-reveal").length === 0);
+check("لندینگ‌های کوتاه: با «کاهش حرکت» هیچ عنصری مخفی نمی‌شود",
+  bootPages("business.html", { reduce: true }).d.querySelectorAll(".pg-reveal").length === 0);
+check("لندینگ‌های کوتاه: هر چهار صفحه بدون خطای جاوااسکریپت لایه را سوار می‌کنند",
+  ["join.html", "p.html", "press.html", "business.html"].every((f) => bootPages(f).errors.length === 0),
+  ["join.html", "p.html", "press.html", "business.html"].map((f) => f + ":" + bootPages(f).errors.length).join(" "));
+
 console.log("\n" + "─".repeat(50));
 if (fails) { console.log(`❌ ${fails} سنجه شکست خورد`); process.exit(1); }
 console.log("✅ کل مینی‌اپ و صفحه معرفی بدون خطا اجرا شد");

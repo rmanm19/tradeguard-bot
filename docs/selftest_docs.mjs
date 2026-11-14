@@ -142,8 +142,8 @@ check("HTML خام هیچ بخش ادمینی ندارد (کاملاً داین�
 
 /* ── ۷) صفحهٔ فرود اختصاصی هر شریک (p.html) ──────────────────── */
 const landing = read("p.html");
-check("صفحهٔ فرود شریک وجود دارد و خودبسنده است",
-  landing.includes("TradeGuard") && !/<script[^>]+src=/.test(landing));
+check("صفحهٔ فرود شریک وجود دارد و خودبسنده است (تنها اسکریپت بیرونی، لایهٔ pages.js)",
+  landing.includes("TradeGuard") && !/<script[^>]+src=(?!"pages\.js")/.test(landing));
 check("صفحهٔ فرود لینک رهگیری p_<id> می‌سازد", landing.includes('"?start=p_"'));
 check("صفحهٔ فرود از partners.json می‌خواند", /fetch\("partners\.json"/.test(landing));
 check("صفحهٔ فرود با شناسهٔ ناشناس شریک جعلی نمی‌سازد",
@@ -216,8 +216,8 @@ check("جدول فاندینگ در رابط هست و کلیدهایش ۶ زب�
 /* ── ۸) صفحهٔ B2B و مستندات فید داده ──────────────────────────── */
 const biz = read("business.html");
 const apiDoc = read("api/index.html");
-check("صفحهٔ B2B برای بروکرها وجود دارد و خودبسنده است",
-  biz.includes("TradeGuard") && !/<script[^>]+src=/.test(biz));
+check("صفحهٔ B2B برای بروکرها وجود دارد و خودبسنده است (تنها اسکریپت بیرونی، لایهٔ pages.js)",
+  biz.includes("TradeGuard") && !/<script[^>]+src=(?!"pages\.js")/.test(biz));
 check("B2B اعداد را از فید واقعی می‌خواند (نه عدد هاردکد)",
   /fetch\("api\/stats\.json"/.test(biz) && /data-k="users_total"/.test(biz));
 check("B2B نسخهٔ انگلیسی هم دارد",
@@ -515,6 +515,47 @@ check("لندینگ: کاهش حرکت همهٔ انیمیشن‌ها را خا�
 check("لندینگ: CSS متوازن است و کلیدهای i18n صفحهٔ فرود دست‌نخورده مانده‌اند",
   (LANDING_CSS.match(/\{/g) || []).length === (LANDING_CSS.match(/\}/g) || []).length
   && (landHtml.match(/data-i18n=/g) || []).length >= 20);
+
+/* ---------- لایهٔ «فضای صفحات کوتاه» (pages.css / pages.js) ---------- */
+const PAGES_CSS = read("pages.css");
+const PAGES_JS = read("pages.js");
+const SHORT_PAGES = ["join.html", "p.html", "press.html", "business.html"];
+const shortHtml = SHORT_PAGES.map((f) => read(f));
+check("صفحات کوتاه: لایهٔ مشترک بعد از استایل درونی و اسکریپت قبل از بستن body سوار می‌شود",
+  shortHtml.every((h) =>
+    h.indexOf('href="pages.css"') > h.indexOf("</style>")
+    && h.indexOf('<script src="pages.js"></script>') > h.indexOf("</main")
+    && h.indexOf('<script src="pages.js"></script>') < h.lastIndexOf("</body>")));
+check("صفحات کوتاه: تنها منبع بیرونی همان دو فایل لایه است (خودبسندگی حفظ می‌شود)",
+  shortHtml.every((h) => {
+    const css = (h.match(/<link[^>]*rel="stylesheet"[^>]*>/g) || []).map((m) => m.replace(/.*href="([^"]+)".*/, "$1"));
+    const js = (h.match(/<script[^>]+src="([^"]+)"/g) || []).map((m) => m.replace(/.*src="([^"]+)".*/, "$1"));
+    /* join.html از قبل ./config.js را می‌خواند؛ تنها منبع تازه همین لایه است */
+    return css.every((u) => u === "pages.css")
+      && js.every((u) => u === "pages.js" || u === "./config.js");
+  }));
+check("صفحات کوتاه: آسمان ستاره‌دار و سحابی بدون تصویر ساخته می‌شوند",
+  /body::before\s*\{/.test(PAGES_CSS) && /body::after\s*\{/.test(PAGES_CSS)
+  && /@keyframes pgNeb/.test(PAGES_CSS) && /@keyframes pgTwinkle/.test(PAGES_CSS)
+  && !/url\(\s*['\"]?https?:/i.test(PAGES_CSS));
+check("صفحات کوتاه: شیشهٔ کارت‌ها همهٔ کلاس‌های چهار صفحه را پوشش می‌دهد",
+  [".row", ".plan", ".card", ".item", ".stat", ".live > div", ".boiler"].every((sel) => PAGES_CSS.includes(sel))
+  && /backdrop-filter:\s*blur\(12px\)/.test(PAGES_CSS));
+check("صفحات کوتاه: دکمهٔ اصلی درخشان است ولی دکمه‌های شبح شبح می‌مانند",
+  /\.cta::after\s*\{/.test(PAGES_CSS) && /@keyframes pgSheen/.test(PAGES_CSS)
+  && /\.cta\.ghost,\s*\n\.buttons a\.ghost\s*\{/.test(PAGES_CSS));
+check("صفحات کوتاه: تیتر گرادیانی و نقطهٔ نئونی تیتر دوم دارد",
+  /@supports \(\(-webkit-background-clip: text\)/.test(PAGES_CSS) && /h2::before\s*\{/.test(PAGES_CSS));
+check("صفحات کوتاه: بدون سرریز افقی و با بلاک کاهش حرکت",
+  /html,\s*body\s*\{\s*overflow-x:\s*clip/.test(PAGES_CSS)
+  && /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]{0,600}?animation:\s*none\s*!important/.test(PAGES_CSS)
+  && /prefers-reduced-motion/.test(PAGES_JS));
+check("صفحات کوتاه: اسکریپت بی‌وابستگی است و بدون IntersectionObserver دست به DOM نمی‌زند",
+  !/https?:\/\//.test(PAGES_JS) && !/\bimport\s/.test(PAGES_JS)
+  && /"IntersectionObserver" in win/.test(PAGES_JS) && /"pg-reveal"/.test(PAGES_JS)
+  && /"pg-in"/.test(PAGES_JS) && /Math\.min\(i \* groups\[g\]\[1\], 0\.3\)/.test(PAGES_JS));
+check("صفحات کوتاه: CSS متوازن است",
+  (PAGES_CSS.match(/\{/g) || []).length === (PAGES_CSS.match(/\}/g) || []).length);
 
 const revenue = readRepo("REVENUE_FA.md");
 check("پلی‌بوک درآمد وجود دارد و موتورهای واقعی را نام می‌برد",
