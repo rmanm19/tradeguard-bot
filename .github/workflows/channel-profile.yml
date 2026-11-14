@@ -90,6 +90,8 @@ jobs:
           APPLY: ${{ inputs.apply }}
           FORCE: ${{ inputs.force }}
           MINI_APP_URL: ${{ secrets.MINI_APP_URL }}
+          PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+          PUBLIC_CHANNEL_EN_ID: ${{ secrets.PUBLIC_CHANNEL_EN_ID }}
         run: |
           set +e
           set -o pipefail
