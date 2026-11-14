@@ -1030,6 +1030,48 @@ check("اسکریپت پروفایل بدون توکن خطا می‌دهد و �
 check("کد قفل‌شدن روی یوزرنیم در راهنما ذکر شده (Bot API نمی‌تواند عوض کند)",
       "یوزرنیم" in _cp.__doc__, _cp.__doc__[:60])
 
+print("\n۹٫۱۴) پروفایل خودکار کانال انگلیسی در استارت‌آپ")
+bot.PUBLIC_CHANNEL_ID = ""
+bot.PUBLIC_CHANNEL_EN = "@testchannel_en"
+bot.ADMIN_USER_ID = str(USER)
+CHAT_STATE.update({"pinned_message": None, "description": "", "photo": None})
+_auto_ups = []
+_auto_photo = bot.tg_set_chat_photo
+bot.tg_set_chat_photo = lambda cid, path: (_auto_ups.append(cid) or {"ok": True})
+_posts.clear()
+bot._auto_en_channel_profile_once()
+check("استارت‌آپ، عکس پروفایل کانال انگلیسی را ست می‌کند",
+      _auto_ups == ["@testchannel_en"], str(_auto_ups))
+check("استارت‌آپ، پیام خوش‌آمد انگلیسی را در کانال می‌فرستد",
+      any(pp[0] == "@testchannel_en" for pp in _posts), str([pp[0] for pp in _posts]))
+check("استارت‌آپ، گزارش تکمیل پروفایل را به ادمین می‌دهد",
+      any("پروفایل کانال انگلیسی" in pp[1] for pp in _posts), str(_posts[-1:])[:120])
+check("پیام خوش‌آمد داخل کانال انگلیسی هیچ حرف فارسی ندارد",
+      all(not _fa_re.search(pp[1]) for pp in _posts if pp[0] == "@testchannel_en"),
+      str([pp[1][:40] for pp in _posts if pp[0] == "@testchannel_en"]))
+
+_real_tg_call = bot.tg_call
+
+
+def _failing_call(method_name, payload=None, timeout=15.0):
+    if method_name == "getChat":
+        return {"ok": False, "description": "Bad Request: chat not found"}
+    return _real_tg_call(method_name, payload, timeout)
+
+
+bot.tg_call = _failing_call
+_posts.clear()
+bot._auto_en_channel_profile_once()
+check("یوزرنیم عوض‌شده، هشدار مشخص به ادمین می‌دهد",
+      any("کانال انگلیسی در دسترس نیست" in pp[1] for pp in _posts), str(_posts[-1:])[:140])
+check("هشدار، دستور درست را پیشنهاد می‌دهد",
+      any("/channelen @new_username" in pp[1] for pp in _posts), str(_posts[-1:])[:160])
+bot.tg_call = _real_tg_call
+bot.tg_set_chat_photo = _auto_photo
+bot.PUBLIC_CHANNEL_EN = ""
+bot.ADMIN_USER_ID = ""
+CHAT_STATE.update({"pinned_message": {"message_id": 42}, "description": "", "photo": None})
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

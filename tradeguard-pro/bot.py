@@ -4125,6 +4125,41 @@ def auto_channel_profile_once() -> None:
             logger.info("🧾 پروفایل کانال از قبل کامل بود.")
     except Exception as exc:
         logger.warning("تکمیل خودکار پروفایل کانال ناموفق: %s", exc)
+    _auto_en_channel_profile_once()
+
+
+def _auto_en_channel_profile_once() -> None:
+    """همان کار برای کانال انگلیسی + هشدار اگر یوزرنیم عوض شده باشد.
+
+    اگر مالک یوزرنیم کانال را تغییر بدهد، آیدی ذخیره‌شده دیگر resolve نمی‌شود؛
+    این تابع در استارت‌آپ دقیقاً همان را به ادمین می‌گوید تا با یک دستور
+    (`/channelen @new`) درست شود، به‌جای اینکه پست‌های انگلیسی بی‌صدا شکست بخورند.
+    """
+    if not PUBLIC_CHANNEL_EN:
+        return
+    try:
+        ok_en, detail = validate_target(PUBLIC_CHANNEL_EN)
+        if not ok_en:
+            logger.warning("کانال انگلیسی تأیید نشد: %s", detail)
+            if ADMIN_USER_ID:
+                tg_send_message(
+                    int(ADMIN_USER_ID),
+                    f"⚠️ *کانال انگلیسی در دسترس نیست*\n\n`{PUBLIC_CHANNEL_EN}` — {detail}\n\n"
+                    "اگر یوزرنیم کانال را عوض کرده‌اید، با دستور زیر دوباره وصلش کنید:\n"
+                    "`/channelen @new_username`",
+                )
+            return
+        filled = complete_en_channel_profile()
+        if filled:
+            logger.info("🌍 پروفایل کانال انگلیسی کامل شد: %s", " · ".join(filled))
+            if ADMIN_USER_ID:
+                tg_send_message(
+                    int(ADMIN_USER_ID),
+                    "🌍 *پروفایل کانال انگلیسی خودکار تکمیل شد*\n\n" + "\n".join(filled)
+                    + "\n\nبرای بازبینی: `/channelen`",
+                )
+    except Exception as exc:
+        logger.warning("تکمیل خودکار پروفایل کانال انگلیسی ناموفق: %s", exc)
 
 
 def auto_channel_loop() -> None:
