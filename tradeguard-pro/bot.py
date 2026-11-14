@@ -5635,6 +5635,14 @@ def income_report(window_days: int = 30) -> str:
         f"🎁 دورهٔ رایگان: {free_line}",
         f"🧮 سقف بالقوهٔ ماهانه با همین قیمت و همین کاربران فعال: *${potential_mrr:,.2f}*",
     ]
+    # تاریخ اولین درآمد واقعی (ثبت‌شده در همان لحظه) — لنگر مقایسهٔ ماه بعد
+    try:
+        _first_at = str(get_setting("first_income_at", "") or "")
+        if _first_at.isdigit() and int(_first_at) > 0:
+            lines.append(f"🎯 اولین درآمد: `{_utc_date(int(_first_at))}` — از آن روز تا حالا "
+                         f"*{total_pay}* پرداخت")
+    except Exception:
+        pass
 
     if by_source:
         lines += ["", "*درآمد به تفکیک منبع (کدام کانال/شریک پول آورد)*"]

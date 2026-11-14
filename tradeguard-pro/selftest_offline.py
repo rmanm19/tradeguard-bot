@@ -1785,6 +1785,10 @@ check("تاریخ اولین درآمد ذخیره می‌شود",
       (bot.get_setting("first_income_at") or "").isdigit(), bot.get_setting("first_income_at"))
 _clear_sent()
 check("پیام اولین درآمد دوباره تکرار نمی‌شود", bot.maybe_announce_first_income() is False)
+_inc_first = bot.income_report(30)
+check("گزارش درآمد تاریخ اولین درآمد را نشان می‌دهد",
+      "اولین درآمد" in _inc_first and bot._utc_date(int(bot.get_setting("first_income_at"))) in _inc_first,
+      _inc_first[-160:])
 
 # ── پایان دورهٔ رایگان: یک‌بار به ادمین، با تاریخ واقعی ──
 with _sq.connect(bot.DB_PATH) as _c:
