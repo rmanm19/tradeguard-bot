@@ -1,0 +1,243 @@
+/* ============================================================================
+   TradeGuard — pages.css  (v1.0)  ·  «فضای صفحات کوتاه»
+   ----------------------------------------------------------------------------
+   لایهٔ مشترک برای صفحه‌های جمع‌وجور (join / p / press / business) که هر کدام
+   استایل درونی خودشان را دارند. این فایل بعد از <style> همان صفحه می‌آید و
+   فقط ظاهر را عوض می‌کند:
+     • آسمان ستاره‌دار + سحابی (CSS خالص، بدون تصویر)
+     • تیتر گرادیانی، تیتر دوم با نقطهٔ نئونی، شیشهٔ کارت‌ها، دکمهٔ درخشان
+     • ورود پله‌ای با اسکرول (کلاس را pages.js می‌گذارد)
+   چیدمان، اندازه‌ها و رسپانسیو همان استایل خودِ صفحه می‌مانَد.
+   ============================================================================ */
+
+:root {
+  --pg-void: #04060c;
+  --pg-cyan: #22d3ee;
+  --pg-mint: #38e0b2;
+  --pg-violet: #7b5cff;
+  --pg-edge: rgba(255, 255, 255, .085);
+  --pg-glass: rgba(9, 16, 26, .66);
+  --pg-lift: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 24px 50px -30px rgba(0, 0, 0, .95);
+  --pg-ease: cubic-bezier(.22, .9, .24, 1);
+}
+
+/* هیچ لبه‌ای نوار افقی نسازد (این صفحه‌ها هدر چسبان ندارند) */
+html { color-scheme: dark; }
+html, body { overflow-x: clip; }
+
+body {
+  background:
+    radial-gradient(120% 62% at 50% -10%, #0c1b2c 0%, #07101b 46%, var(--pg-void) 100%);
+  color: #dceaf2;
+}
+
+/* ---------------------------------------------------------------- ۱) آسمان */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(44% 34% at 80% -8%, rgba(123, 92, 255, .22), transparent 70%),
+    radial-gradient(52% 40% at 10% 6%, rgba(34, 211, 238, .16), transparent 72%),
+    radial-gradient(48% 38% at 50% 106%, rgba(56, 224, 178, .13), transparent 74%);
+  animation: pgNeb 26s ease-in-out infinite alternate;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .8;
+  background-image:
+    radial-gradient(1.5px 1.5px at 14% 22%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 62% 34%, #dff6ff, transparent),
+    radial-gradient(1.8px 1.8px at 78% 12%, #eafdff, transparent),
+    radial-gradient(1.1px 1.1px at 32% 68%, #fff, transparent);
+  background-size: 260px 260px, 340px 340px, 420px 420px, 210px 210px;
+  animation: pgTwinkle 7s ease-in-out infinite alternate;
+}
+@keyframes pgNeb {
+  from { opacity: .78; transform: scale(1); }
+  to   { opacity: 1; transform: scale(1.06); }
+}
+@keyframes pgTwinkle {
+  from { opacity: .58; }
+  to   { opacity: .92; }
+}
+
+/* همهٔ محتوا بالای آسمان */
+.wrap,
+main,
+header,
+footer { position: relative; z-index: 1; }
+
+/* ----------------------------------------------------------- ۲) تیتر و متن */
+h1 {
+  color: #f2f8ff;
+  font-size: clamp(23px, 5.2vw, 29px);
+  line-height: 1.45;
+  letter-spacing: -.2px;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  h1 {
+    background-image: linear-gradient(180deg, #fbfeff 0%, #dce9ff 62%, #b9cdf4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  h1 em {
+    background-image: linear-gradient(100deg, #3ef0c4 0%, #5ce4f5 52%, #9d8bff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+h1 em { font-style: normal; }
+
+/* نقطهٔ نئونی پیش از هر تیتر دوم */
+h2::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-inline-end: 9px;
+  vertical-align: middle;
+  background: linear-gradient(140deg, var(--pg-mint), var(--pg-cyan));
+  box-shadow: 0 0 12px rgba(56, 224, 178, .8);
+}
+.live h2::before { content: none; }
+
+.lede,
+.lead { color: #a6c3c6; }
+
+/* -------------------------------------------------------------- ۳) شیشه */
+.row,
+.plan,
+.card,
+.item,
+.stat,
+.free,
+.code,
+.live > div,
+.funnel span,
+.ghost a,
+.buttons a.ghost {
+  background-color: var(--pg-glass);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 46%);
+  border-color: var(--pg-edge);
+  box-shadow: var(--pg-lift);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* کارت‌های بزرگ‌تر: کمی درخشان‌تر */
+.card { box-shadow: var(--pg-lift), 0 0 70px -50px rgba(56, 224, 178, .8); }
+
+/* جدول‌ها (press) */
+table { background-color: rgba(9, 16, 26, .42); }
+th,
+td { border-bottom-color: rgba(255, 255, 255, .07); }
+
+/* نقل‌قول/جعبهٔ متن (press) */
+.boiler {
+  background-color: rgba(56, 224, 178, .06);
+  border-inline-end-color: rgba(56, 224, 178, .55);
+  box-shadow: var(--pg-lift);
+}
+
+/* ------------------------------------------------------- ۴) دکمهٔ درخشان */
+.cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #4befc4 0%, #1cb193 58%, #14806e 100%);
+  box-shadow:
+    0 16px 38px -18px rgba(56, 224, 178, .9),
+    0 1px 0 rgba(255, 255, 255, .34) inset;
+  transition: transform .25s var(--pg-ease), box-shadow .25s var(--pg-ease);
+}
+.cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 18%, rgba(255, 255, 255, .55) 50%, transparent 82%);
+  translate: -130% 0;
+}
+@media (hover: hover) {
+  .cta:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 22px 44px -18px rgba(56, 224, 178, .95),
+      0 1px 0 rgba(255, 255, 255, .38) inset;
+  }
+  .cta:hover::after { animation: pgSheen .95s var(--pg-ease); }
+}
+@keyframes pgSheen {
+  to { translate: 130% 0; }
+}
+
+/* دکمه‌های شبح باید شبح بمانند */
+.cta.ghost,
+.buttons a.ghost {
+  background-image: none;
+  background-color: rgba(255, 255, 255, .04);
+  box-shadow: none;
+}
+.cta.ghost::after { content: none; }
+
+/* نشان‌ها و برچسب‌ها */
+.tag,
+.badge,
+.lang button[aria-pressed="true"] {
+  background: linear-gradient(135deg, #4befc4, #22d3ee);
+  color: #06231d;
+  border-color: transparent;
+  box-shadow: 0 6px 18px -10px rgba(56, 224, 178, .95);
+}
+
+/* آیکون برند: حلقهٔ نئونی */
+.mark {
+  color: var(--pg-mint);
+  box-shadow:
+    0 0 0 1px rgba(56, 224, 178, .28) inset,
+    0 10px 26px -16px rgba(56, 224, 178, .9);
+}
+
+/* فوتر: خط مویی */
+footer { border-top: 1px solid rgba(255, 255, 255, .06); padding-top: 16px; }
+
+/* ------------------------------------------------- ۵) ورود پله‌ای (JS) */
+.pg-reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+}
+.pg-reveal.pg-in {
+  animation: pgRise .6s var(--pg-ease) both;
+  animation-delay: var(--pg-delay, 0s);
+}
+@keyframes pgRise {
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.995); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------- ۶) رسپانسیو */
+@media (max-width: 520px) {
+  body::after { opacity: .55; }
+  h1 { line-height: 1.5; }
+}
+
+/* --------------------------------------------------- ۷) کاهش حرکت */
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after,
+  .cta::after,
+  .pg-reveal.pg-in {
+    animation: none !important;
+  }
+  .pg-reveal { opacity: 1; transform: none; }
+  .cta { transition: none; }
+}
