@@ -21,6 +21,7 @@ import { execFileSync } from "node:child_process";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
+const readRepo = (f) => fs.readFileSync(path.join(ROOT, "..", f), "utf8");
 
 let fails = 0;
 function check(name, cond, detail = "") {
@@ -227,6 +228,23 @@ check("هر دو صفحه به هم لینک می‌دهند",
 const siteHtml = read("index.html");
 check("فوتر صفحهٔ اصلی به B2B و API لینک می‌دهد",
   /href="business\.html"/.test(siteHtml) && /href="api\/index\.html"/.test(siteHtml));
+/* ── ۹) کیت همکاری با بروکر/صرافی ─────────────────────────────── */
+const kitPath = path.join(ROOT, "..", "PARTNER_KIT_FA.md");
+const kit = fs.existsSync(kitPath) ? fs.readFileSync(kitPath, "utf8") : "";
+check("کیت همکاری شریک وجود دارد", kit.length > 3000, String(kit.length));
+check("کیت، فرم واقعی partners.json را نشان می‌دهد",
+  /partners\.json/.test(kit) && /"id": "okx"/.test(kit) && /"url":/.test(kit));
+check("کیت محدودیت واقعی کد منبع را می‌گوید (p_ + ۲۴ کاراکتر)",
+  /p_<id>/.test(kit) && /24/.test(kit));
+check("کیت شِمای postback با tg_id و KYC/FTD دارد",
+  /"tg_id"/.test(kit) && /"event": "ftd"/.test(kit) && /HMAC/.test(kit));
+check("کیت ادعای سود تضمینی یا فالوور فیک نمی‌فروشد",
+  /سود تضمینی/.test(kit) && /فالوور فیک|ترافیک «تضمینی»/.test(kit));
+check("کیت، روش بررسی اعداد را به شریک می‌دهد (stats.json و /biz)",
+  /api\/stats\.json/.test(kit) && /\/biz/.test(kit));
+check("کیت متن آمادهٔ ایمیل و پیام فارسی دارد", /Subject:/.test(kit) && /پیام فارسی/.test(kit));
+check("README به کیت همکاری اشاره می‌کند", /PARTNER_KIT_FA\.md/.test(readRepo("README.md")));
+
 check("بنرهای تبلیغاتی ساخته شده‌اند",
   ["ad_radar", "ad_risk", "ad_reward"].every((n) => fs.existsSync(path.join(ROOT, "assets", "ads", n + ".png"))));
 
