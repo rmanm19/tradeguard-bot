@@ -898,7 +898,16 @@ def save_pro_status(data: dict) -> bool:
 # ---------------------------------------------------------------------
 #  فید عمومی داده (برای توسعه‌دهنده‌ها، ربات‌های دیگر و شرکا)
 # ---------------------------------------------------------------------
-PUBLIC_FEED_DIR = Path(os.environ.get("PUBLIC_FEED_DIR") or (REPO_ROOT / "docs" / "api"))
+def resolve_repo_path(value: str, default: Path) -> Path:
+    """مسیر نسبی env را نسبت به ریشهٔ ریپو حل می‌کند (نه نسبت به cwd)."""
+    raw = str(value or "").strip()
+    if not raw:
+        return default
+    p = Path(raw)
+    return p if p.is_absolute() else (REPO_ROOT / p)
+
+
+PUBLIC_FEED_DIR = resolve_repo_path(os.environ.get("PUBLIC_FEED_DIR", ""), REPO_ROOT / "docs" / "api")
 # حداقل فاصلهٔ دو انتشار (ثانیه) — پیش‌فرض ۳۰ دقیقه تا تاریخچهٔ گیت شلوغ نشود
 PUBLIC_FEED_MIN_INTERVAL = int(os.environ.get("PUBLIC_FEED_MIN_INTERVAL", "1800"))
 
@@ -982,6 +991,7 @@ def publish_public_feed(rates: Optional[List[Dict]] = None, force: bool = False)
             logger.info("فید عمومی نوشته نشد: دادهٔ زنده در دسترس نیست")
             return None
         PUBLIC_FEED_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info("فید عمومی در %s نوشته می‌شود", PUBLIC_FEED_DIR)
         stamp = feed["generated_at"]
         _st = public_feed_stats()
         stats = {
