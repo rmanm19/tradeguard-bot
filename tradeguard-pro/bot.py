@@ -944,13 +944,17 @@ def build_public_feed(rates: List[Dict]) -> Optional[Dict]:
     fng_val, fng_lbl = fetch_fear_greed()
     rows = []
     for r in rates[:20]:
-        rows.append({
+        rate = float(r.get("rate_pct") or 0)
+        row = {
             "symbol": r.get("sym"),
-            "funding_pct_8h": round(float(r.get("rate_pct") or 0), 4),
-            "apr_pct": round(abs(float(r.get("rate_pct") or 0)) * 3 * 365, 1),
+            "funding_pct_8h": round(rate, 4),
+            # علامت APR حفظ می‌شود: منفی = شورت‌ها به لانگ‌ها می‌پردازند
+            "apr_pct": round(rate * 3 * 365, 1),
             "oi_usd_m": round(float(r.get("oi_m") or 0), 2),
-            "mark_price": r.get("price"),
-        })
+        }
+        if r.get("price"):
+            row["mark_price"] = r.get("price")
+        rows.append(row)
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "live": True,
