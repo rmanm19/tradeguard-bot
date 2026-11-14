@@ -266,10 +266,10 @@ def main() -> int:
     chat = info.get("result") or {}
     cur = describe(chat)
     print("📋 وضعیت فعلی:")
-    print(f"   • عنوان: {cur['title']}")
-    print(f"   • یوزرنیم: @{cur['username']}" if cur["username"] else "   • یوزرنیم: — (خصوصی)")
-    print(f"   • توضیحات: {cur['desc_len']} کاراکتر")
-    print(f"   • عکس: {'✅' if cur['has_photo'] else '❌'} · پین: {'✅' if cur['has_pin'] else '❌'}")
+    print(f"::notice::وضعیت فعلی · عنوان: {cur['title']}")
+    print(f"::notice::وضعیت فعلی · یوزرنیم: @{cur['username']}" if cur["username"] else "   • یوزرنیم: — (خصوصی)")
+    print(f"::notice::وضعیت فعلی · توضیحات: {cur['desc_len']} کاراکتر")
+    print(f"::notice::وضعیت فعلی · عکس: {'YES' if cur['has_photo'] else 'NO'} · پین: {'YES' if cur['has_pin'] else 'NO'}")
 
     me = api("getChatMember", {"chat_id": channel, "user_id": (api("getMe", {}, token).get("result") or {}).get("id")}, token)
     member = (me.get("result") or {}) if me.get("ok") else {}
@@ -277,7 +277,7 @@ def main() -> int:
     can_info = bool(member.get("can_change_info"))
     can_pin = bool(member.get("can_pin_messages"))
     can_post = bool(member.get("can_post_messages"))
-    print(f"👤 دسترسی ربات: {rights} · تغییر اطلاعات: {'✅' if can_info else '❌'}"
+    print(f"::notice::دسترسی ربات: {rights} · تغییر اطلاعات: {'YES' if can_info else 'NO'}"
           f" · پین: {'✅' if can_pin else '❌'} · ارسال: {'✅' if can_post else '❌'}")
 
     if rights not in ("administrator", "creator"):
@@ -332,7 +332,7 @@ def main() -> int:
     print("\n🧾 نتیجه:")
     failed = 0
     for label, ok, detail in results:
-        print(f"   {'✅' if ok else '❌'} {label}" + (f" — {detail}" if detail else ""))
+        print(f"::notice::{'OK' if ok else 'FAIL'} {label}" + (f" — {detail}" if detail else ""))
         if not ok:
             failed += 1
 
@@ -344,11 +344,11 @@ def main() -> int:
 
     after = describe((api("getChat", {"chat_id": channel}, token).get("result") or {}))
     print("\n📋 وضعیت بعد از تغییر:")
-    print(f"   • عنوان: {after['title']}")
+    print(f"::notice::بعد از تغییر · عنوان: {after['title']}")
     print(f"   • یوزرنیم: @{after['username']}" if after["username"] else "   • یوزرنیم: — (خصوصی)")
-    print(f"   • توضیحات: {after['desc_len']} کاراکتر")
-    print(f"   • عکس: {'✅' if after['has_photo'] else '❌'} · پین: {'✅' if after['has_pin'] else '❌'}")
-    print(f"   • لینک عمومی: https://t.me/{after['username']}" if after["username"] else "")
+    print(f"::notice::بعد از تغییر · توضیحات: {after['desc_len']} کاراکتر")
+    print(f"::notice::بعد از تغییر · عکس: {'YES' if after['has_photo'] else 'NO'} · پین: {'YES' if after['has_pin'] else 'NO'}")
+    print(f"::notice::لینک عمومی: https://t.me/{after['username']}" if after["username"] else "")
     print("\n🔗 یوزرنیم کانال را فقط Bot API نمی‌تواند عوض کند؛ آن را مالک در تلگرام ست می‌کند.")
     return 1 if failed else 0
 
