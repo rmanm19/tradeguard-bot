@@ -338,19 +338,24 @@ GitHub در هر گروه همیشه **یک جاب در حال اجرا + یک �
 | ۱ | [console.cloud.google.com](https://console.cloud.google.com/) → پروژهٔ تازه |
 | ۲ | APIs & Services → **OAuth consent screen** → نوع *External* → اسکوپ‌ها: `openid`، `email`، `profile` |
 | ۳ | Credentials → **Create credentials** → *OAuth client ID* → نوع **TVs and Limited Input devices** |
-| ۴ | در تلگرام: `/google id <CLIENT_ID>` و `/google secret <CLIENT_SECRET>` |
-| ۵ | اختیاری: `/google days 30` (۰ = فقط نشان تأیید، بدون پاداش) · `/google` = وضعیت |
+| ۴ | در تلگرام: `/google id <CLIENT_ID>` و `/google secret <CLIENT_SECRET>` — یا همان دو مقدار در GitHub Secrets |
+| ۵ | `/google test` ← یک تماس **واقعی** با گوگل؛ دقیقاً می‌گوید کلیدها و *نوع کلاینت* درست‌اند یا نه |
+| ۶ | اختیاری: `/google days 30` (۰ = فقط نشان تأیید، بدون پاداش) · `/google` = وضعیت |
 
-> Secret را می‌توانی در GitHub Secrets هم بگذاری (`GOOGLE_CLIENT_ID`،
-> `GOOGLE_CLIENT_SECRET`). آن‌ها **اولویت** دارند. اگر در تلگرام بگذاری، ربات همان
-> پیام را پاک می‌کند تا در تاریخچهٔ چت نماند؛ ولی بدان که مقدارش در دیتابیس
-> (فایل رمزنگاری‌شده در Actions Cache) هم ذخیره می‌شود.
+> Secret را می‌توانی در GitHub Secrets بگذاری (`GOOGLE_CLIENT_ID`،
+> `GOOGLE_CLIENT_SECRET`). آن‌ها **اولویت** دارند و ورک‌فلو هر دو را به env ربات
+> می‌دهد. اگر در تلگرام بگذاری، ربات همان پیام را پاک می‌کند تا در تاریخچهٔ چت
+> نماند؛ ولی بدان که مقدارش در دیتابیس (فایل رمزنگاری‌شده در Actions Cache) هم
+> ذخیره می‌شود.
+
+راهنمای گام‌به‌گام با اسکرین‌شات‌های متنی و جدول خطاها: **[GOOGLE_LOGIN_FA.md](GOOGLE_LOGIN_FA.md)**.
 
 ### دستورها
 
 | دستور | کار |
 |---|---|
 | `/login` | شروع ورود با گوگل (کد + لینک + انتظار تا تأیید) |
+| `/google test` | تست واقعی کلیدهای گوگل (ادمین) — `invalid_client` / `invalid_scope` / `network` را ترجمه می‌کند |
 | `/logout` | قطع اتصال (پرمیومِ داده‌شده پس گرفته نمی‌شود) |
 | `/jadd BTC long 65000 63500 69000 50` | ثبت ستاپ: نماد، جهت، ورود، حد ضرر، هدف، ریسک $ |
 | `/jclose 12 68400` | بستن و محاسبهٔ **R واقعی** (۱R = فاصلهٔ ورود تا حد ضرر) |

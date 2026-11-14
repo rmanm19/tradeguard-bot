@@ -158,6 +158,7 @@
 | `MINI_APP_URL` | لینک مینی‌اپ (`https://...`) |
 | `AI_API_KEY` / `AI_MODEL` / `AI_API_BASE` | تحلیل AI واقعی (پیش‌فرض: OpenRouter + Gemini Flash). بدون آن هم `/ai` کار می‌کند، فقط تحلیل محلی می‌دهد |
 | `FREE_PRO_INVITE_TARGET` | تعداد دعوت برای پرو رایگان (پیش‌فرض `3`) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | ورود با گوگل (`/login`). بدون آن هم ربات کامل کار می‌کند، فقط `/login` می‌گوید «تنظیم نشده». راهنما: [GOOGLE_LOGIN_FA.md](GOOGLE_LOGIN_FA.md) — بعد از ست کردن، `/google test` را بزنید |
 
 ---
 

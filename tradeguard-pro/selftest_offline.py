@@ -2156,6 +2156,7 @@ bot.handle_message(msg("/google"))
 _g = _last_post()
 check("/google برای ادمین وضعیت کلیدها را می‌دهد", "Client ID" in _g and "30" in _g, _g[:160])
 check("/google هرگز Secret را برنمی‌گرداند", "GOCSPX-fake-secret-for-tests" not in _g)
+check("/google دستور تستِ کلیدها را هم نشان می‌دهد", "/google test" in _g, _g[:200])
 bot.handle_message(msg("/google days 0"))
 check("/google days پاداش را خاموش می‌کند", bot.auth_grant_days() == 0)
 bot.handle_message(msg("/google days 30"))
@@ -2172,7 +2173,75 @@ check("/google secret پیام حاوی کلید را پاک می‌کند (تا
 bot.handle_message(msg("/google id 999999-xyz.apps.googleusercontent.com"))
 check("/google id مقدار درست را ذخیره می‌کند",
       bot.get_setting("GOOGLE_CLIENT_ID") == "999999-xyz.apps.googleusercontent.com")
+
+# ── /google test: تست واقعی کلیدها با پاسخ‌های مختلف گوگل ─────────────
+_old_http_preflight = bot._http_json
+_preflight_calls = []
+
+
+def _preflight(payload):
+    def _f(url, form=None, timeout=15.0):
+        _preflight_calls.append((url, dict(form or {})))
+        return payload
+    return _f
+
+
+bot.ADMIN_USER_ID = str(USER)
+bot._http_json = _preflight({"device_code": "dc-1", "user_code": "WXYZ-1234", "expires_in": 1800})
+bot.handle_message(msg("/google test"))
+_t = _last_post()
+check("/google test با کلید درست تأیید می‌کند و اسکوپ را نشان می‌دهد",
+      "کلیدها درست" in _t and "openid email" in _t, _t[:180])
+check("/google test فقط client_id و scope می‌فرستد و Secret را لو نمی‌دهد",
+      bool(_preflight_calls)
+      and set(_preflight_calls[0][1]) == {"client_id", "scope"}
+      and "GOCSPX" not in str(_preflight_calls), str(_preflight_calls[:1]))
+
+bot._http_json = _preflight({"error": "invalid_client",
+                             "error_description": "Unauthorized"})
+bot.handle_message(msg("/google test"))
+_t = _last_post()
+check("/google test خطای invalid_client را به «نوع کلاینت» ترجمه می‌کند",
+      "invalid_client" in _t and "TVs and Limited Input" in _t, _t[:220])
+
+bot._http_json = _preflight({"error": "invalid_scope"})
+bot.handle_message(msg("/google test"))
+check("/google test خطای invalid_scope را به «اسکوپ تأیید نشده» ترجمه می‌کند",
+      "اسکوپ" in _last_post(), _last_post()[:160])
+
+bot._http_json = _preflight({"error": "network: timed out"})
+bot.handle_message(msg("/google test"))
+check("/google test خطای شبکه را می‌فهمد و راهنمای دوباره‌تست می‌دهد",
+      "دسترسی" in _last_post(), _last_post()[:160])
+
+bot.set_setting("GOOGLE_CLIENT_SECRET", "")
+bot.handle_message(msg("/google test"))
+check("/google test نبودِ Secret را صریح می‌گوید", "Client Secret نیست" in _last_post(),
+      _last_post()[:160])
+bot.set_setting("GOOGLE_CLIENT_SECRET", "GOCSPX-fake-secret-for-tests")
+
+bot.set_setting("GOOGLE_CLIENT_ID", "")
+bot.handle_message(msg("/google test"))
+check("/google test نبودِ Client ID را جدا می‌گوید", "Client ID نیست" in _last_post(),
+      _last_post()[:160])
+
+bot.set_setting("GOOGLE_CLIENT_SECRET", "")
+bot.handle_message(msg("/google test"))
+check("/google test بدون هیچ کلیدی راهنمای تنظیم می‌دهد", "هنوز هیچ کلیدی" in _last_post(),
+      _last_post()[:160])
+
+bot.set_setting("GOOGLE_CLIENT_ID", "999999-xyz.apps.googleusercontent.com")
+bot.set_setting("GOOGLE_CLIENT_SECRET", "GOCSPX-fake-secret-for-tests")
+bot._http_json = _old_http_preflight
 bot.ADMIN_USER_ID = ""
+
+# ── استقرار: ورک‌فلو باید کلیدهای گوگل را به ربات برساند ─────────────
+_wf = (bot.REPO_ROOT / ".github" / "workflows" / "bot.yml").read_text(encoding="utf-8")
+check("ورک‌فلو هر دو Secret گوگل را به env ربات می‌دهد",
+      "GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}" in _wf
+      and "GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}" in _wf)
+check("راهنمای راه‌اندازی ورود با گوگل در ریپو هست",
+      (bot.REPO_ROOT / "GOOGLE_LOGIN_FA.md").exists())
 
 print("\n" + "─" * 46)
 if FAILS:

@@ -2830,6 +2830,69 @@ def google_client_config() -> Tuple[str, str, str]:
     return cid, secret, source
 
 
+def google_preflight() -> Tuple[bool, str]:
+    """تست واقعیِ کلیدها: یک تماس با endpoint دستگاه گوگل.
+
+    چرا لازم است؟ بدون این، ادمین فقط وقتی می‌فهمد کلید اشتباه است که یک
+    کاربر `/login` بزند و خطا بخورد. این تابع همان مسیر را با همان کلیدها
+    طی می‌کند و پاسخ گوگل را ترجمه می‌کند. کدِ دستگاهی که گوگل می‌دهد دور
+    ریخته می‌شود، پس هیچ نشستِ نیمه‌کاری برای کاربر باز نمی‌ماند.
+    """
+    cid, secret, src = google_client_config()
+    if not cid and not secret:
+        return False, (
+            "⚠️ *هنوز هیچ کلیدی ست نشده.*\n\n"
+            "`/google id <CLIENT_ID>` و `/google secret <CLIENT_SECRET>` — "
+            "یا در GitHub Secrets با نام‌های `GOOGLE_CLIENT_ID` و "
+            "`GOOGLE_CLIENT_SECRET` (Secretهای گیت‌هاب اولویت دارند)."
+        )
+    if not cid:
+        return False, "⚠️ Client ID نیست. `/google id <CLIENT_ID>` را بزن."
+    if not secret:
+        return False, (
+            "⚠️ Client Secret نیست. `/google secret <SECRET>` را بزن — "
+            "بدون آن، تعویض کدِ گوگل با توکن انجام نمی‌شود."
+        )
+    resp = _http_json(GOOGLE_DEVICE_URL, {"client_id": cid, "scope": GOOGLE_SCOPE})
+    if resp.get("device_code") and resp.get("user_code"):
+        try:
+            ttl = max(60, int(resp.get("expires_in") or 1800)) // 60
+        except Exception:
+            ttl = 30
+        return True, (
+            "✅ *کلیدها درست‌اند.*\n\n"
+            f"منبع کلید: *{src or '—'}*\n"
+            f"اسکوپ: `{GOOGLE_SCOPE}`\n"
+            f"گوگل کد دستگاه داد (تا {ttl} دقیقه معتبر) — یعنی نوع کلاینت "
+            "«TVs and Limited Input devices» است.\n\n"
+            "حالا `/login` را بزن و کل مسیر را از دید کاربر یک‌بار ببین."
+        )
+    err = str(resp.get("error") or "unknown")
+    detail = str(resp.get("error_description") or "").strip()[:200]
+    hints = {
+        "invalid_client": "Client ID با Secret نمی‌خوانَد، یا نوع کلاینت "
+                          "«TVs and Limited Input devices» نیست.",
+        "unauthorized_client": "این کلاینت اجازهٔ Device Flow ندارد؛ نوعش باید "
+                               "«TVs and Limited Input devices» باشد.",
+        "invalid_scope": "اسکوپ‌های `email` و `openid` در OAuth consent screen "
+                         "تأیید نشده‌اند.",
+        "invalid_request": "درخواست ناقص بود؛ Client ID را دوباره از کنسول کپی کن.",
+        "access_denied": "پروژه به Device Flow دسترسی ندارد؛ OAuth consent screen "
+                         "را از نوع External چک کن.",
+        "bad_json": "پاسخ گوگل قابل خواندن نبود؛ دوباره تست کن.",
+    }
+    hint = hints.get(err, "")
+    if err.startswith("network:"):
+        hint = "از سرور ربات به Google دسترسی نبود؛ چند دقیقه بعد دوباره تست کن."
+    text = f"❌ *کلیدها کار نکردند* (`{err}`)"
+    if detail:
+        text += f"\n\n`{detail}`"
+    if hint:
+        text += f"\n\n💡 {hint}"
+    text += "\n\nراهنمای قدم‌به‌قدم: `/google`"
+    return False, text
+
+
 def auth_grant_days() -> int:
     """چند روز پرو با تأیید حساب؟ (۰ = فقط نشان تأیید، بدون پاداش)"""
     raw = get_setting("AUTH_GRANT_DAYS")
@@ -2987,7 +3050,8 @@ def start_google_auth(user_id: int, chat_id: int) -> Tuple[bool, str]:
             hint = "\n\nنکته: نوع کلاینت باید «TVs and Limited Input devices» باشد و Client ID درست وارد شده باشد."
         elif "invalid_scope" in err:
             hint = "\n\nنکته: در OAuth consent screen اسکوپ‌های email/openid را اضافه کن."
-        return False, f"⚠️ گوگل کد نداد (`{err}`).{hint}"
+        return False, (f"⚠️ گوگل کد نداد (`{err}`).{hint}\n\n"
+                       "ادمین می‌تواند با `/google test` علت دقیق را ببیند.")
     try:
         interval = max(5, int(resp.get("interval") or 5))
     except Exception:
@@ -4353,6 +4417,7 @@ def handle_message(msg: dict) -> None:
                 "تنظیم:\n"
                 "`/google id <CLIENT_ID>`\n"
                 "`/google secret <CLIENT_SECRET>`\n"
+                "`/google test` ← کلیدها را واقعاً تست می‌کند\n"
                 "`/google days 30`\n\n"
                 "Secret را همین‌جا می‌گذاری یا در GitHub Secrets با نام‌های "
                 "`GOOGLE_CLIENT_ID` و `GOOGLE_CLIENT_SECRET` — Secretهای گیت‌هاب اولویت دارند.",
@@ -4375,6 +4440,11 @@ def handle_message(msg: dict) -> None:
             # پیام کاربر پاک‌سازی می‌شود تا Secret در تاریخچهٔ چت نماند
             delete_message_safe(chat_id, msg.get("message_id"))
             tg_send_message(chat_id, "✅ Client Secret ذخیره شد (و پیامت پاک شد تا در چت نماند).")
+            return
+        if sub == "test":
+            ok, verdict = google_preflight()
+            logger.info("تست کلیدهای گوگل: %s", "ok" if ok else "fail")
+            tg_send_message(chat_id, verdict)
             return
         if sub == "days":
             if not val.isdigit():
