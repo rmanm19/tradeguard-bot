@@ -183,6 +183,17 @@ check("کلیدهای ژورنال در هر ۶ زبان کامل‌اند", (()
   return i18nKeys.every((k) => (src.match(new RegExp('"' + k + '"', "g")) || []).length >= 6);
 })());
 
+check("کارت استوری ژورنال از آمار واقعی ساخته می‌شود (نه عدد ثابت)",
+  /function drawJournalCard/.test(jrJs) && /jrnStats\(jrnRead\(\)\)/.test(jrJs));
+check("کارت ژورنال با ژورنال خالی ساخته نمی‌شود",
+  /jrShareEmpty/.test(jrJs) && /if \(!jrnStats\(list\)\.closed\)/.test(jrJs));
+check("دانلود کارت ژورنال فایل جدا دارد", /storyMode === "journal" \? "journal"/.test(jrJs));
+check("کلیدهای کارت ژورنال در ۶ زبان هست", (() => {
+  const src = read("i18n.js");
+  return ["jrShare", "jrShareTitle", "jrShareEmpty"].every(
+    (k) => (src.match(new RegExp('"' + k + '"', "g")) || []).length >= 6);
+})());
+
 /* ── ۷٫۶) فاندینگ چند صرافی (آربیتراژ) ─────────────────────── */
 const fxJs = read("static_api.js");
 check("اندپوینت /api/funding-matrix در شیم وجود دارد", /api\/funding-matrix/.test(fxJs));

@@ -1143,16 +1143,95 @@
     ctx.fillText("Telegram Mini-App: @TradeGuard_bot", W / 2, 1045);
   }
 
+  /* کارت استوری ژورنال: آمار واقعی خودِ کاربر — بدون عدد ساختگی */
+  let storyMode = "radar";
+
+  function drawJournalCard() {
+    if (!storyCanvas || typeof storyCanvas.getContext !== "function") return;
+    const ctx = storyCanvas.getContext("2d");
+    if (!ctx) return;
+    const d = t();
+    const s = jrnStats(jrnRead());
+    const W = storyCanvas.width;
+    const H = storyCanvas.height;
+
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "#070D1B");
+    grad.addColorStop(0.55, "#0E1B2E");
+    grad.addColorStop(1, "#081221");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    const glow = ctx.createRadialGradient(W * 0.5, H * 0.3, 10, W * 0.5, H * 0.3, 420);
+    glow.addColorStop(0, "rgba(56, 224, 178, 0.20)");
+    glow.addColorStop(1, "rgba(56, 224, 178, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "rgba(56, 224, 178, 0.45)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(36, 36, W - 72, H - 72);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#8FF0D2";
+    ctx.font = "bold 26px Tahoma, Segoe UI, sans-serif";
+    ctx.fillText(d.jrShareTitle || "TradeGuard Journal", W / 2, 130);
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 96px Tahoma, Segoe UI, sans-serif";
+    ctx.fillText(Math.round(s.discipline) + "%", W / 2, 288);
+
+    ctx.fillStyle = "#8FA2C0";
+    ctx.font = "24px Tahoma, Segoe UI, sans-serif";
+    ctx.fillText(d.jrStatDisc || "Discipline", W / 2, 330);
+
+    const rTxt = (v) => (v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "R");
+    const rows = [
+      [d.jrStatClosed || "Closed", String(s.closed)],
+      [d.jrStatWinRate || "Win rate", s.closed ? s.winRate.toFixed(0) + "%" : "—"],
+      [d.jrStatExp || "Expectancy", rTxt(s.expectancy)],
+      [d.jrStatPF || "Profit factor", s.pf === null ? "—" : s.pf === Infinity ? "∞" : s.pf.toFixed(2)],
+    ];
+    rows.forEach((row, i) => {
+      const y = 430 + i * 104;
+      ctx.fillStyle = "rgba(20, 34, 58, 0.92)";
+      ctx.fillRect(76, y - 46, W - 152, 76);
+      ctx.strokeStyle = "rgba(56, 224, 178, 0.35)";
+      ctx.strokeRect(76, y - 46, W - 152, 76);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#8FA2C0";
+      ctx.font = "24px Tahoma, Segoe UI, sans-serif";
+      ctx.fillText(row[0], 104, y);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 30px Tahoma, Segoe UI, sans-serif";
+      ctx.fillText(row[1], W - 104, y);
+    });
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#7F9797";
+    ctx.font = "20px Tahoma, Segoe UI, sans-serif";
+    ctx.fillText(d.jrNote || "", W / 2, H - 132);
+    ctx.fillStyle = "#38E0B2";
+    ctx.font = "bold 24px Segoe UI, Tahoma, sans-serif";
+    ctx.fillText("@TradeGuard1_bot", W / 2, H - 84);
+  }
+
+  function openStory(mode) {
+    storyMode = mode === "journal" ? "journal" : "radar";
+    try {
+      if (storyMode === "journal") drawJournalCard();
+      else drawStoryCard();
+    } catch (err) {
+      console.warn("[TradeGuard] story card failed:", err);
+    }
+    if (storySheet) storySheet.classList.remove("hidden");
+  }
+
   $("#shareCardBtn")?.addEventListener("click", () => {
     haptic("medium");
     // مرورگرهای بدون پشتیبانی canvas نباید کل اپ را با خطای بدون کنترل بترکانند
-    try {
-      drawStoryCard();
-    } catch (err) {
-      console.warn("[TradeGuard] story card failed:", err);
-      appToast(t().toastStorySaved || "—");
-    }
-    storySheet.classList.remove("hidden");
+    openStory("radar");
   });
 
   $("#storyBack")?.addEventListener("click", () => storySheet.classList.add("hidden"));
@@ -1161,7 +1240,7 @@
     if (!storyCanvas) return;
     try {
       const link = document.createElement("a");
-      link.download = `TradeGuard_${currentLang.toUpperCase()}_${balance}.png`;
+      link.download = `TradeGuard_${storyMode === "journal" ? "journal" : currentLang.toUpperCase()}_${balance}.png`;
       link.href = storyCanvas.toDataURL("image/png");
       link.click();
       appToast(t().toastStorySaved);
@@ -1492,6 +1571,16 @@
       if (act === "loss") jrnUpdate(id, { status: "loss", closed: Date.now(), r: -1 });
       if (act === "be") jrnUpdate(id, { status: "be", closed: Date.now(), r: 0 });
       haptic("light");
+    });
+    $("#jrShareBtn")?.addEventListener("click", () => {
+      const d2 = t();
+      const list = jrnRead();
+      if (!jrnStats(list).closed) {
+        appToast(d2.jrShareEmpty || "Log a trade first");
+        return;
+      }
+      haptic("medium");
+      openStory("journal");
     });
     $("#jrExportBtn")?.addEventListener("click", () => {
       const d = t();
@@ -1979,7 +2068,8 @@
     renderLocalizedAlerts();
     calcFounderProfit();
     if (storySheet && !storySheet.classList.contains("hidden")) {
-      drawStoryCard();
+      if (storyMode === "journal") drawJournalCard();
+      else drawStoryCard();
     }
   }
 
