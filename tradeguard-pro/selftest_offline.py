@@ -15,6 +15,7 @@
 نه به کد.
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -1831,6 +1832,106 @@ check("بازگشت قیمت، دوباره از پیش‌فرض می‌خوان
 bot.FREE_MODE = False
 bot.set_free_mode_until(0)
 bot.ADMIN_USER_ID = _prev_admin
+
+print("\n۱۵) انتشار بدون انتظار: کد جدید در ≤۵ دقیقه زنده می‌شود")
+
+import run_forever as _rf  # noqa: E402  (نگهبان ربات)
+
+# ── هش گیت: مقایسهٔ محتوا با sha برگشتی از API، بدون دانلود فایل ──
+check("هش blob گیت برای محتوای ساده درست است",
+      _rf._git_blob_sha(b"") == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      _rf._git_blob_sha(b""))
+_real_sha = _rf._git_blob_sha((_rf.BASE / "bot.py").read_bytes())
+check("هش blob فایل واقعی ۴۰ کاراکتر hex است",
+      len(_real_sha) == 40 and all(c in "0123456789abcdef" for c in _real_sha), _real_sha)
+
+
+def _fake_gh(files, listing_sha=None, fail=False):
+    """جایگزین شبکه: فهرست پوشه + محتوای فایل‌ها."""
+    calls = []
+
+    def _get(url, env, accept, timeout=10.0):
+        calls.append(url)
+        if fail:
+            raise OSError("شبکه قطع است")
+        if url.endswith("/contents/tradeguard-pro?ref=main"):
+            entries = []
+            for name, body in files.items():
+                sha = (listing_sha or {}).get(name) or _rf._git_blob_sha(body)
+                entries.append({"name": name, "type": "file", "sha": sha})
+            return json.dumps(entries).encode()
+        for name, body in files.items():
+            if url.endswith(f"/contents/tradeguard-pro/{name}?ref=main"):
+                return body
+        raise KeyError(url)
+
+    return _get, calls
+
+
+_ENV_OK = {"GITHUB_TOKEN": "t0ken", "GITHUB_REPOSITORY": "rmanm19/tradeguard-bot"}
+_LIVE = {n: (_rf.BASE / n).read_bytes() for n in ("bot.py", "run_forever.py", "db_crypt.py")}
+
+_get, _calls = _fake_gh(_LIVE)
+_rf._gh_get = _get
+_same = _rf.remote_code_changed(_ENV_OK)
+check("کد یکسان روی main → هیچ ری‌استارتی لازم نیست",
+      _same == (False, []), str(_same))
+check("فقط یک درخواست برای هر بررسی (فهرست پوشه) → سهمیهٔ API نمی‌سوزد",
+      len(_calls) == 1, str(len(_calls)))
+
+_get, _ = _fake_gh(_LIVE, listing_sha={"bot.py": "0" * 40})
+_rf._gh_get = _get
+_changed, _names = _rf.remote_code_changed(_ENV_OK)
+check("sha متفاوت ولی محتوای یکسان (مثلاً CRLF) → ری‌استارت نمی‌شود",
+      _changed is False and _names == [], f"{_changed} {_names}")
+
+_get, _ = _fake_gh({**_LIVE, "bot.py": b"# \xd9\x86\xdb\xaf\xd8\x87\xd9\x94\xd8\xb3\xd9\x84\xd9\x87\xd8\xa7\xd8\xb4\xd9\x94 x = 1\n"})
+_rf._gh_get = _get
+_changed, _names = _rf.remote_code_changed(_ENV_OK)
+check("bot.py روی main عوض شده → به‌روزرسانی لازم است و نامش هم برمی‌گردد",
+      _changed is True and _names == ["bot.py"], f"{_changed} {_names}")
+
+_rf._gh_get, _ = _fake_gh(_LIVE, fail=True)
+check("خطای شبکه → «نمی‌دانم» (None) و هیچ ری‌استارتی",
+      _rf.remote_code_changed(_ENV_OK) == (None, []), str(_rf.remote_code_changed(_ENV_OK)))
+check("بدون GITHUB_TOKEN هیچ درخواستی نمی‌زند (سهمیهٔ ۶۰/ساعت IP مشترک)",
+      _rf.remote_code_changed({"GITHUB_REPOSITORY": "rmanm19/tradeguard-bot"}) == (None, []))
+
+# ── کامیت‌های [skip ci] تنظیمات، ربات را ری‌استارت نمی‌کنند ──
+_get, _ = _fake_gh(_LIVE)
+_rf._gh_get = _get
+check("فایل selftest/docs در مقایسه نیست؛ فقط کدِ زمان اجرا",
+      "selftest_offline.py" not in _rf.RUNTIME_FILES
+      and set(_rf.RUNTIME_FILES) == {"bot.py", "run_forever.py", "db_crypt.py"},
+      str(_rf.RUNTIME_FILES))
+
+# ── درخواست دستی: /restart → فایل → نگهبان می‌خواند و پاک می‌کند ──
+_flag = Path(tempfile.mkdtemp()) / "restart.flag"
+_old_flag = _rf.RESTART_FLAG
+_old_bot_flag = bot.RESTART_FLAG_PATH
+_rf.RESTART_FLAG = _flag
+bot.RESTART_FLAG_PATH = _flag
+check("دستور /restart فایل درخواست را می‌نویسد", bot.request_restart("/restart از ادمین")[0] is True
+      and _flag.exists())
+check("نگهبان دلیل درخواست را می‌خواند", "restart" in _rf.read_restart_request(),
+      _rf.read_restart_request())
+_rf.clear_restart_request()
+check("پس از خواندن، درخواست پاک می‌شود (وگرنه حلقهٔ ری‌استارت بی‌پایان)",
+      _flag.exists() is False and _rf.read_restart_request() == "")
+
+# ── خط «کدِ زنده» در گزارش ادمین ──
+_old_sha = bot.RUN_CODE_SHA
+bot.RUN_CODE_SHA = "abc1234def5678"
+check("گزارش ادمین نشان می‌دهد کدام کد در حال اجراست",
+      "abc1234" in bot.build_admin_report(), bot.build_admin_report()[-120:])
+bot.RUN_CODE_SHA = ""
+check("بدون SHA گیت‌هاب، ادعای نسخه نمی‌کند",
+      "اجرای محلی" in bot.code_version_line(), bot.code_version_line())
+bot.RUN_CODE_SHA = _old_sha
+_rf.RESTART_FLAG = _old_flag
+bot.RESTART_FLAG_PATH = _old_bot_flag
+check("تست هیچ فایل restart.flag در ریپو جا نمی‌گذارد",
+      not (HERE / "restart.flag").exists())
 
 print("\n" + "─" * 46)
 if FAILS:

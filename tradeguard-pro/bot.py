@@ -1402,6 +1402,33 @@ def get_setting(key: str, default: str = "") -> str:
         return default
 
 
+# ── انتشار کد جدید ─────────────────────────────────────────────
+# نگهبان (run_forever.py) هر چند دقیقه فایل restart.flag را می‌خواند؛ اگر
+# موجود باشد ربات را تمیز پایین می‌آورد تا اجرای بعدی با تازه‌ترین کد main
+# بالا بیاید. مقدار فایل فقط دلیل است و در لاگ/پیام ادمین می‌آید.
+RUN_CODE_SHA = (os.environ.get("GITHUB_SHA") or "").strip()
+RESTART_FLAG_PATH = Path(
+    os.environ.get("RESTART_FLAG_PATH")
+    or (Path(__file__).resolve().parent / "restart.flag")
+)
+
+
+def request_restart(reason: str = "دستور ادمین") -> Tuple[bool, str]:
+    """درخواست ری‌استارت تمیز؛ True اگر فایل درخواست نوشته شد."""
+    try:
+        RESTART_FLAG_PATH.write_text(str(reason)[:200], encoding="utf-8")
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
+def code_version_line() -> str:
+    """یک خط کوتاه و صادقانه دربارهٔ کدی که همین حالا اجرا می‌شود."""
+    if not RUN_CODE_SHA:
+        return "🧩 کد: اجرای محلی (بدون SHA گیت‌هاب)"
+    return f"🧩 کد: `{RUN_CODE_SHA[:7]}`"
+
+
 def get_user_lang(user_id: int, fallback_tg_code: Optional[str] = None) -> str:
     with _db_lock, sqlite3.connect(DB_PATH) as conn:
         row = conn.execute("SELECT lang FROM users WHERE user_id = ?", (user_id,)).fetchone()
@@ -3444,6 +3471,23 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/restart"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        ok, err = request_restart(reason=f"/restart از {uid}")
+        if not ok:
+            tg_send_message(chat_id, f"⚠️ درخواست ثبت نشد: `{err}`")
+            return
+        tg_send_message(
+            chat_id,
+            "♻️ *درخواست ری‌استارت ثبت شد.*\n\n"
+            "نگهبان حداکثر ۴ دقیقه بعد ربات را تمیز پایین می‌آورد تا "
+            "تازه‌ترین کد `main` بالا بیاید (دیتابیس قبل از خروج پشتیبان می‌شود).\n"
+            f"{code_version_line()}",
+        )
         return
 
     if text.startswith("/checkjoin"):
@@ -6011,7 +6055,7 @@ def build_admin_report() -> str:
         sources_line,
         f"📡 برترین فرصت همین حالا: `{top_txt}`",
         "",
-        f"🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
+        f"{code_version_line()} · 🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
     ]
     return "\n".join(lines)
 
