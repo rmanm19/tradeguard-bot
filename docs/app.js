@@ -211,6 +211,70 @@
     return out.slice(0, 5);
   }
 
+  /* ── فاندینگ چند صرافی: یک نگاه به آربیتراژ فاندینگ ────────────────
+     هر عدد از API عمومی همان صرافی می‌آید؛ اگر صرافی جواب ندهد
+     «—» می‌ماند. اختلاف = بالاترین منهای پایین‌ترین فاندینگ. */
+  let fxMatrix = null;
+  let fxFetchedAt = 0;
+
+  function fxRateCell(v) {
+    if (v === null || v === undefined || !isFinite(Number(v))) return '<span class="fx-rate na">—</span>';
+    const n = Number(v);
+    const cls = n > 0 ? "pos" : n < 0 ? "neg" : "";
+    const sign = n > 0 ? "+" : "";
+    return '<span class="fx-rate ' + cls + '">' + sign + n.toFixed(3) + "</span>";
+  }
+
+  function renderFundingMatrix() {
+    const box = $("#fxBox");
+    const rows = $("#fxRows");
+    if (!box || !rows) return;
+    const d = t();
+    const data = fxMatrix;
+    const list = (data && data.rows) || [];
+    if (!list.length) {
+      box.classList.add("hidden");
+      rows.innerHTML = "";
+      return;
+    }
+    box.classList.remove("hidden");
+    rows.innerHTML = list
+      .map((r) => {
+        const hot = Number(r.carry_apr) >= 20;
+        return (
+          '<div class="fx-row" data-sym="' + r.sym + '">' +
+          "<b>$" + r.sym + "</b>" +
+          fxRateCell(r.rates.hyperliquid) +
+          fxRateCell(r.rates.okx) +
+          fxRateCell(r.rates.binance) +
+          '<span class="fx-spread ' + (hot ? "hot" : "cold") + '" title="' + (d.fxApr || "") + '">' +
+          (Number(r.carry_apr) >= 0 ? "+" : "") + Number(r.carry_apr).toFixed(0) + "%</span>" +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  function loadFundingMatrix(force) {
+    const fresh = fxMatrix && Date.now() - fxFetchedAt < 60000;
+    if (fresh && !force) {
+      renderFundingMatrix();
+      return Promise.resolve(fxMatrix);
+    }
+    return fetch("/api/funding-matrix")
+      .then((r) => (r && r.ok ? r.json() : null))
+      .then((data) => {
+        fxMatrix = data && data.rows && data.rows.length ? data : null;
+        fxFetchedAt = Date.now();
+        renderFundingMatrix();
+        return fxMatrix;
+      })
+      .catch(() => {
+        renderFundingMatrix();
+        return null;
+      });
+  }
+
   function renderLiquidationMap() {
     const box = $("#liqMap");
     const rows = $("#liqRows");
@@ -370,6 +434,7 @@
 
     renderLiquidationMap();
     renderOppCard();
+    loadFundingMatrix();
   }
 
   function renderOppCard() {

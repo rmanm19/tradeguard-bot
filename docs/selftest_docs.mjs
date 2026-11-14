@@ -182,6 +182,24 @@ check("کلیدهای ژورنال در هر ۶ زبان کامل‌اند", (()
   return i18nKeys.every((k) => (src.match(new RegExp('"' + k + '"', "g")) || []).length >= 6);
 })());
 
+/* ── ۷٫۶) فاندینگ چند صرافی (آربیتراژ) ─────────────────────── */
+const fxJs = read("static_api.js");
+check("اندپوینت /api/funding-matrix در شیم وجود دارد", /api\/funding-matrix/.test(fxJs));
+check("فاندینگ از سه منبع عمومی خوانده می‌شود (HL/OKX/Binance)",
+  /metaAndAssetCtxs/.test(fxJs) && /okx\.com\/api\/v5\/public\/funding-rate/.test(fxJs)
+  && /fapi\.binance\.com\/fapi\/v1\/premiumIndex/.test(fxJs));
+check("اختلاف فاندینگ با APR سالانه حساب می‌شود", /spread \* 3 \* 365/.test(fxJs));
+check("اگر صرافی جواب ندهد null می‌ماند (بدون عدد ساختگی)",
+  /=== null|!== null/.test(fxJs) && /vals\.length < 2/.test(fxJs));
+check("یادداشت صریح: اختلاف فاندینگ سود تضمینی نیست",
+  /not a guaranteed profit/i.test(fxJs));
+check("جدول فاندینگ در رابط هست و کلیدهایش ۶ زبانه‌اند", (() => {
+  const src = read("i18n.js");
+  return /id="fxBox"/.test(html) && /id="fxRows"/.test(html)
+    && ["fxTitle", "fxNote", "fxSpread", "fxApr", "fxEmpty"].every(
+      (k) => (src.match(new RegExp('"' + k + '"', "g")) || []).length >= 6);
+})());
+
 /* ── ۸) صفحهٔ B2B و مستندات فید داده ──────────────────────────── */
 const biz = read("business.html");
 const apiDoc = read("api/index.html");

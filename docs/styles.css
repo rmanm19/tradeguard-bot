@@ -1015,3 +1015,25 @@ section{scroll-margin-top:84px}
 .jr-item-actions button.is-loss{color:#ffb4a2}
 .jr-empty{font-size:11.5px;color:#8ba3a3;line-height:1.7;text-align:center;padding:14px 6px}
 @media (max-width:360px){.jr-grid{grid-template-columns:1fr}.jr-calc{grid-template-columns:1fr}.jr-stats{grid-template-columns:repeat(2,1fr)}}
+
+/* ── فاندینگ چند صرافی (آربیتراژ) ───────────────────────────────── */
+.fx-box{margin:12px 0 4px;padding:12px;border:1px solid rgba(120,200,180,.16);border-radius:16px;
+  background:linear-gradient(180deg,rgba(16,26,38,.9),rgba(10,18,28,.9))}
+.fx-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.fx-title{font-weight:800;font-size:13px}
+.fx-note{font-size:9.5px;color:#8ba3a3}
+.fx-thead,.fx-row{display:grid;grid-template-columns:1.1fr .8fr .8fr .8fr 1fr;gap:4px;align-items:center}
+.fx-thead{font-size:9.5px;color:#7f9797;padding:0 2px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.fx-thead span:not(:first-child){text-align:center}
+.fx-rows{display:grid;gap:2px;margin-top:4px}
+.fx-row{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11.5px;
+  font-variant-numeric:tabular-nums}
+.fx-row b{font-size:12px}
+.fx-rate{text-align:center}
+.fx-rate.pos{color:#ffb4a2}
+.fx-rate.neg{color:#9df0c8}
+.fx-rate.na{color:#5E7397}
+.fx-spread{text-align:center;font-weight:800;font-size:11px}
+.fx-spread.hot{color:#38e0b2}
+.fx-spread.cold{color:#8ba3a3}
+.fx-empty{font-size:11px;color:#8ba3a3;text-align:center;padding:8px}

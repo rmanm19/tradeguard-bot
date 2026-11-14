@@ -29,14 +29,16 @@ const HL = {
   ]
 };
 
+let HL_LIVE = false;   // فقط تست‌هایی که باید داده زندهٔ هایپرلیکوید ببینند
 let PARTNERS = { partners: [], disclosure: "" };   // محتوای partners.json برای تست
 let PRO_USERS = {};   // نقشهٔ هش → { exp, ref } که ربات در docs/pro_users.json می‌نویسد
 let PRO_FREE_MODE = false;   // پرچم دورهٔ رایگان در همان فایل
 
-function stubFetch(url) {
+function stubFetch(url, init) {
   const u = String(url);
+  const body = String((init && init.body) || "");
   const json = (obj) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(obj), text: () => Promise.resolve(JSON.stringify(obj)) });
-  if (u.includes("metaAndAssetCtxs")) return json([{ universe: HL.universe }, HL.ctxs]);
+  if ((u.includes("metaAndAssetCtxs") || body.includes("metaAndAssetCtxs")) && HL_LIVE) return json([{ universe: HL.universe }, HL.ctxs]);
   if (u.includes("clearinghouseState")) return json({
     marginSummary: { accountValue: "1250000", totalNtlPos: "800000" },
     assetPositions: [
@@ -52,6 +54,14 @@ function stubFetch(url) {
   });
   if (u.includes("alternative.me")) return json({ data: [{ value: "62", value_classification: "Greed" }] });
   if (u.includes("okx.com")) return json({ data: [{ fundingRate: "0.00013" }] });
+  if (u.includes("fapi.binance.com")) return json([
+    { symbol: "BTCUSDT", lastFundingRate: "0.0004", markPrice: "60000" },
+    { symbol: "ETHUSDT", lastFundingRate: "0.00005", markPrice: "3000" },
+    { symbol: "SOLUSDT", lastFundingRate: "-0.0002", markPrice: "180" },
+    { symbol: "XRPUSDT", lastFundingRate: "0.0001", markPrice: "0.6" },
+    { symbol: "DOGEUSDT", lastFundingRate: "0.0003", markPrice: "0.19" },
+    { symbol: "OTHERUSDT", lastFundingRate: "0.9", markPrice: "1" }
+  ]);
   if (u.includes("dexscreener")) return json({ pairs: [{ chainId: "ethereum", priceUsd: "0.0000123", liquidity: { usd: 320000 }, baseToken: { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" } }] });
   if (u.includes("gopluslabs")) return json({ result: { "0x6982508145454ce325ddbe47a25d4ec3d2311933": { is_honeypot: "0", buy_tax: "0", sell_tax: "0.05" } } });
   if (u.includes("pro_users.json")) return json({ updated: 0, freeMode: PRO_FREE_MODE, users: PRO_USERS });
@@ -63,8 +73,9 @@ function stubFetch(url) {
 const ADMIN_ID = 777123456;
 const hash = crypto.createHash("sha256").update("tg-admin:" + ADMIN_ID).digest("hex").slice(0, 16);
 
-function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false } = {}) {
+function boot({ userId = null, adminHashes = [hash], htmlFile = "app.html", proUsers = {}, freeMode = false, channel = "", seedStorage = {}, offline = false, liveHyperliquid = false } = {}) {
   PRO_USERS = proUsers;
+  HL_LIVE = !!liveHyperliquid;
   PRO_FREE_MODE = freeMode;
   const errors = [];
   const vc = new VirtualConsole();
@@ -512,6 +523,45 @@ await wait(60);
 check("نقشه با تغییر زبان عنوان را عوض می‌کند",
   /Liquidation map/.test(String((ld2.querySelector("#liqTitle") || {}).textContent || "")),
   String((ld2.querySelector("#liqTitle") || {}).textContent || ""));
+
+// ---------------------------------------------------------------
+// فاندینگ چند صرافی (آربیتراژ): دادهٔ واقعی هر صرافی، بدون ادعای سود
+// ---------------------------------------------------------------
+console.log("\n🔀 فاندینگ چند صرافی\n");
+const FXM = boot({ userId: 555000333, liveHyperliquid: true });
+await wait(700);
+const fxd = FXM.w.document;
+const fxBox = fxd.querySelector("#fxBox");
+check("جدول فاندینگ چند صرافی رندر می‌شود",
+  fxBox && !fxBox.classList.contains("hidden") && fxd.querySelectorAll("#fxRows .fx-row").length >= 4,
+  fxBox ? String(fxd.querySelectorAll("#fxRows .fx-row").length) : "missing");
+check("هر ردیف نام صرافی‌ها را در سرستون دارد (HL/OKX/BN)",
+  /HL/.test(String((fxd.querySelector(".fx-thead") || {}).textContent || ""))
+  && /OKX/.test(String((fxd.querySelector(".fx-thead") || {}).textContent || ""))
+  && /BN/.test(String((fxd.querySelector(".fx-thead") || {}).textContent || "")));
+const fxBtc = fxd.querySelector('#fxRows .fx-row[data-sym="BTC"]');
+check("ردیف BTC سه نرخ دارد (۰٫۱۰۰ / ۰٫۰۱۳ / ۰٫۰۴۰)",
+  !!fxBtc && /0\.100/.test(fxBtc.textContent) && /0\.013/.test(fxBtc.textContent) && /0\.040/.test(fxBtc.textContent),
+  fxBtc ? fxBtc.textContent : "—");
+check("اختلاف سالانه درست است (۰٫۱۰۰−۰٫۰۱۳ = ۰٫۰۸۷ × ۳ × ۳۶۵ ≈ ۹۵٪)",
+  !!fxBtc && /95%/.test(fxBtc.textContent), fxBtc ? fxBtc.textContent : "—");
+check("ارزهای خارج از فهرست نادیده گرفته می‌شوند (OTHER حذف می‌شود)",
+  !fxd.querySelector('#fxRows .fx-row[data-sym="OTHER"]'));
+check("نرخ مثبت (لانگ می‌پردازد) و منفی رنگ/کلاس متفاوت دارند",
+  fxd.querySelectorAll("#fxRows .fx-rate.pos").length > 0 && fxd.querySelectorAll("#fxRows .fx-rate.neg").length > 0);
+check("ستون‌های ناموجود «—» نشان می‌دهند، نه عدد ساختگی",
+  fxd.querySelectorAll("#fxRows .fx-rate.na").length > 0
+  || fxd.querySelectorAll("#fxRows .fx-rate").length >= fxd.querySelectorAll("#fxRows .fx-row").length * 3);
+check("جدول فاندینگ خطای جاوااسکریپت ندارد", FXM.errors.length === 0, FXM.errors.slice(0, 2).join(" | "));
+
+// حالت آفلاین: جدول پنهان می‌ماند و چیزی از خودش نمی‌سازد
+const FXOFF = boot({ userId: 555000333, offline: true });
+await wait(400);
+check("بدون اینترنت جدول فاندینگ مخفی می‌ماند (بدون دادهٔ جعلی)",
+  (FXOFF.w.document.querySelector("#fxBox") || {}).className
+    ? String(FXOFF.w.document.querySelector("#fxBox").className).includes("hidden")
+    : true,
+  String((FXOFF.w.document.querySelector("#fxBox") || {}).className || ""));
 
 // ---------------------------------------------------------------
 // ژورنال تریدر: ریسک، حجم پوزیشن، R و آمار واقعی (فقط localStorage)

@@ -2315,4 +2315,53 @@ window.TG_I18N = {
   Object.keys(EXTRA6).forEach(function (k) {
     if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA6[k]);
   });
+
+  /* ── فاندینگ چند صرافی ─────────────────────────────────────── */
+  var EXTRA7 = {
+    fa: {
+      "fxTitle": "🔀 فاندینگ چند صرافی",
+      "fxNote": "فاندینگ ۸ ساعته — شورت در گران‌ترین، لانگ در ارزان‌ترین",
+      "fxSpread": "اختلاف APR",
+      "fxApr": "اختلاف سالانهٔ فاندینگ بین صرافی‌ها (٪)",
+      "fxEmpty": "دادهٔ کافی نیست",
+    },
+    en: {
+      "fxTitle": "🔀 Multi-venue funding",
+      "fxNote": "8h funding — short the priciest, long the cheapest",
+      "fxSpread": "Spread APR",
+      "fxApr": "Annualised funding spread between venues (%)",
+      "fxEmpty": "Not enough data",
+    },
+    ru: {
+      "fxTitle": "🔀 Фандинг на биржах",
+      "fxNote": "Фандинг за 8 ч — шорт там, где дороже; лонг — где дешевле",
+      "fxSpread": "Спред APR",
+      "fxApr": "Годовой спред фандинга между биржами (%)",
+      "fxEmpty": "Недостаточно данных",
+    },
+    ar: {
+      "fxTitle": "🔀 التمويل بين المنصات",
+      "fxNote": "تمويل 8 ساعات — بيع حيث أغلى وشراء حيث أرخص",
+      "fxSpread": "فارق APR",
+      "fxApr": "الفارق السنوي للتمويل بين المنصات (%)",
+      "fxEmpty": "لا توجد بيانات كافية",
+    },
+    tr: {
+      "fxTitle": "🔀 Borsalar arası funding",
+      "fxNote": "8 saatlik funding — pahalıda short, ucuzda long",
+      "fxSpread": "APR farkı",
+      "fxApr": "Borsalar arası yıllık funding farkı (%)",
+      "fxEmpty": "Yeterli veri yok",
+    },
+    es: {
+      "fxTitle": "🔀 Funding multi-bolsa",
+      "fxNote": "Funding 8h — corto en la más cara, largo en la más barata",
+      "fxSpread": "Diferencia APR",
+      "fxApr": "Diferencia anualizada de funding entre bolsas (%)",
+      "fxEmpty": "Datos insuficientes",
+    }
+  };
+  Object.keys(EXTRA7).forEach(function (k) {
+    if (window.TG_I18N && window.TG_I18N[k]) Object.assign(window.TG_I18N[k], EXTRA7[k]);
+  });
 })();
