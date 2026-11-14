@@ -38,6 +38,12 @@ import bot  # noqa: E402  (بعد از تنظیم متغیرها import می‌�
 # تا مسیر پرداخت هم بررسی شود (بخش «۷ه» خودش روشن/خاموش می‌کند).
 bot.FREE_MODE = False
 
+# ⚠️ از همان اولین دستور، فید عمومی را به پوشهٔ موقت می‌بریم.
+# وگرنه آزمون `/price 500` (بخش ۷الف) با publish_plans فایل واقعیِ
+# docs/api/plans.json را با «قیمت تست» بازنویسی می‌کند و سایت بعد از هر
+# اجرای تست، قیمت ۵۰۰ ⭐ نشان می‌دهد در حالی که ربات ۳۰۰ ⭐ می‌گیرد.
+bot.PUBLIC_FEED_DIR = Path(tempfile.mkdtemp()) / "api"
+
 FAILS = []
 
 
@@ -249,6 +255,13 @@ bot.handle_message(msg("/price 500", uid=424242))
 check("/price برای غیرادمین قفل است", bot.SUBSCRIPTION_STARS != 500)
 bot.handle_message(msg("/price 500"))
 check("/price برای ادمین کار می‌کند", bot.SUBSCRIPTION_STARS == 500, f"price={bot.SUBSCRIPTION_STARS}")
+# تغییر قیمت باید همان لحظه به plans.json برسد (تک‌منبع حقیقت)، اما نه به فایل ریپو
+_pj = bot.PUBLIC_FEED_DIR / "plans.json"
+check("تغییر قیمت فوراً در plans.json منتشر می‌شود",
+      _pj.exists() and '"stars": 500' in _pj.read_text(encoding="utf-8"),
+      str(bot.PUBLIC_FEED_DIR))
+check("فید عمومیِ تست بیرون از ریپو است (آزمون آرتیفکت واقعی را بازنویسی نمی‌کند)",
+      bot.REPO_ROOT not in bot.PUBLIC_FEED_DIR.parents, str(bot.PUBLIC_FEED_DIR))
 bot.handle_message(msg("/seturl https://tg.mydomain.ir/app"))
 check("/seturl توسط ادمین ذخیره شد", bot.get_setting("MINI_APP_URL") == "https://tg.mydomain.ir/app")
 

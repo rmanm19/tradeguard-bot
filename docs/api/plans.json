@@ -1,14 +1,14 @@
 {
-  "updated": 1794682980,
+  "updated": 1794683086,
   "currency": "XTR",
   "trial_days": 3,
   "plans": [
     {
       "days": 30,
-      "stars": 500,
-      "usd_net": 6.17,
-      "usd_gross": 6.5,
-      "per_month_stars": 500
+      "stars": 300,
+      "usd_net": 3.7,
+      "usd_gross": 3.9,
+      "per_month_stars": 300
     },
     {
       "days": 90,
