@@ -1,5 +1,5 @@
 {
-  "updated": 1794779954,
+  "updated": 1794781473,
   "currency": "XTR",
   "trial_days": 3,
   "plans": [
@@ -25,5 +25,13 @@
       "per_month_stars": 197
     }
   ],
+  "launch": {
+    "active": false,
+    "stars": 0,
+    "base": 300,
+    "slots_left": null,
+    "until": 0,
+    "days": 30
+  },
   "note": "Real prices written by the bot. One-time Stars payment, no auto-renewal."
 }
