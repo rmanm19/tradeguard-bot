@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-11-15T21:56:26Z",
+  "ok": true,
+  "problems": [],
+  "bot": {
+    "username": "TradeGuard1_bot",
+    "id": 9081476588,
+    "name": "TradeGuard 🛡 AI Prop & Whale Radar"
+  },
+  "queue": {
+    "pending": 0,
+    "webhook": "",
+    "last_error": ""
+  },
+  "engine": {
+    "heartbeat_minutes": 54,
+    "generated_at": "2026-11-15T21:01:44Z"
+  },
+  "channel": {
+    "id": "@tradeguard1",
+    "members": 2
+  },
+  "counters": {
+    "users_total": 1,
+    "join_rewards": 1,
+    "active_pro": 1,
+    "channel_members_in_feed": 2
+  }
+}
