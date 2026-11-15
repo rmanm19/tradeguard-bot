@@ -2243,6 +2243,68 @@ check("ورک‌فلو هر دو Secret گوگل را به env ربات می‌�
 check("راهنمای راه‌اندازی ورود با گوگل در ریپو هست",
       (bot.REPO_ROOT / "GOOGLE_LOGIN_FA.md").exists())
 
+# ── ممبر گرفتن: تاریخچهٔ اعضا، /members و دکمهٔ عضویت در /start ────────
+bot.init_db()
+bot.ADMIN_USER_ID = str(ADMIN)
+
+_old_chan = bot.PUBLIC_CHANNEL_ID
+bot.PUBLIC_CHANNEL_ID = "@testchannel"   # تا channel_url() لینک بدهد
+
+_D1 = int(_time.time()) - 4 * 86400        # ۴ روز پیش، نسبت به ساعت واقعی
+bot.record_member_snapshot(100, _D1)
+bot.record_member_snapshot(110, _D1 + 3600)          # همان روز → به‌روزرسانی
+_hist = bot.member_history()
+check("تاریخچهٔ اعضا برای هر روز یک ردیف نگه می‌دارد (به‌روزرسانی، نه تکرار)",
+      len(_hist) == 1 and _hist[0][1] == 110, str(_hist))
+
+bot.record_member_snapshot(140, _D1 + 3 * 86400)
+check("member_count_on عدد روزهای قبل را از تاریخچه می‌خواند",
+      bot.member_count_on(0, now=_D1 + 3 * 86400) == 140
+      and bot.member_count_on(1, now=_D1 + 3 * 86400) == 110
+      and bot.member_count_on(30, now=_D1 + 3 * 86400) is None, str(bot.member_history()))
+
+_old_member_now = bot.member_count_now
+bot.member_count_now = lambda: 150
+bot.handle_message(msg("/members", ADMIN))
+_mtxt = _last_post()
+check("‏/members عدد زندهٔ کانال را نشان می‌دهد",
+      "اعضای کانال" in _mtxt and "۱۵۰" in _mtxt, _mtxt[:200])
+check("‏/members دلتای روز قبل را با علامت درست نشان می‌دهد",
+      "+۱۰" in _mtxt, _mtxt[:400])
+check("‏/members نرخ تبدیل کاربر→عضو را می‌گوید", "نرخ تبدیل" in _mtxt, _mtxt[:200])
+
+SENT.clear()
+bot.handle_message(msg("/members", USER))
+check("‏/members برای غیرادمین بسته است", "فقط ادمین" in _last_post(), _last_post()[:120])
+bot.member_count_now = _old_member_now
+
+_fresh = 999000444
+check("‏join_nudge به کاربری که پاداش نگرفته پیشنهاد عضویت می‌دهد",
+      bool(bot.join_nudge(_fresh)))
+cb("join_claim", _fresh)
+check("کال‌بک join_claim بعد از تأیید واقعی، ۷ روز پرو می‌دهد",
+      "تأیید شد" in _last_post(), _last_post()[:160])
+check("بعد از گرفتن پاداش، پیشنهاد عضویت دیگر تکرار نمی‌شود",
+      bot.join_nudge(_fresh) is None)
+
+bot.handle_message(msg("/start", uid=999000555))
+_start_kb = kb_buttons(_posts[-1][2] if _posts else {})
+check("‏/start دکمهٔ عضویت کانال و «عضو شدم» را نشان می‌دهد",
+      any("عضویت در کانال" in (b.get("text") or "") for b in _start_kb)
+      and any(b.get("callback_data") == "join_claim" for b in _start_kb),
+      str([b.get("text") for b in _start_kb]))
+
+# ── استقرار: چک سلامت واقعی، از بیرونِ ربات ──────────────────────────
+_hw = (bot.REPO_ROOT / ".github" / "workflows" / "health.yml").read_text(encoding="utf-8")
+check("ورک‌فلو چک سلامت وجود دارد و توکن/ادمین/کانال را می‌خواند",
+      "getChatMemberCount" in _hw and "ADMIN_USER_ID" in _hw)
+check("چک سلامت نتیجه را در docs/api/health.json می‌نویسد",
+      "docs/api/health.json" in _hw)
+check("چک سلامت «صف آپدیت‌ها» و «ضربان موتور» را می‌سنجد",
+      "pending_update_count" in _hw and "generated_at" in _hw)
+check("راهنمای گرفتن ممبر در ریپو هست", (bot.REPO_ROOT / "MEMBERS_FA.md").exists())
+bot.ADMIN_USER_ID = ""
+
 print("\n" + "─" * 46)
 if FAILS:
     print(f"❌ {len(FAILS)} تست شکست خورد: {', '.join(FAILS)}")

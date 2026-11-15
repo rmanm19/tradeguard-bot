@@ -1,0 +1,217 @@
+name: چک سلامت ربات
+
+# یک تست واقعی از بیرونِ ربات: توکن زنده است؟ صف آپدیت‌ها پر نشده؟
+# موتور (حلقهٔ ربات) نفس می‌کشد؟ کانال چند عضو دارد؟
+#
+# نتیجه دو جا می‌رود:
+#   ۱) پیام مستقیم به ادمین — یعنی «اوکی بودنش» را در تلگرام خودت می‌بینی
+#   ۲) docs/api/health.json — یک فایل عمومی و ماشین‌خوان با تاریخچهٔ آخرین چک
+#
+# تفاوتش با /check این است: /check فقط وقتی جواب می‌دهد که ربات زنده باشد،
+# پس هرگز نمی‌تواند «ربات مرده است» را بگوید. این یکی می‌تواند.
+
+on:
+  schedule:
+    # هر ۶ ساعت (دقیقهٔ ۷) — سبک است و به سهمیهٔ API تلگرام دست نمی‌زند
+    - cron: "7 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      notify:
+        description: "به ادمین پیام بده؟ (auto = فقط وقتی مشکلی هست)"
+        type: choice
+        default: auto
+        options: [auto, always]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+      PUBLIC_CHANNEL_ID: ${{ vars.PUBLIC_CHANNEL_ID }}
+      NOTIFY: ${{ inputs.notify || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: تست زنده + نوشتن نتیجه
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          token = (os.environ.get("BOT_TOKEN") or "").strip()
+          admin = (os.environ.get("ADMIN_USER_ID") or "").strip()
+          channel = (os.environ.get("PUBLIC_CHANNEL_ID") or "").strip() or "@tradeguard1"
+          notify_mode = (os.environ.get("NOTIFY") or "auto").strip().lower()
+
+          def note(level, title, msg):
+              print(f"::{level} title={title}::{msg}", flush=True)
+
+          base = f"https://api.telegram.org/bot{token}"
+
+          def call(method, payload=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              req = urllib.request.Request(f"{base}/{method}", data=data,
+                                           headers={"Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return json.loads(r.read().decode())
+              except urllib.error.HTTPError as e:
+                  try:
+                      return json.loads(e.read().decode() or "{}")
+                  except Exception:
+                      return {"ok": False, "description": f"HTTP {e.code}"}
+              except Exception as e:
+                  return {"ok": False, "description": str(e)}
+
+          now = int(time.time())
+          doc = {
+              "checked_at": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "ok": False,
+              "problems": [],
+              "bot": {},
+              "queue": {},
+              "engine": {},
+              "channel": {},
+              "counters": {},
+          }
+          lines = []
+
+          # ۱) هویت ربات
+          me = call("getMe")
+          if me.get("ok"):
+              r = me.get("result") or {}
+              doc["bot"] = {"username": r.get("username") or "", "id": r.get("id"),
+                            "name": r.get("first_name") or ""}
+          else:
+              doc["problems"].append(f"getMe ناموفق: {str(me.get('description'))[:160]}")
+
+          # ۲) صف آپدیت‌ها — اگر ربات مرده باشد این عدد بالا می‌رود
+          hook = call("getWebhookInfo")
+          if hook.get("ok"):
+              h = hook.get("result") or {}
+              doc["queue"] = {
+                  "pending": int(h.get("pending_update_count") or 0),
+                  "webhook": h.get("url") or "",
+                  "last_error": h.get("last_error_message") or "",
+              }
+
+          # ۳) ضربان موتور از فایل عمومی (بدون تماس اضافه با تلگرام)
+          stats = {}
+          try:
+              stats = json.loads(Path("docs/api/stats.json").read_text(encoding="utf-8"))
+          except Exception as exc:
+              doc["problems"].append(f"stats.json خوانده نشد: {exc}")
+          age_min = None
+          gen = str(stats.get("generated_at") or "")
+          if gen:
+              try:
+                  ts = datetime.strptime(gen, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                  age_min = int((now - int(ts.timestamp())) / 60)
+              except Exception:
+                  age_min = None
+          doc["engine"] = {"heartbeat_minutes": age_min, "generated_at": gen}
+
+          # ۴) کانال
+          if channel:
+              mc = call("getChatMemberCount", {"chat_id": channel})
+              if mc.get("ok"):
+                  doc["channel"] = {"id": channel, "members": int(mc.get("result") or 0)}
+              else:
+                  doc["channel"] = {"id": channel, "members": None,
+                                    "error": str(mc.get("description"))[:160]}
+          doc["counters"] = {
+              "users_total": stats.get("users_total"),
+              "join_rewards": stats.get("join_rewards"),
+              "active_pro": stats.get("active_pro"),
+              "channel_members_in_feed": stats.get("channel_members"),
+          }
+
+          # ۵) قضاوت — آستانه‌ها صریح‌اند تا بعداً «چرا؟» پیش نیاید
+          if not doc["problems"]:
+              pending = doc["queue"].get("pending", 0)
+              if pending > 5:
+                  doc["problems"].append(f"{pending} پیام در صف مانده — احتمالاً ربات نمی‌خواند")
+              if doc["queue"].get("last_error"):
+                  doc["problems"].append(f"خطای وب‌هوک: {doc['queue']['last_error'][:120]}")
+              if age_min is None:
+                  doc["problems"].append("زمان ضربان موتور نامعلوم است")
+              elif age_min > 90:
+                  doc["problems"].append(f"آخرین ضربان موتور {age_min} دقیقه پیش — قدیمی‌تر از ۹۰ دقیقه")
+          doc["ok"] = not doc["problems"]
+
+          # ۶) پیام ادمین
+          icon = "✅" if doc["ok"] else "⚠️"
+          lines.append(f"🩺 *چک سلامت TradeGuard — {icon} {'سالم' if doc['ok'] else 'نیاز به نگاه'}*")
+          lines.append(f"🕒 `{doc['checked_at']}`")
+          lines.append("")
+          if doc["bot"]:
+              lines.append(f"• ربات: `@{doc['bot']['username']}` (id `{doc['bot']['id']}`) ✅")
+          else:
+              lines.append("• ربات: ❌ توکن جواب نداد")
+          if doc["queue"]:
+              q = doc["queue"]
+              lines.append(f"• صف آپدیت‌ها: *{q['pending']}* · وب‌هوک: "
+                           f"{'`' + q['webhook'] + '`' if q['webhook'] else 'خالی (polling) ✅'}")
+          if age_min is not None:
+              lines.append(f"• ضربان موتور: *{age_min}* دقیقه پیش "
+                           f"{'✅' if age_min <= 90 else '⚠️'}")
+          else:
+              lines.append("• ضربان موتور: —")
+          ch = doc["channel"]
+          if ch:
+              lines.append(f"• کانال `{ch.get('id')}`: "
+                           f"*{ch.get('members') if ch.get('members') is not None else '—'}* عضو")
+          c = doc["counters"]
+          lines.append(f"• کاربران: *{c.get('users_total')}* · پاداش عضویت: *{c.get('join_rewards')}*"
+                       f" · پرو فعال: *{c.get('active_pro')}*")
+          lines.append(f"🧩 کد: `{(os.environ.get('GITHUB_SHA') or '')[:7]}`")
+          if doc["problems"]:
+              lines.append("")
+              lines.append("⚠️ *دلیل:*")
+              for p in doc["problems"]:
+                  lines.append(f"— {p}")
+              lines.append("")
+              lines.append("قدم اول: Actions → TradeGuard Bot → آخرین اجرا را ببینید؛ "
+                           "اگر در صف مانده، دوباره Run کنید.")
+          text = "\n".join(lines)
+          print(text.replace("*", ""), flush=True)
+          note("notice", "نتیجهٔ چک", "سالم" if doc["ok"] else " | ".join(doc["problems"])[:400])
+
+          if admin.isdigit() and token and (notify_mode == "always" or not doc["ok"] or
+                                            os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"):
+              send = call("sendMessage", {"chat_id": int(admin), "text": text,
+                                          "parse_mode": "Markdown",
+                                          "disable_web_page_preview": True})
+              note("notice", "پیام به ادمین",
+                   "ارسال شد ✅" if send.get("ok") else f"ناموفق: {str(send.get('description'))[:160]}")
+
+          # ۷) ثبت ماشین‌خوان (بدون هیچ دادهٔ شخصی)
+          out = Path("docs/api/health.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: ثبت نتیجه در مخزن
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/api/health.json
+          if git diff --cached --quiet; then
+            echo "تغییری نبود"
+            exit 0
+          fi
+          git commit -m "chore(health): $(date -u +'%Y-%m-%dT%H:%MZ') [skip ci]"
+          git pull --rebase --autostash origin main || true
+          git push origin HEAD:main || echo "پوش ناموفق — نتیجه فقط در پیام ادمین ثبت شد"

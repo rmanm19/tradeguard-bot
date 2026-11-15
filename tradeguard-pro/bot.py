@@ -1353,6 +1353,19 @@ def init_db() -> None:
             """
         )
 
+        # تاریخچهٔ تعداد اعضای کانال — یک ردیف برای هر روز (UTC).
+        # بدون این جدول، «۲ عضو» فقط یک عدد است؛ با آن، «۲ نسبت به ۰ دیروز»
+        # تبدیل می‌شود به چیزی که می‌شود برایش تصمیم گرفت.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS member_stats (
+                day TEXT PRIMARY KEY,
+                count INTEGER NOT NULL,
+                checked_at INTEGER NOT NULL
+            )
+            """
+        )
+
         # هشدارهای شخصی کاربر (فاندینگ/قیمت) — در چرخهٔ ربات بررسی می‌شوند
         conn.execute(
             """
@@ -2532,6 +2545,27 @@ def send_admin_section(chat_id: int, uid: int, data: str) -> None:
     tg_send_message(chat_id, body, reply_markup=admin_back_keyboard())
 
 
+def join_nudge(uid: int) -> Optional[str]:
+    """خط کوتاه «عضو کانال شو، ۷ روز پرو بگیر» — فقط اگر هنوز نگرفته باشد.
+
+    عمداً هیچ تماس API ندارد: فقط یک کوئری دیتابیس است تا در هر /start
+    سهمیهٔ تلگرام را نسوزاند. تأیید واقعی هنگام زدن دکمه انجام می‌شود
+    (getChatMember داخل claim_join_reward).
+    """
+    if not PUBLIC_CHANNEL_ID or not channel_url():
+        return None
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM join_rewards WHERE user_id = ?", (int(uid),)
+            ).fetchone()
+    except Exception:
+        return None
+    if row:
+        return None
+    return "📣 *عضو کانال شو و ۷ روز پرو بگیر* — دکمهٔ زیر، بعد «✅ عضو شدم»."
+
+
 def send_user_home(chat_id: int, uid: int, lang: str, pro: bool) -> None:
     """صفحه خانه کاربر عادی (بدون هیچ اثری از پنل مدیریت برای غیرادمین)."""
     _, exp = is_user_pro(uid)
@@ -2541,11 +2575,22 @@ def send_user_home(chat_id: int, uid: int, lang: str, pro: bool) -> None:
         status_line = tr(lang, "status_pro", exp=datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%d"))
     else:
         status_line = tr(lang, "status_free")
-    tg_send_message(
-        chat_id,
-        tr(lang, "welcome", status=status_line),
-        reply_markup=main_keyboard(pro, lang, is_admin_user=is_admin(uid)),
-    )
+    body = tr(lang, "welcome", status=status_line)
+    kb = main_keyboard(pro, lang, is_admin_user=is_admin(uid))
+    nudge = join_nudge(uid)
+    if nudge and lang == "fa":
+        body += "\n\n" + nudge
+        ch_link = channel_url()
+        # دکمهٔ سادهٔ کانال را حذف می‌کنیم تا دو دکمهٔ تکراری هم‌زمان نباشد
+        rows = [row for row in (kb.get("inline_keyboard") or [])
+                if not any(b.get("url") == ch_link for b in row)]
+        kb = dict(kb)
+        kb["inline_keyboard"] = rows + [
+            [{"text": f"📣 عضویت در کانال (+{fa_num(JOIN_REWARD_DAYS)} روز پرو)",
+              "url": channel_url()}],
+            [{"text": "✅ عضو شدم — پاداش را بگیر", "callback_data": "join_claim"}],
+        ]
+    tg_send_message(chat_id, body, reply_markup=kb)
 
 
 def language_keyboard() -> dict:
@@ -3734,7 +3779,8 @@ def handle_message(msg: dict) -> None:
         send_invite_message(chat_id, uid, lang)
         return
 
-    if text.startswith("/status") or text.startswith("/me"):
+    # عمداً "/me" دقیق است، نه پیشوند: وگرنه "/members" را می‌بلعد
+    if text.startswith("/status") or text.startswith("/me ") or text.strip() == "/me":
         lang = get_user_lang(uid, tg_lang)
         pro, pro_until = is_user_pro(uid)
         send_status_message(chat_id, uid, lang, pro, pro_until)
@@ -4263,6 +4309,13 @@ def handle_message(msg: dict) -> None:
             tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
             return
         tg_send_message(chat_id, build_admin_report(), reply_markup=admin_back_keyboard())
+        return
+
+    if text.startswith("/members"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, members_report(), reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/restart"):
@@ -4873,6 +4926,37 @@ def handle_callback(cb: dict) -> None:
     if data == "invite_free":
         tg_answer_callback(cb_id)
         send_invite_message(chat_id, uid, lang)
+        return
+
+    if data == "join_claim":
+        ok, days, status = claim_join_reward(uid)
+        if ok:
+            tg_answer_callback(cb_id, "🎁 ثبت شد!", show_alert=False)
+            tg_send_message(
+                chat_id,
+                f"✅ *عضویتت در کانال تأیید شد* (بررسی واقعی از تلگرام).\n\n"
+                f"🎁 *{fa_num(days)} روز پلن پرو* ثبت شد و به اشتراکت اضافه می‌شود.",
+                reply_markup=main_keyboard(True, lang, is_admin_user=is_admin(uid)),
+            )
+            return
+        if status == "already":
+            tg_answer_callback(cb_id, "قبلاً پاداش را گرفته‌ای.")
+            return
+        if status == "not_configured":
+            tg_answer_callback(cb_id, "کانال تنظیم نشده.", show_alert=True)
+            return
+        tg_answer_callback(cb_id, "هنوز عضویتت را نمی‌بینم.", show_alert=True)
+        tg_send_message(
+            chat_id,
+            "🤔 *عضویتت را نمی‌بینم.*\n\n"
+            "۱️⃣ دکمهٔ «📣 عضویت در کانال» را بزن\n"
+            "۲️⃣ داخل کانال *Join* را بزن\n"
+            "۳️⃣ برگرد و همین دکمهٔ «✅ عضو شدم» را دوباره بزن",
+            reply_markup={"inline_keyboard": [
+                [{"text": "📣 باز کردن کانال", "url": channel_url() or f"https://t.me/{BOT_USERNAME}"}],
+                [{"text": "✅ عضو شدم — دوباره بررسی کن", "callback_data": "join_claim"}],
+            ]},
+        )
         return
 
     if data == "ai_brief":
@@ -5920,6 +6004,152 @@ def claim_join_reward(user_id: int) -> Tuple[bool, int, str]:
     grant_pro_days(user_id, JOIN_REWARD_DAYS)
     publish_pro_status([int(user_id)])
     return True, JOIN_REWARD_DAYS, status
+
+
+# ── تاریخچهٔ اعضای کانال ────────────────────────────────────────────────
+# چرا؟ «۲ عضو» به‌تنهایی هیچ تصمیمی نمی‌سازد. «۲ عضو، دیروز ۱، هفتهٔ پیش ۰»
+# می‌گوید رشد هست یا نه، و کدام قدم بعدی بیشترین اثر را دارد.
+def member_count_now() -> Optional[int]:
+    """تعداد واقعی اعضای کانال از API تلگرام. None = خوانده نشد."""
+    if not PUBLIC_CHANNEL_ID:
+        return None
+    res = tg_call("getChatMemberCount", {"chat_id": PUBLIC_CHANNEL_ID}, timeout=8.0)
+    if not res.get("ok"):
+        return None
+    try:
+        return int(res.get("result") or 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def record_member_snapshot(count: Optional[int] = None, now: Optional[int] = None) -> Optional[int]:
+    """ثبت تعداد اعضای کانال برای امروز (UTC) — یک ردیف در روز.
+
+    مقدار همان روز با تازه‌ترین عدد به‌روز می‌شود (نه جمع)، پس عددِ روز
+    «آخرین وضعیتِ آن روز» است.
+    """
+    ts = int(now if now is not None else time.time())
+    n = member_count_now() if count is None else int(count)
+    if n is None or n < 0:
+        return None
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO member_stats (day, count, checked_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(day) DO UPDATE SET count = excluded.count, "
+                "checked_at = excluded.checked_at",
+                (_utc_date(ts), int(n), ts),
+            )
+    except Exception as exc:
+        logger.warning("ثبت تاریخچهٔ اعضا ناموفق: %s", exc)
+        return None
+    return int(n)
+
+
+def member_history(limit_days: int = 60) -> List[Tuple[str, int]]:
+    """تاریخچهٔ روزانهٔ اعضا، قدیمی → جدید (حداکثر limit_days ردیف آخر)."""
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT day, count FROM member_stats ORDER BY day DESC LIMIT ?",
+                (max(1, int(limit_days)),),
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("خواندن تاریخچهٔ اعضا ناموفق: %s", exc)
+        return []
+    return [(str(d), int(c or 0)) for d, c in reversed(rows)]
+
+
+MEMBER_SNAPSHOT_EVERY_SEC = 6 * 3600   # هر ۶ ساعت یک ردیف کافی است
+
+
+def maybe_record_member_snapshot(now: Optional[int] = None) -> Optional[int]:
+    """ثبت دوره‌ای اعضا در حلقهٔ پس‌زمینه — اگر ۶ ساعت گذشته باشد."""
+    ts = int(now if now is not None else time.time())
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute("SELECT MAX(checked_at) FROM member_stats").fetchone()
+            last = int(row[0] or 0) if row else 0
+    except Exception:
+        last = 0
+    if last and ts - last < MEMBER_SNAPSHOT_EVERY_SEC:
+        return None
+    return record_member_snapshot(None, ts)
+
+
+def member_count_on(days_ago: int, history: Optional[List[Tuple[str, int]]] = None,
+                    now: Optional[int] = None) -> Optional[int]:
+    """عدد ثبت‌شده در روزِ «days_ago روز پیش» (یا آخرین ردیف قبل از آن)."""
+    hist = member_history() if history is None else history
+    if not hist:
+        return None
+    ts = int(now if now is not None else time.time())
+    target = _utc_date(ts - max(0, int(days_ago)) * 86400)
+    pick: Optional[int] = None
+    for day, c in hist:
+        if day <= target:
+            pick = c
+    return pick
+
+
+def _sign(n: int) -> str:
+    return f"+{fa_num(n)}" if n > 0 else (f"−{fa_num(abs(n))}" if n < 0 else "۰")
+
+
+def members_report(now: Optional[int] = None) -> str:
+    """داشبورد رشد کانال برای ادمین — همهٔ اعداد واقعی، هیچ عدد حدسی."""
+    ts = int(now if now is not None else time.time())
+    live = member_count_now()
+    if live is not None:
+        record_member_snapshot(live, ts)
+    hist = member_history()
+    today = live if live is not None else (hist[-1][1] if hist else None)
+
+    def delta(days_ago: int) -> str:
+        base = member_count_on(days_ago, hist, ts)
+        if base is None or today is None:
+            return "—"
+        return f"{fa_num(base)} ({_sign(int(today) - int(base))})"
+
+    users_total = 0
+    rewards = 0
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            users_total = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+            rewards = int(conn.execute("SELECT COUNT(*) FROM join_rewards").fetchone()[0] or 0)
+    except Exception as exc:
+        logger.warning("آمار کاربران برای /members خوانده نشد: %s", exc)
+
+    reach = f"{fa_num(users_total)}"
+    rate = f"{(rewards / users_total * 100):.0f}%" if users_total else "—"
+    first_day = hist[0][0] if hist else "—"
+    lines = [
+        "📣 *اعضای کانال — عدد واقعی، نه حس*",
+        "",
+        f"• الان: *{fa_num(today) if today is not None else '—'}* عضو (`{PUBLIC_CHANNEL_ID or 'کانال تنظیم نشده'}`)",
+        f"• ۲۴ ساعت قبل: {delta(1)}",
+        f"• ۷ روز قبل: {delta(7)}",
+        f"• ۳۰ روز قبل: {delta(30)}",
+        f"• اولین ثبت تاریخچه: `{first_day}` ({fa_num(len(hist))} روز داده)",
+        "",
+        f"👥 کاربران ربات: *{reach}* · پاداش عضویت گرفته‌اند: *{fa_num(rewards)}*"
+        f" → نرخ تبدیل: *{rate}*",
+    ]
+
+    # یک قدم بعدی، نه لیست هفت‌تایی
+    if not PUBLIC_CHANNEL_ID:
+        nxt = "کانال تنظیم نشده است → `/setchannel @username`"
+    elif live is None:
+        nxt = ("عدد زنده خوانده نشد — ربات را در کانال ادمین کنید و `/channel` را ببینید.")
+    elif rewards < users_total:
+        nxt = (f"{fa_num(users_total - rewards)} کاربر ربات هنوز عضو کانال نیستند → "
+               "پیام `/start` را با دکمهٔ «📣 عضویت + ۷ روز پرو» بفرست؛ همین ارزان‌ترین عضو است.")
+    else:
+        nxt = ("کاربران فعلی همه عضو شده‌اند؛ رشد بعدی باید از بیرون بیاید: "
+               "یک پست با لینک `?start=ad_<code>` و بعد `/sources` ببین کدام کد کاربر آورده.")
+    lines += ["", f"👉 *قدم بعدی:* {nxt}",
+              "", "_هر ۶ ساعت یک ردیف ثبت می‌شود؛ نمودار را از همین اعداد بساز._"]
+    return "\n".join(lines)
 
 
 SOURCE_CODE_RE = re.compile(r"^[a-z0-9_]{2,24}$")
@@ -7042,6 +7272,8 @@ def build_admin_report() -> str:
         f"📡 برترین فرصت همین حالا: `{top_txt}`",
         "",
         f"{code_version_line()} · 🕒 {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}",
+        "",
+        "📣 رشد روزبه‌روز اعضای کانال: `/members`",
     ]
     return "\n".join(lines)
 
@@ -7669,6 +7901,7 @@ def auto_channel_loop() -> None:
             maybe_send_monthly_partner_report()
             post_weekly_invite_recap()
             publish_public_feed()
+            maybe_record_member_snapshot()
         except Exception as exc:
             logger.warning("Channel auto-post skipped: %s", exc)
         time.sleep(CHANNEL_LOOP_SLEEP_SEC)
