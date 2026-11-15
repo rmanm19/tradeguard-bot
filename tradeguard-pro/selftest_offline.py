@@ -2294,6 +2294,102 @@ check("‏/start دکمهٔ عضویت کانال و «عضو شدم» را نش
       and any(b.get("callback_data") == "join_claim" for b in _start_kb),
       str([b.get("text") for b in _start_kb]))
 
+# ── درآمد: عرضهٔ محدود، فاکتور و اعتبارسنجی مبلغ ──────────────────────
+bot.http_json = fake_http_json
+bot.FREE_MODE = False                     # پرداخت باز، تا مسیر فروش تست شود
+bot.ADMIN_USER_ID = str(ADMIN)
+bot.stop_launch()
+
+_base30 = bot.plan_price(30)
+check("بدون عرضه، قیمت مؤثر همان قیمت پایه است",
+      bot.effective_price(30) == _base30 and bot.effective_price(90) == bot.plan_price(90))
+
+_ok, _msg = bot.start_launch(_base30, 10)          # گران‌تر از پایه = باید رد شود
+check("عرضه با قیمت مساوی/بیشتر از پایه رد می‌شود", not _ok, _msg)
+
+_until = int(_time.time()) + 7 * 86400
+_ok, _msg = bot.start_launch(_base30 - 100, 50, _until)
+check("عرضهٔ محدود با قیمت کمتر و سقف تعداد روشن می‌شود", _ok, _msg)
+check("قیمت مؤثر ۳۰ روز به قیمت عرضه تغییر می‌کند",
+      bot.effective_price(30) == _base30 - 100, str(bot.effective_price(30)))
+check("پلن‌های ۹۰ و ۳۶۵ روز دست نمی‌خورند",
+      bot.effective_price(90) == bot.plan_price(90)
+      and bot.effective_price(365) == bot.plan_price(365))
+
+SENT.clear()
+bot.send_pro_invoice(USER, "fa", 30)
+_inv = [p for a, p in SENT if a == "sendInvoice"]
+check("فاکتور با قیمت عرضه صادر می‌شود (نه قیمت قبلی)",
+      bool(_inv) and _inv[-1]["prices"][0]["amount"] == _base30 - 100, str(_inv[-1:])[:200])
+check("payload فاکتور همان ریالِ قیمت را حمل می‌کند",
+      bool(_inv) and _inv[-1]["payload"].endswith(f"_{_base30 - 100}"))
+
+_pay = bot.build_plans_payload()
+check("plans.json عرضه و قیمت جدید را منتشر می‌کند",
+      _pay["launch"]["active"] is True
+      and _pay["launch"]["stars"] == _base30 - 100
+      and _pay["plans"][0]["stars"] == _base30 - 100)
+
+# pre_checkout: فاکتورِ کهنه (قیمت قبل از عرضه) نباید پذیرفته شود
+def _pcq(payload: str, amount: int) -> dict:
+    SENT.clear()
+    bot.process_update({"pre_checkout_query": {
+        "id": "pcq-1", "invoice_payload": payload, "currency": "XTR", "total_amount": amount}})
+    ans = [p for a, p in SENT if a == "answerPreCheckoutQuery"]
+    return ans[-1] if ans else {}
+
+check("pre_checkout با مبلغ کهنه (قیمت قبل از عرضه) رد می‌شود",
+      _pcq(f"tradeguard_pro_30d_{_base30}", _base30).get("ok") is False)
+check("pre_checkout با مبلغ درست عرضه پذیرفته می‌شود",
+      _pcq(f"tradeguard_pro_30d_{_base30 - 100}", _base30 - 100).get("ok") is True)
+check("pre_checkout با payload بیگانه رد می‌شود",
+      _pcq("something_else", 100).get("ok") is False)
+
+# تمام‌شدن سقف: بعد از ۵۰ فروش، قیمت به حالت عادی برمی‌گردد
+with _sq.connect(bot.DB_PATH) as _c:
+    _started = int(bot.get_setting("launch_started", "0") or 0)
+    for _i in range(50):
+        _c.execute("INSERT INTO payments (user_id, stars_amount, telegram_charge_id, paid_at, kind) "
+                   "VALUES (?, ?, ?, ?, 'stars')",
+                   (900000000 + _i, _base30 - 100, f"chg_{_i}", _started + 60 + _i))
+check("بعد از پر شدن سقف، عرضه خودکار تمام می‌شود",
+      bot.launch_state()["active"] is False and bot.effective_price(30) == _base30)
+
+# ── دستورهای /launch و /revenue ──────────────────────────────────────
+SENT.clear()
+bot.handle_message(msg("/launch", USER))
+check("‏/launch برای غیرادمین بسته است", "فقط ادمین" in _last_post(), _last_post()[:120])
+SENT.clear()
+bot.handle_message(msg("/revenue", USER))
+check("‏/revenue برای غیرادمین بسته است", "فقط ادمین" in _last_post(), _last_post()[:120])
+
+bot.handle_message(msg("/launch", ADMIN))
+check("‏/launch وضعیت عرضه را نشان می‌دهد", "عرضهٔ محدود" in _last_post(), _last_post()[:160])
+
+bot.stop_launch()
+check("خاموش‌کردن عرضه قیمت را به پایه برمی‌گرداند",
+      bot.effective_price(30) == _base30 and bot.launch_state()["active"] is False)
+
+bot.handle_message(msg("/revenue", ADMIN))
+_rev = _last_post()
+check("‏/revenue حالت رایگان، قیمت‌ها و فروش را می‌گوید",
+      "درآمد" in _rev and "قیمت‌ها" in _rev and "فروش تا امروز" in _rev, _rev[:200])
+check("‏/revenue «قدم بعدی» می‌دهد", "قدم بعدی" in _rev, _rev[:200])
+bot.ADMIN_USER_ID = ""
+
+# ── تاریخ پایان دورهٔ رایگان: هم تاریخ بخوان، هم ثانیه ─────────────────
+check("تاریخ YYYY-MM-DD به پایان همان روز UTC تبدیل می‌شود",
+      bot._utc_date(bot.parse_moment("2026-11-22")) == "2026-11-22"
+      and bot.parse_moment("2026-11-22") % 86400 == 86399,
+      str(bot.parse_moment("2026-11-22")))
+check("ثانیهٔ یونیکس بدون تغییر رد می‌شود",
+      bot.parse_moment("1795996799") == 1795996799)
+check("ورودی خالی/نامعتبر صفر می‌دهد (نه کرش)",
+      bot.parse_moment("") == 0 and bot.parse_moment("22/11/2026") == 0)
+_bw = (bot.REPO_ROOT / ".github" / "workflows" / "bot.yml").read_text(encoding="utf-8")
+check("ورک‌فلو تاریخ پایان دورهٔ رایگان را تنظیم می‌کند",
+      'FREE_MODE_UNTIL:' in _bw and 'FREE_MODE: "1"' in _bw)
+
 # ── استقرار: چک سلامت واقعی، از بیرونِ ربات ──────────────────────────
 _hw = (bot.REPO_ROOT / ".github" / "workflows" / "health.yml").read_text(encoding="utf-8")
 check("ورک‌فلو چک سلامت وجود دارد و توکن/ادمین/کانال را می‌خواند",

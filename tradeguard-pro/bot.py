@@ -115,8 +115,26 @@ FREE_PRO_INVITE_TARGET = int(os.environ.get("FREE_PRO_INVITE_TARGET", "3") or "3
 # با روشن‌بودن این پرچم، هیچ کاربری برای استفاده از رادار/فایل‌ها/مربی AI
 # استارز نمی‌دهد. کد پرداخت دست‌نخورده می‌ماند تا هر لحظه با /freemode off
 # دوباره روشن شود. وضعیت در دیتابیس ذخیره می‌شود (بین ری‌استارت‌ها می‌ماند).
+def parse_moment(raw: object) -> int:
+    """«YYYY-MM-DD» یا ثانیهٔ یونیکس → ثانیهٔ یونیکس (پایان همان روز UTC).
+
+    چرا هر دو؟ چون env روی GitHub Actions راحت با تاریخ خوانده می‌شود، اما
+    دیتابیس ثانیه ذخیره می‌کند. یک تابع، یک معنی — نه دو جای متفاوت.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return 0
+    if text.isdigit():
+        return int(text)
+    try:
+        day = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return 0
+    return int(day.timestamp()) + 86399
+
+
 FREE_MODE = os.environ.get("FREE_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
-FREE_MODE_UNTIL = int(os.environ.get("FREE_MODE_UNTIL", "0") or "0")
+FREE_MODE_UNTIL = parse_moment(os.environ.get("FREE_MODE_UNTIL", "0"))
 
 # ── موتور درآمد (قیمت، آزمایش، تمدید) ─────────────────────────────────
 # هر عدد این‌جا از env قابل تغییر است تا بدون دست‌زدن به کد، کمپین عوض شود.
@@ -1691,7 +1709,7 @@ def build_plans_payload() -> Dict:
     """
     plans: List[Dict] = []
     for d in PRO_PLAN_DAYS:
-        stars = plan_price(d)
+        stars = effective_price(d)
         plans.append({
             "days": int(d),
             "stars": int(stars),
@@ -1699,11 +1717,21 @@ def build_plans_payload() -> Dict:
             "usd_gross": round(stars * STARS_USD_RATE, 2),
             "per_month_stars": int(round(stars / (d / 30.0))),
         })
+    _lstate = launch_state()
+    launch = {
+        "active": bool(_lstate["active"]),
+        "stars": int(_lstate["stars"]) if _lstate["active"] else 0,
+        "base": int(_lstate["base"]),
+        "slots_left": _lstate["slots_left"],
+        "until": int(_lstate["until"] or 0),
+        "days": int(LAUNCH_PLAN_DAYS),
+    }
     return {
         "updated": int(time.time()),
         "currency": "XTR",
         "trial_days": int(PRO_TRIAL_DAYS),
         "plans": plans,
+        "launch": launch,
         "note": "Real prices written by the bot. One-time Stars payment, no auto-renewal.",
     }
 
@@ -2673,7 +2701,7 @@ def forget_persisted_price() -> None:
 
 
 def plan_price(days: int = 30) -> int:
-    """قیمت هر پلن به استارز (۳۰/۹۰/۳۶۵ روز).
+    """قیمت پایه هر پلن به استارز (۳۰/۹۰/۳۶۵ روز) — بدون عرضهٔ محدود.
 
     برای ۳۰ روز، قیمت ذخیره‌شدهٔ ادمین مقدّم است تا هر جریانی (ربات ۲۴/۷،
     کرون فید، تست) همان عددی را ببیند که واقعاً از کاربر گرفته می‌شود.
@@ -2685,6 +2713,120 @@ def plan_price(days: int = 30) -> int:
         return SUBSCRIPTION_STARS_90
     saved = persisted_subscription_price()
     return saved or SUBSCRIPTION_STARS
+
+
+# ── عرضهٔ محدود (launch offer) ────────────────────────────────────────
+# چرا؟ اولین خرید سخت‌ترین خرید است. یک قیمت پایین‌تر برای «N نفر اول»
+# هم دلیلِ خریدِ فوری می‌سازد و هم عددِ واقعیِ اولین درآمد را می‌دهد.
+# قواعد سخت: هرگز گران‌تر از قیمت پایه نمی‌شود، سقف تعداد دارد، تاریخ انقضا دارد،
+# و همان عددی که در سایت/فاکتور می‌آید همان چیزی است که از کاربر گرفته می‌شود.
+LAUNCH_PLAN_DAYS = 30          # عرضه فقط روی پلن یک‌ماهه اعمال می‌شود
+
+
+def launch_config() -> Dict[str, int]:
+    def _num(key: str) -> int:
+        raw = str(get_setting(key, "0") or "0").strip()
+        return int(raw) if raw.lstrip("-").isdigit() else 0
+
+    return {
+        "stars": _num("launch_stars"),
+        "slots": _num("launch_slots"),
+        "until": _num("launch_until"),
+        "started": _num("launch_started"),
+    }
+
+
+def launch_sold(cfg: Optional[Dict[str, int]] = None) -> int:
+    """تعداد فروشِ واقعی از لحظهٔ شروع عرضه (فقط پرداخت استارز، نه هدیه)."""
+    cfg = cfg or launch_config()
+    start = int(cfg.get("started") or 0)
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM payments WHERE kind = 'stars' AND stars_amount > 0 "
+                "AND paid_at >= ?",
+                (start,),
+            ).fetchone()
+            return int(row[0] or 0) if row else 0
+    except Exception as exc:
+        logger.warning("شمارش فروش عرضه ناموفق: %s", exc)
+        return 0
+
+
+def launch_state(now: Optional[int] = None) -> Dict[str, object]:
+    """وضعیت زندهٔ عرضه: فعال؟ چند جای باقی؟ تا کِی؟"""
+    cfg = launch_config()
+    ts = int(now if now is not None else time.time())
+    sold = launch_sold(cfg) if cfg["stars"] > 0 else 0
+    slots = int(cfg["slots"] or 0)
+    until = int(cfg["until"] or 0)
+    base = plan_price(LAUNCH_PLAN_DAYS)
+    active = (
+        cfg["stars"] > 0
+        and cfg["stars"] < base
+        and (until <= 0 or ts < until)
+        and (slots <= 0 or sold < slots)
+    )
+    return {
+        "active": active,
+        "stars": int(cfg["stars"]),
+        "base": int(base),
+        "slots": slots,
+        "sold": int(sold),
+        "slots_left": max(0, slots - sold) if slots > 0 else None,
+        "until": until,
+    }
+
+
+def effective_price(days: int = 30) -> int:
+    """قیمتی که واقعاً گرفته می‌شود — همان چیزی که فاکتور و سایت نشان می‌دهند."""
+    base = plan_price(days)
+    if int(days or 30) != LAUNCH_PLAN_DAYS:
+        return base
+    st = launch_state()
+    return int(st["stars"]) if st["active"] else base
+
+
+def start_launch(stars: int, slots: int = 0, until: int = 0) -> Tuple[bool, str]:
+    """روشن‌کردن عرضهٔ محدود. خروجی: (موفق؟، پیام)."""
+    base = plan_price(LAUNCH_PLAN_DAYS)
+    stars = int(stars)
+    if stars <= 0:
+        return False, "قیمت عرضه باید بزرگ‌تر از صفر باشد."
+    if stars >= base:
+        return False, (f"قیمت عرضه ({fa_num(stars)} ⭐) باید کمتر از قیمت فعلی "
+                       f"({fa_num(base)} ⭐) باشد.")
+    now = int(time.time())
+    set_setting("launch_stars", str(stars))
+    set_setting("launch_slots", str(max(0, int(slots))))
+    set_setting("launch_until", str(max(0, int(until))))
+    set_setting("launch_started", str(now))
+    publish_plans(push=True)
+    return True, "ok"
+
+
+def stop_launch() -> None:
+    set_setting("launch_stars", "0")
+    set_setting("launch_slots", "0")
+    set_setting("launch_until", "0")
+    publish_plans(push=True)
+
+
+def launch_line(lang: str = "fa") -> str:
+    """یک خطِ آمادهٔ نمایش عرضه (خالی اگر فعال نیست)."""
+    st = launch_state()
+    if not st["active"]:
+        return ""
+    if lang != "fa":
+        left = (f" · {st['slots_left']} spots left" if st["slots_left"] is not None else "")
+        until = f" · until {_utc_date(int(st['until']))}" if int(st["until"] or 0) else ""
+        return (f"🔥 Launch price: *{int(st['stars'])} ⭐* instead of {int(st['base'])} ⭐"
+                f"{left}{until}")
+    left = (f" · {fa_num(int(st['slots_left']))} جای باقی‌مانده"
+            if st["slots_left"] is not None else "")
+    until = f" · تا {_utc_date(int(st['until']))}" if int(st["until"] or 0) else ""
+    return (f"🔥 *قیمت عرضهٔ اولیه:* {fa_num(int(st['stars']))} ⭐ "
+            f"به‌جای {fa_num(int(st['base']))} ⭐{left}{until}")
 
 
 def plan_days_from_payload(payload: str) -> int:
@@ -2703,13 +2845,17 @@ def send_pro_invoice(chat_id: int, lang: str = "fa", days: int = 30) -> None:
     مقدار پرداخت‌شده را برمی‌گرداند و ما روز را فقط از همین payload می‌خوانیم.
     """
     days = days if days in PRO_PLAN_DAYS else 30
-    stars = plan_price(days)
+    stars = effective_price(days)          # قیمت واقعی: با عرضهٔ محدود اگر فعال باشد
+    desc = tr(lang, "inv_desc")
+    _launch = launch_line(lang)
+    if _launch:
+        desc = f"{desc}\n\n{_launch.replace('*', '')}"
     tg_call(
         "sendInvoice",
         {
             "chat_id": chat_id,
             "title": f"{tr(lang, 'inv_title')} · {days}d",
-            "description": tr(lang, "inv_desc"),
+            "description": desc,
             "payload": f"tradeguard_pro_{days}d_{stars}",
             "provider_token": "",
             "currency": "XTR",
@@ -4735,6 +4881,73 @@ def handle_message(msg: dict) -> None:
                 + "`/freemode announce` — متن اعلام عمومی",
                 reply_markup=admin_back_keyboard(),
             )
+        return
+
+    if text.startswith("/launch"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        arg = (text.split(maxsplit=1)[1].strip() if len(text.split(maxsplit=1)) > 1 else "").lower()
+        st = launch_state()
+        if arg in ("off", "stop", "خاموش", "بس"):
+            stop_launch()
+            tg_send_message(chat_id, "🛑 عرضهٔ محدود خاموش شد؛ قیمت به حالت عادی برگشت.",
+                            reply_markup=admin_back_keyboard())
+            return
+        if not arg:
+            left = (f"{fa_num(int(st['slots_left']))} از {fa_num(int(st['slots']))}"
+                    if st["slots_left"] is not None else "بی‌سقف")
+            until = _utc_date(int(st["until"])) if int(st["until"] or 0) else "بدون تاریخ پایان"
+            tg_send_message(
+                chat_id,
+                "🔥 *عرضهٔ محدود*\n\n"
+                f"• وضعیت: {'✅ فعال' if st['active'] else '⚪️ خاموش'}\n"
+                f"• قیمت عرضه: *{fa_num(int(st['stars']))} ⭐* (پایه: {fa_num(int(st['base']))} ⭐)\n"
+                f"• فروش: *{fa_num(int(st['sold']))}* · جای باقی‌مانده: *{left}*\n"
+                f"• پایان: `{until}`\n\n"
+                "`/launch 200 50 2026-11-22` — ۲۰۰ استارز، ۵۰ نفر اول، تا آن تاریخ\n"
+                "`/launch 200` — بدون سقف تعداد و بدون تاریخ\n"
+                "`/launch off` — خاموش",
+                reply_markup=admin_back_keyboard(),
+            )
+            return
+        parts = arg.split()
+        stars = int(parts[0]) if parts[0].isdigit() else 0
+        slots = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+        until = 0
+        if len(parts) > 2:
+            try:
+                until = int(datetime.strptime(parts[2], "%Y-%m-%d")
+                            .replace(tzinfo=timezone.utc).timestamp())
+            except ValueError:
+                tg_send_message(chat_id, "⚠️ قالب تاریخ درست نیست. مثال: `/launch 200 50 2026-11-22`")
+                return
+            if until <= int(time.time()):
+                tg_send_message(chat_id, "⚠️ این تاریخ گذشته است.")
+                return
+        ok, msg = start_launch(stars, slots, until)
+        if not ok:
+            tg_send_message(chat_id, f"⚠️ {msg}")
+            return
+        st = launch_state()
+        left = (f"{fa_num(int(st['slots_left']))} نفر" if st["slots_left"] is not None else "بی‌سقف")
+        tg_send_message(
+            chat_id,
+            "✅ *عرضهٔ محدود روشن شد*\n\n"
+            f"• قیمت: *{fa_num(int(st['stars']))} ⭐* به‌جای {fa_num(int(st['base']))} ⭐ (پلن ۳۰ روز)\n"
+            f"• سقف: *{left}* · پایان: "
+            f"{('`' + _utc_date(int(st['until'])) + '`') if st['until'] else 'بدون تاریخ'}\n\n"
+            f"سایت و فاکتور هر دو همین عدد را نشان می‌دهند (`docs/api/plans.json` به‌روز شد).\n"
+            "دیدن وضعیت: `/launch` · خاموش‌کردن: `/launch off`",
+            reply_markup=admin_back_keyboard(),
+        )
+        return
+
+    if text.startswith("/revenue"):
+        if not is_admin(uid):
+            tg_send_message(chat_id, "⛔ فقط ادمین ربات مجاز است.")
+            return
+        tg_send_message(chat_id, revenue_report(), reply_markup=admin_back_keyboard())
         return
 
     if text.startswith("/grantpro"):
@@ -7201,6 +7414,73 @@ def weekly_growth_report() -> str:
     return "\n".join(lines)
 
 
+def revenue_report(now: Optional[int] = None) -> str:
+    """یک صفحهٔ «پول از کجا می‌آید» — همهٔ اعداد واقعی، هیچ پیش‌بینی‌ای."""
+    ts = int(now if now is not None else time.time())
+    paid = 0
+    stars = 0
+    last_paid = 0
+    users_total = 0
+    pro_now = 0
+    try:
+        with _db_lock, sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(stars_amount), 0), COALESCE(MAX(paid_at), 0) "
+                "FROM payments WHERE kind = 'stars' AND stars_amount > 0"
+            ).fetchone()
+            paid, stars, last_paid = (int(row[0] or 0), int(row[1] or 0), int(row[2] or 0))
+            users_total = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+            pro_now = int(conn.execute(
+                "SELECT COUNT(*) FROM users WHERE pro_until > ?", (ts,)).fetchone()[0] or 0)
+    except Exception as exc:
+        logger.warning("آمار درآمد خوانده نشد: %s", exc)
+
+    st = launch_state(ts)
+    free_on = free_mode_active()
+    free_until = _utc_date(FREE_MODE_UNTIL) if FREE_MODE_UNTIL > 0 else "—"
+    free_left = free_mode_days_left(ts) if FREE_MODE_UNTIL > 0 else 0
+
+    lines = [
+        "💵 *درآمد — وضعیت واقعی*",
+        "",
+        f"• حالت رایگان: {'🎁 *روشن*' if free_on else '💰 *خاموش (فروش باز است)*'}"
+        + (f" · تا `{free_until}` ({fa_num(free_left)} روز)" if FREE_MODE_UNTIL > 0 else ""),
+        f"• کاربران: *{fa_num(users_total)}* · پرو فعال: *{fa_num(pro_now)}*",
+        "",
+        "💳 *قیمت‌ها (استارز)*",
+        f"• ۳۰ روز: *{fa_num(effective_price(30))}*"
+        + (f" _(پایه {fa_num(plan_price(30))})_" if effective_price(30) != plan_price(30) else ""),
+        f"• ۹۰ روز: *{fa_num(effective_price(90))}* · ۳۶۵ روز: *{fa_num(effective_price(365))}*",
+        "",
+        f"🔥 *عرضهٔ محدود:* "
+        + (f"فعال — {fa_num(int(st['stars']))} ⭐ · فروش {fa_num(int(st['sold']))} / "
+           f"{fa_num(int(st['slots'])) if st['slots'] else '∞'}"
+           if st["active"] else "خاموش (`/launch 200 50 2026-11-22`)"),
+        "",
+        "📈 *فروش تا امروز*",
+        f"• تعداد: *{fa_num(paid)}* · استارز: *{fa_num(stars)}* · "
+        f"خالص ≈ *${stars_to_usd(stars):,.2f}*",
+        f"• آخرین فروش: `{_utc_date(last_paid) if last_paid else '—'}`",
+    ]
+
+    # یک قدم بعدی، بر اساس همین اعداد
+    if free_on and users_total <= 3:
+        nxt = ("اول ممبر، بعد پول: با "
+               f"{fa_num(users_total)} کاربر، حتی با پرداخت باز هم فروشی نیست. "
+               "`/members` و پلن ۷ روزهٔ `MEMBERS_FA.md`.")
+    elif free_on:
+        nxt = ("پرداخت بسته است و کاربر داری — بهترین لحظه برای اعلام تاریخ پایان: "
+               "`/freemode until YYYY-MM-DD` بعد `/freemode announce`.")
+    elif not st["active"]:
+        nxt = "پرداخت باز است ولی دلیلِ فوری برای خرید نیست → یک عرضهٔ محدود: `/launch 200 50 <تاریخ>`."
+    else:
+        nxt = ("عرضه فعال است؛ در کانال پین کن و یک پست با `?start=ad_launch` بگذار، "
+               "بعد `/sources` ببین کدام کانال خرید آورده.")
+    lines += ["", f"👉 *قدم بعدی:* {nxt}",
+              "", "گزارش کامل: `/income` · قیف منابع: `/sources` · سلامت: `/check`"]
+    return "\n".join(lines)
+
+
 def build_admin_report() -> str:
     """گزارش مدیریتی با اعداد واقعی (بدون هیچ عدد ساختگی).
 
@@ -7914,8 +8194,23 @@ def process_update(upd: dict) -> None:
             payload = str(pq.get("invoice_payload") or "")
             currency = str(pq.get("currency") or "")
             amount = int(pq.get("total_amount") or 0)
-            # فقط فاکتور خودِ ربات پذیرفته می‌شود؛ تلگرام فقط ۱۰ ثانیه برای پاسخ صبر می‌کند
-            valid = payload.startswith("tradeguard_pro") and currency == "XTR" and amount > 0
+            # فقط فاکتور خودِ ربات با همان مبلغی که همین حالا معتبر است پذیرفته می‌شود.
+            # چرا مبلغ؟ چون فاکتورِ بازِ قدیمی (مثلاً قبل از شروع عرضه یا بعد از
+            # تمام‌شدن جای عرضه) عددِ کهنه دارد؛ پذیرفتنش یعنی اختلاف قیمت و
+            # شکایت کاربر. تلگرام فقط ۱۰ ثانیه برای پاسخ صبر می‌کند.
+            _pq_days = plan_days_from_payload(payload)
+            _pq_expected = effective_price(_pq_days)
+            valid = (
+                payload.startswith("tradeguard_pro")
+                and currency == "XTR"
+                and amount > 0
+                and amount == _pq_expected
+            )
+            if not valid and amount > 0 and payload.startswith("tradeguard_pro"):
+                logger.warning(
+                    "pre_checkout مبلغ نامطابق: days=%s amount=%s expected=%s",
+                    _pq_days, amount, _pq_expected,
+                )
             if valid:
                 tg_call("answerPreCheckoutQuery", {"pre_checkout_query_id": pq["id"], "ok": True})
             else:
