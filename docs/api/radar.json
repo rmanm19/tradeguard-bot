@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T16:33:26Z",
+  "generated_at": "2026-11-15T17:03:27Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -11,51 +11,51 @@
   "funding": [
     {
       "symbol": "XRP",
-      "funding_pct_8h": -0.0244,
-      "apr_pct": -26.7,
-      "oi_usd_m": 81.54
+      "funding_pct_8h": -0.026,
+      "apr_pct": -28.5,
+      "oi_usd_m": 81.19
     },
     {
       "symbol": "WIF",
-      "funding_pct_8h": -0.0217,
-      "apr_pct": -23.8,
-      "oi_usd_m": 2.12
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0178,
-      "apr_pct": -19.5,
-      "oi_usd_m": 15.79
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": -0.0151,
-      "apr_pct": -16.6,
-      "oi_usd_m": 32.75
-    },
-    {
-      "symbol": "ETH",
-      "funding_pct_8h": -0.0085,
-      "apr_pct": -9.3,
-      "oi_usd_m": 1064.13
-    },
-    {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.0028,
-      "apr_pct": 3.1,
-      "oi_usd_m": 2345.71
+      "funding_pct_8h": -0.0202,
+      "apr_pct": -22.1,
+      "oi_usd_m": 2.11
     },
     {
       "symbol": "SOL",
-      "funding_pct_8h": -0.0023,
-      "apr_pct": -2.5,
-      "oi_usd_m": 321.65
+      "funding_pct_8h": -0.013,
+      "apr_pct": -14.3,
+      "oi_usd_m": 324.48
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.0083,
+      "apr_pct": -9.1,
+      "oi_usd_m": 32.64
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": -0.0069,
+      "apr_pct": -7.6,
+      "oi_usd_m": 15.77
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": -0.0066,
+      "apr_pct": -7.2,
+      "oi_usd_m": 2350.72
+    },
+    {
+      "symbol": "ETH",
+      "funding_pct_8h": -0.0012,
+      "apr_pct": -1.3,
+      "oi_usd_m": 1070.5
     },
     {
       "symbol": "HYPE",
-      "funding_pct_8h": -0.0006,
-      "apr_pct": -0.6,
-      "oi_usd_m": 1314.27
+      "funding_pct_8h": 0.0004,
+      "apr_pct": 0.4,
+      "oi_usd_m": 1303.65
     },
     {
       "symbol": "TON",
