@@ -6,7 +6,7 @@ TradeGuard — docs/config.js
 adminHashes: sha256("tg-admin:" + <telegram_user_id>) با ۱۶ کاراکتر اول
 ============================================================================ */
 window.TG_CONFIG = {
-generatedAt: "2026-11-15T05:03:48Z",
+generatedAt: "2026-11-16T05:38:22Z",
 repo: "rmanm19/tradeguard-bot",
 botUsername: "TradeGuard1_bot",
 channel: "@tradeguard1",
