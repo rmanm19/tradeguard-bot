@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T10:45:14Z",
+  "generated_at": "2026-11-16T11:15:20Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0107,
-      "apr_pct": -11.7,
-      "oi_usd_m": 15.48
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": 0.0081,
-      "apr_pct": 8.9,
-      "oi_usd_m": 326.79
+      "symbol": "ETH",
+      "funding_pct_8h": -0.0109,
+      "apr_pct": -11.9,
+      "oi_usd_m": 1099.73
     },
     {
       "symbol": "BTC",
-      "funding_pct_8h": 0.0076,
-      "apr_pct": 8.3,
-      "oi_usd_m": 2354.5
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 2333.46
     },
     {
-      "symbol": "ETH",
-      "funding_pct_8h": -0.0064,
-      "apr_pct": -7.0,
-      "oi_usd_m": 1096.41
-    },
-    {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0053,
-      "apr_pct": -5.8,
-      "oi_usd_m": 69.36
+      "symbol": "SOL",
+      "funding_pct_8h": 0.0073,
+      "apr_pct": 8.0,
+      "oi_usd_m": 327.33
     },
     {
       "symbol": "WIF",
-      "funding_pct_8h": -0.004,
-      "apr_pct": -4.4,
+      "funding_pct_8h": -0.0064,
+      "apr_pct": -7.0,
       "oi_usd_m": 2.02
     },
     {
-      "symbol": "DOGE",
-      "funding_pct_8h": 0.0033,
-      "apr_pct": 3.6,
-      "oi_usd_m": 31.8
+      "symbol": "SUI",
+      "funding_pct_8h": -0.005,
+      "apr_pct": -5.5,
+      "oi_usd_m": 15.53
+    },
+    {
+      "symbol": "XRP",
+      "funding_pct_8h": -0.0045,
+      "apr_pct": -4.9,
+      "oi_usd_m": 69.54
     },
     {
       "symbol": "HYPE",
-      "funding_pct_8h": 0.0032,
-      "apr_pct": 3.5,
-      "oi_usd_m": 1297.16
+      "funding_pct_8h": -0.002,
+      "apr_pct": -2.2,
+      "oi_usd_m": 1299.8
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.0013,
+      "apr_pct": -1.4,
+      "oi_usd_m": 33.14
     },
     {
       "symbol": "TON",
