@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-16T15:01:25Z",
+  "checked_at": "2026-11-16T18:54:42Z",
   "ok": true,
   "problems": [],
   "bot": {
@@ -7,10 +7,14 @@
     "id": 9081476588,
     "name": "TradeGuard 🛡 AI Prop & Whale Radar"
   },
-  "queue": {},
+  "queue": {
+    "pending": 0,
+    "webhook": "",
+    "last_error": ""
+  },
   "engine": {
-    "heartbeat_minutes": 23,
-    "generated_at": "2026-11-16T14:37:47Z"
+    "heartbeat_minutes": 18,
+    "generated_at": "2026-11-16T18:36:05Z"
   },
   "channel": {
     "id": "@tradeguard1",
