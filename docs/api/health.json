@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-17T07:14:13Z",
+  "checked_at": "2026-11-17T13:02:39Z",
   "ok": true,
   "problems": [],
   "bot": {
@@ -13,8 +13,8 @@
     "last_error": ""
   },
   "engine": {
-    "heartbeat_minutes": 21,
-    "generated_at": "2026-11-17T06:53:00Z"
+    "heartbeat_minutes": 25,
+    "generated_at": "2026-11-17T12:37:10Z"
   },
   "channel": {
     "id": "@tradeguard1",
