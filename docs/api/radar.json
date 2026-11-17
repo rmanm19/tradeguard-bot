@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T06:53:00Z",
+  "generated_at": "2026-11-17T08:08:26Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
+      "symbol": "SOL",
+      "funding_pct_8h": -0.0111,
+      "apr_pct": -12.1,
+      "oi_usd_m": 324.11
+    },
+    {
       "symbol": "HYPE",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1315.87
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0086,
-      "apr_pct": -9.5,
-      "oi_usd_m": 323.58
-    },
-    {
-      "symbol": "ETH",
-      "funding_pct_8h": 0.0079,
-      "apr_pct": 8.6,
-      "oi_usd_m": 1092.75
-    },
-    {
-      "symbol": "WIF",
-      "funding_pct_8h": 0.0067,
-      "apr_pct": 7.4,
-      "oi_usd_m": 1.95
-    },
-    {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0044,
-      "apr_pct": -4.9,
-      "oi_usd_m": 72.27
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": -0.0026,
-      "apr_pct": -2.8,
-      "oi_usd_m": 31.0
+      "oi_usd_m": 1307.88
     },
     {
       "symbol": "SUI",
-      "funding_pct_8h": 0.0022,
-      "apr_pct": 2.4,
-      "oi_usd_m": 15.26
+      "funding_pct_8h": -0.0069,
+      "apr_pct": -7.5,
+      "oi_usd_m": 15.42
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.0064,
+      "apr_pct": -7.0,
+      "oi_usd_m": 31.1
+    },
+    {
+      "symbol": "XRP",
+      "funding_pct_8h": -0.0036,
+      "apr_pct": -4.0,
+      "oi_usd_m": 72.79
     },
     {
       "symbol": "BTC",
-      "funding_pct_8h": 0.0007,
-      "apr_pct": 0.7,
-      "oi_usd_m": 2430.33
+      "funding_pct_8h": 0.0024,
+      "apr_pct": 2.6,
+      "oi_usd_m": 2459.07
+    },
+    {
+      "symbol": "WIF",
+      "funding_pct_8h": -0.0017,
+      "apr_pct": -1.9,
+      "oi_usd_m": 1.96
+    },
+    {
+      "symbol": "ETH",
+      "funding_pct_8h": 0.0009,
+      "apr_pct": 1.0,
+      "oi_usd_m": 1092.24
     },
     {
       "symbol": "TON",
