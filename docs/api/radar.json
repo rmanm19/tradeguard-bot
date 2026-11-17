@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T18:18:47Z",
+  "generated_at": "2026-11-17T19:29:11Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0154,
-      "apr_pct": -16.9,
-      "oi_usd_m": 72.21
+      "symbol": "WIF",
+      "funding_pct_8h": -0.0204,
+      "apr_pct": -22.3,
+      "oi_usd_m": 1.9
     },
     {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 2452.46
+      "symbol": "SOL",
+      "funding_pct_8h": -0.012,
+      "apr_pct": -13.2,
+      "oi_usd_m": 319.55
     },
     {
       "symbol": "HYPE",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1285.62
+      "oi_usd_m": 1297.47
     },
     {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0098,
-      "apr_pct": -10.7,
-      "oi_usd_m": 317.52
+      "symbol": "BTC",
+      "funding_pct_8h": 0.008,
+      "apr_pct": 8.8,
+      "oi_usd_m": 2403.78
     },
     {
-      "symbol": "WIF",
-      "funding_pct_8h": -0.0097,
-      "apr_pct": -10.6,
-      "oi_usd_m": 1.89
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.007,
-      "apr_pct": -7.7,
-      "oi_usd_m": 14.7
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": 0.0031,
-      "apr_pct": 3.4,
-      "oi_usd_m": 29.23
+      "symbol": "XRP",
+      "funding_pct_8h": -0.0065,
+      "apr_pct": -7.1,
+      "oi_usd_m": 72.77
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": -0.0014,
-      "apr_pct": -1.5,
-      "oi_usd_m": 1140.84
+      "funding_pct_8h": -0.0048,
+      "apr_pct": -5.3,
+      "oi_usd_m": 1100.54
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": 0.0025,
+      "apr_pct": 2.7,
+      "oi_usd_m": 29.03
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": -0.002,
+      "apr_pct": -2.2,
+      "oi_usd_m": 14.7
     },
     {
       "symbol": "TON",
