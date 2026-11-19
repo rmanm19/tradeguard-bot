@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-19T20:29:57Z",
+  "generated_at": "2026-11-19T21:00:01Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -13,49 +13,49 @@
       "symbol": "HYPE",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1260.47
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0064,
-      "apr_pct": -7.0,
-      "oi_usd_m": 311.99
-    },
-    {
-      "symbol": "BTC",
-      "funding_pct_8h": -0.0056,
-      "apr_pct": -6.1,
-      "oi_usd_m": 2502.0
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": -0.0044,
-      "apr_pct": -4.9,
-      "oi_usd_m": 26.84
-    },
-    {
-      "symbol": "WIF",
-      "funding_pct_8h": -0.0037,
-      "apr_pct": -4.1,
-      "oi_usd_m": 1.84
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0036,
-      "apr_pct": -3.9,
-      "oi_usd_m": 14.59
+      "oi_usd_m": 1277.31
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": 0.0034,
-      "apr_pct": 3.8,
-      "oi_usd_m": 1069.08
+      "funding_pct_8h": 0.0063,
+      "apr_pct": 6.9,
+      "oi_usd_m": 1076.81
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": -0.0051,
+      "apr_pct": -5.6,
+      "oi_usd_m": 2480.45
+    },
+    {
+      "symbol": "SOL",
+      "funding_pct_8h": -0.0044,
+      "apr_pct": -4.8,
+      "oi_usd_m": 311.22
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": -0.0042,
+      "apr_pct": -4.6,
+      "oi_usd_m": 14.69
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.0041,
+      "apr_pct": -4.5,
+      "oi_usd_m": 26.88
+    },
+    {
+      "symbol": "WIF",
+      "funding_pct_8h": 0.0025,
+      "apr_pct": 2.7,
+      "oi_usd_m": 1.84
     },
     {
       "symbol": "XRP",
-      "funding_pct_8h": -0.0008,
-      "apr_pct": -0.9,
-      "oi_usd_m": 64.06
+      "funding_pct_8h": -0.001,
+      "apr_pct": -1.1,
+      "oi_usd_m": 63.91
     },
     {
       "symbol": "TON",
