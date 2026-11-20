@@ -1,61 +1,61 @@
 {
-  "generated_at": "2026-11-19T23:30:21Z",
+  "generated_at": "2026-11-20T00:00:25Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
   "disclaimer": "Informational data only. Not investment advice. No guarantees.",
   "fear_greed": {
-    "value": 10,
+    "value": 12,
     "label": "Extreme Fear"
   },
   "funding": [
     {
-      "symbol": "WIF",
-      "funding_pct_8h": -0.0072,
-      "apr_pct": -7.9,
-      "oi_usd_m": 1.85
-    },
-    {
-      "symbol": "HYPE",
-      "funding_pct_8h": -0.0069,
-      "apr_pct": -7.5,
-      "oi_usd_m": 1256.61
-    },
-    {
       "symbol": "BTC",
-      "funding_pct_8h": 0.0069,
-      "apr_pct": 7.5,
-      "oi_usd_m": 2325.29
-    },
-    {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0069,
-      "apr_pct": -7.5,
-      "oi_usd_m": 64.95
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 2387.65
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": 0.0063,
-      "apr_pct": 6.9,
-      "oi_usd_m": 1073.76
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": 0.0033,
-      "apr_pct": 3.6,
-      "oi_usd_m": 14.66
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": -0.0008,
-      "apr_pct": -0.9,
-      "oi_usd_m": 26.63
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 1072.73
     },
     {
       "symbol": "SOL",
-      "funding_pct_8h": -0.0005,
-      "apr_pct": -0.6,
-      "oi_usd_m": 311.46
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 312.07
+    },
+    {
+      "symbol": "DOGE",
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 26.6
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 14.67
+    },
+    {
+      "symbol": "HYPE",
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 1254.98
+    },
+    {
+      "symbol": "XRP",
+      "funding_pct_8h": 0.0068,
+      "apr_pct": 7.5,
+      "oi_usd_m": 63.22
+    },
+    {
+      "symbol": "WIF",
+      "funding_pct_8h": 0.0034,
+      "apr_pct": 3.7,
+      "oi_usd_m": 1.84
     },
     {
       "symbol": "TON",
