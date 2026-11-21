@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T14:38:26Z",
+  "generated_at": "2026-11-21T15:31:17Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0267,
-      "apr_pct": -29.3,
-      "oi_usd_m": 295.77
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0265,
-      "apr_pct": -29.0,
-      "oi_usd_m": 13.4
-    },
-    {
       "symbol": "WIF",
-      "funding_pct_8h": -0.0184,
-      "apr_pct": -20.1,
+      "funding_pct_8h": -0.0236,
+      "apr_pct": -25.9,
       "oi_usd_m": 1.52
     },
     {
-      "symbol": "DOGE",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 27.71
+      "symbol": "SUI",
+      "funding_pct_8h": -0.0231,
+      "apr_pct": -25.3,
+      "oi_usd_m": 13.36
+    },
+    {
+      "symbol": "SOL",
+      "funding_pct_8h": -0.0216,
+      "apr_pct": -23.7,
+      "oi_usd_m": 295.08
     },
     {
       "symbol": "HYPE",
-      "funding_pct_8h": 0.0094,
-      "apr_pct": 10.3,
-      "oi_usd_m": 1118.46
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 1116.1
     },
     {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0085,
-      "apr_pct": -9.3,
-      "oi_usd_m": 59.68
-    },
-    {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.007,
-      "apr_pct": 7.7,
-      "oi_usd_m": 2290.43
+      "symbol": "DOGE",
+      "funding_pct_8h": 0.0064,
+      "apr_pct": 7.0,
+      "oi_usd_m": 26.98
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": 0.0022,
-      "apr_pct": 2.4,
-      "oi_usd_m": 995.53
+      "funding_pct_8h": -0.0062,
+      "apr_pct": -6.8,
+      "oi_usd_m": 987.46
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": 0.006,
+      "apr_pct": 6.5,
+      "oi_usd_m": 2238.53
+    },
+    {
+      "symbol": "XRP",
+      "funding_pct_8h": -0.0043,
+      "apr_pct": -4.7,
+      "oi_usd_m": 59.22
     },
     {
       "symbol": "TON",
