@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T17:30:36Z",
+  "generated_at": "2026-11-22T18:04:08Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -13,49 +13,49 @@
       "symbol": "WIF",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1.65
+      "oi_usd_m": 1.67
     },
     {
       "symbol": "HYPE",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1162.19
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": 0.0058,
-      "apr_pct": 6.3,
-      "oi_usd_m": 286.94
+      "oi_usd_m": 1165.01
     },
     {
       "symbol": "DOGE",
-      "funding_pct_8h": 0.0053,
-      "apr_pct": 5.8,
+      "funding_pct_8h": 0.0078,
+      "apr_pct": 8.6,
       "oi_usd_m": 25.66
     },
     {
-      "symbol": "BTC",
-      "funding_pct_8h": -0.0035,
-      "apr_pct": -3.9,
-      "oi_usd_m": 2474.89
+      "symbol": "XRP",
+      "funding_pct_8h": 0.0076,
+      "apr_pct": 8.4,
+      "oi_usd_m": 61.95
     },
     {
-      "symbol": "XRP",
-      "funding_pct_8h": 0.0035,
-      "apr_pct": 3.8,
-      "oi_usd_m": 61.84
+      "symbol": "SOL",
+      "funding_pct_8h": 0.0074,
+      "apr_pct": 8.1,
+      "oi_usd_m": 286.93
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": -0.0066,
+      "apr_pct": -7.2,
+      "oi_usd_m": 2471.32
     },
     {
       "symbol": "SUI",
-      "funding_pct_8h": -0.003,
-      "apr_pct": -3.3,
-      "oi_usd_m": 14.0
+      "funding_pct_8h": -0.0006,
+      "apr_pct": -0.7,
+      "oi_usd_m": 14.04
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": -0.0013,
-      "apr_pct": -1.4,
-      "oi_usd_m": 1059.58
+      "funding_pct_8h": 0.0003,
+      "apr_pct": 0.3,
+      "oi_usd_m": 1062.33
     },
     {
       "symbol": "TON",
