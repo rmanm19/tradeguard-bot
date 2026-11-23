@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-22T18:45:31Z",
+  "checked_at": "2026-11-23T01:05:44Z",
   "ok": true,
   "problems": [],
   "bot": {
@@ -13,16 +13,16 @@
     "last_error": ""
   },
   "engine": {
-    "heartbeat_minutes": 11,
-    "generated_at": "2026-11-22T18:34:13Z"
+    "heartbeat_minutes": 61,
+    "generated_at": "2026-11-23T00:04:09Z"
   },
   "channel": {
     "id": "@tradeguard1",
     "members": 2
   },
   "counters": {
-    "users_total": 1,
-    "join_rewards": 1,
+    "users_total": 0,
+    "join_rewards": 0,
     "active_pro": 0,
     "channel_members_in_feed": 2
   }
