@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-23T00:04:09Z",
+  "generated_at": "2026-11-23T01:45:16Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 2372.41
+      "symbol": "SUI",
+      "funding_pct_8h": -0.011,
+      "apr_pct": -12.1,
+      "oi_usd_m": 13.81
     },
     {
       "symbol": "WIF",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1.79
-    },
-    {
-      "symbol": "HYPE",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 1168.8
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0096,
-      "apr_pct": -10.6,
-      "oi_usd_m": 14.05
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": 0.0075,
-      "apr_pct": 8.2,
-      "oi_usd_m": 289.6
-    },
-    {
-      "symbol": "XRP",
-      "funding_pct_8h": -0.0051,
-      "apr_pct": -5.6,
-      "oi_usd_m": 61.45
+      "oi_usd_m": 1.82
     },
     {
       "symbol": "ETH",
-      "funding_pct_8h": -0.0014,
-      "apr_pct": -1.6,
-      "oi_usd_m": 1063.31
+      "funding_pct_8h": -0.0096,
+      "apr_pct": -10.5,
+      "oi_usd_m": 1054.45
     },
     {
       "symbol": "DOGE",
-      "funding_pct_8h": 0.0002,
-      "apr_pct": 0.2,
-      "oi_usd_m": 25.09
+      "funding_pct_8h": -0.0064,
+      "apr_pct": -7.0,
+      "oi_usd_m": 24.82
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": 0.0063,
+      "apr_pct": 6.9,
+      "oi_usd_m": 2332.29
+    },
+    {
+      "symbol": "HYPE",
+      "funding_pct_8h": 0.0058,
+      "apr_pct": 6.3,
+      "oi_usd_m": 1142.98
+    },
+    {
+      "symbol": "XRP",
+      "funding_pct_8h": -0.0009,
+      "apr_pct": -1.0,
+      "oi_usd_m": 61.35
+    },
+    {
+      "symbol": "SOL",
+      "funding_pct_8h": 0.0009,
+      "apr_pct": 1.0,
+      "oi_usd_m": 289.21
     },
     {
       "symbol": "TON",
