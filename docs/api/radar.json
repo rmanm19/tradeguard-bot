@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-24T00:39:35Z",
+  "generated_at": "2026-11-24T02:02:27Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "ETH",
-      "funding_pct_8h": -0.0161,
-      "apr_pct": -17.6,
-      "oi_usd_m": 1025.82
-    },
-    {
       "symbol": "XRP",
-      "funding_pct_8h": -0.0147,
-      "apr_pct": -16.1,
-      "oi_usd_m": 65.51
+      "funding_pct_8h": -0.0207,
+      "apr_pct": -22.6,
+      "oi_usd_m": 65.42
     },
     {
-      "symbol": "BTC",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 2264.96
+      "symbol": "ETH",
+      "funding_pct_8h": -0.0185,
+      "apr_pct": -20.3,
+      "oi_usd_m": 1010.69
     },
     {
-      "symbol": "WIF",
-      "funding_pct_8h": 0.01,
-      "apr_pct": 10.9,
-      "oi_usd_m": 2.1
+      "symbol": "DOGE",
+      "funding_pct_8h": -0.0158,
+      "apr_pct": -17.3,
+      "oi_usd_m": 25.2
+    },
+    {
+      "symbol": "SUI",
+      "funding_pct_8h": -0.0128,
+      "apr_pct": -14.0,
+      "oi_usd_m": 15.79
     },
     {
       "symbol": "HYPE",
       "funding_pct_8h": 0.01,
       "apr_pct": 10.9,
-      "oi_usd_m": 1160.54
+      "oi_usd_m": 1156.4
+    },
+    {
+      "symbol": "WIF",
+      "funding_pct_8h": 0.0033,
+      "apr_pct": 3.7,
+      "oi_usd_m": 2.08
+    },
+    {
+      "symbol": "BTC",
+      "funding_pct_8h": 0.0028,
+      "apr_pct": 3.1,
+      "oi_usd_m": 2246.09
     },
     {
       "symbol": "SOL",
-      "funding_pct_8h": -0.0053,
-      "apr_pct": -5.8,
-      "oi_usd_m": 303.25
-    },
-    {
-      "symbol": "SUI",
-      "funding_pct_8h": -0.0043,
-      "apr_pct": -4.7,
-      "oi_usd_m": 15.9
-    },
-    {
-      "symbol": "DOGE",
-      "funding_pct_8h": -0.0014,
-      "apr_pct": -1.6,
-      "oi_usd_m": 25.27
+      "funding_pct_8h": -0.0027,
+      "apr_pct": -3.0,
+      "oi_usd_m": 300.98
     },
     {
       "symbol": "TON",
