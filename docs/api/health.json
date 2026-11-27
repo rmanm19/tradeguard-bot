@@ -1,12 +1,10 @@
 {
-  "checked_at": "2026-11-27T07:16:39Z",
-  "ok": true,
-  "problems": [],
-  "bot": {
-    "username": "TradeGuard1_bot",
-    "id": 9081476588,
-    "name": "TradeGuard 🛡 AI Prop & Whale Radar"
-  },
+  "checked_at": "2026-11-27T13:14:06Z",
+  "ok": false,
+  "problems": [
+    "getMe ناموفق: <urlopen error [Errno 104] Connection reset by peer>"
+  ],
+  "bot": {},
   "queue": {
     "pending": 0,
     "webhook": "",
@@ -14,7 +12,7 @@
   },
   "engine": {
     "heartbeat_minutes": 22,
-    "generated_at": "2026-11-27T06:54:12Z"
+    "generated_at": "2026-11-27T12:51:49Z"
   },
   "channel": {
     "id": "@tradeguard1",
