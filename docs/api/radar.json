@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-28T05:45:28Z",
+  "generated_at": "2026-11-28T06:50:00Z",
   "live": true,
   "source": "TradeGuard — public funding & open-interest feed",
   "homepage": "https://t.me/tradeguard1",
@@ -10,52 +10,52 @@
   },
   "funding": [
     {
-      "symbol": "WIF",
-      "funding_pct_8h": -0.013,
-      "apr_pct": -14.2,
-      "oi_usd_m": 2.04
+      "symbol": "XRP",
+      "funding_pct_8h": 0.01,
+      "apr_pct": 10.9,
+      "oi_usd_m": 59.23
     },
     {
       "symbol": "SUI",
-      "funding_pct_8h": -0.0129,
-      "apr_pct": -14.2,
-      "oi_usd_m": 15.94
+      "funding_pct_8h": -0.0078,
+      "apr_pct": -8.6,
+      "oi_usd_m": 16.05
     },
     {
-      "symbol": "HYPE",
-      "funding_pct_8h": 0.0088,
-      "apr_pct": 9.7,
-      "oi_usd_m": 1187.54
-    },
-    {
-      "symbol": "XRP",
-      "funding_pct_8h": 0.0072,
-      "apr_pct": 7.9,
-      "oi_usd_m": 59.18
-    },
-    {
-      "symbol": "SOL",
-      "funding_pct_8h": -0.0043,
-      "apr_pct": -4.7,
-      "oi_usd_m": 288.73
-    },
-    {
-      "symbol": "ETH",
-      "funding_pct_8h": 0.0032,
-      "apr_pct": 3.5,
-      "oi_usd_m": 983.32
+      "symbol": "WIF",
+      "funding_pct_8h": 0.0064,
+      "apr_pct": 7.0,
+      "oi_usd_m": 2.07
     },
     {
       "symbol": "BTC",
-      "funding_pct_8h": -0.003,
-      "apr_pct": -3.3,
-      "oi_usd_m": 2110.04
+      "funding_pct_8h": -0.0033,
+      "apr_pct": -3.6,
+      "oi_usd_m": 2110.34
     },
     {
       "symbol": "DOGE",
-      "funding_pct_8h": 0.0012,
-      "apr_pct": 1.4,
-      "oi_usd_m": 23.6
+      "funding_pct_8h": -0.0028,
+      "apr_pct": -3.0,
+      "oi_usd_m": 23.7
+    },
+    {
+      "symbol": "ETH",
+      "funding_pct_8h": 0.0019,
+      "apr_pct": 2.0,
+      "oi_usd_m": 988.77
+    },
+    {
+      "symbol": "SOL",
+      "funding_pct_8h": 0.0004,
+      "apr_pct": 0.4,
+      "oi_usd_m": 289.86
+    },
+    {
+      "symbol": "HYPE",
+      "funding_pct_8h": -0.0004,
+      "apr_pct": -0.4,
+      "oi_usd_m": 1203.17
     },
     {
       "symbol": "TON",
